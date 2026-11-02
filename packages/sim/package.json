@@ -9,7 +9,8 @@
     "typecheck": "tsc -p .",
     "test": "vitest run",
     "build": "echo 'no build'",
-    "bots": "vite-node src/bots/cli.ts"
+    "bots": "vite-node src/bots/cli.ts",
+    "soak": "vite-node src/qa/soak.ts"
   },
   "dependencies": {
     "@arg/contracts": "workspace:*",
