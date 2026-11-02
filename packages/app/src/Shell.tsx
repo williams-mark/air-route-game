@@ -10,6 +10,10 @@ import { CommandPalette } from "./shell/CommandPalette";
 import { ShortcutsOverlay } from "./shell/ShortcutsOverlay";
 import { VIEWS } from "./shell/views";
 import { MapView } from "./views/MapView";
+import { RoutePanel, usePanelOpen } from "./routes/RoutePanel";
+import { Toasts } from "./routes/Toasts";
+import { useCreation } from "./routes/store";
+import "./routes/routes.css";
 
 const LAZY: Partial<Record<ViewId, ReturnType<typeof lazy>>> = {
   routes: lazy(() => import("./views/RoutesView")),
@@ -42,6 +46,7 @@ function useGlobalKeys() {
       else if (e.key === "+" || e.key === "=" || e.code === "NumpadAdd") { e.preventDefault(); bumpSpeed(1); }
       else if (e.key === "-" || e.key === "_" || e.code === "NumpadSubtract") { e.preventDefault(); bumpSpeed(-1); }
       else if (e.key === "?") { st.setHelp(true); }
+      else if (e.key === "n" || e.key === "N") { e.preventDefault(); useCreation.getState().begin(); }
     };
     // Stop a focused button from also being "clicked" when Space is used as the pause key.
     const up = (e: KeyboardEvent) => {
@@ -71,6 +76,7 @@ export function Shell() {
   const view = useUi((s) => s.view);
   const palette = useUi((s) => s.paletteOpen);
   const help = useUi((s) => s.helpOpen);
+  const panel = usePanelOpen();
   useGlobalKeys();
   useAutoPause();
   const Lazy = LAZY[view];
@@ -80,12 +86,14 @@ export function Shell() {
     <div className="shell">
       <TopBar />
       <Toolbar />
-      <div className={`main ${view === "map" ? "on-map" : ""}`}>
+      <div className={`main ${view === "map" ? "on-map" : ""} ${panel ? "has-panel" : ""}`}>
         <MapView />
         {page}
         <div className="overlay-left"><EventFeed /></div>
         <div className="overlay-right"><Decisions /></div>
+        <RoutePanel />
       </div>
+      <Toasts />
       {palette && <CommandPalette />}
       {help && <ShortcutsOverlay />}
     </div>

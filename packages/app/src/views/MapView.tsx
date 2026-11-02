@@ -3,7 +3,9 @@ import { airports as dataAirports } from "@arg/data";
 import { AirMap, type AirMapHandle } from "../map/AirMap";
 import { PRESET_LABEL } from "../map/presets";
 import type { CameraPresetId, MapRoute } from "../map/types";
-import { DEV_MIN_AIRPORTS, fixtureAirports, fixtureRoutes, stressRoutes } from "../dev/fixtures";
+import { DEV_MIN_AIRPORTS, fixtureAirports, stressRoutes } from "../dev/fixtures";
+import { useCreation } from "../routes/store";
+import { toMapRoutes, useRouteSummaries } from "../routes/useRoutes";
 import { useUi } from "../store";
 import { useSim } from "../sim/useSim";
 
@@ -21,12 +23,18 @@ export function MapView() {
   });
 
   const airports = dataAirports.length >= DEV_MIN_AIRPORTS ? dataAirports : fixtureAirports;
+  const summaries = useRouteSummaries();
+  const creation = useCreation();
   const routes: MapRoute[] = useMemo(() => {
     const stress = Number(new URLSearchParams(location.search).get("stress"));
     if (stress > 0) return stressRoutes(airports, stress);
     const ids = new Set(airports.map((a) => a.id));
-    return fixtureRoutes.filter((r) => ids.has(r.origin) && ids.has(r.destination));
-  }, [airports]);
+    return toMapRoutes(summaries).filter((r) => ids.has(r.origin) && ids.has(r.destination));
+  }, [airports, summaries]);
+  const ghost = useMemo(
+    () => (creation.open ? { a: airports.find((a) => a.id === creation.origin) ?? null, b: airports.find((a) => a.id === creation.destination) ?? null } : null),
+    [creation.open, creation.origin, creation.destination, airports],
+  );
 
   // Map aircraft clock: advances only while the game runs and the map is visible.
   useEffect(() => {
@@ -43,6 +51,7 @@ export function MapView() {
 
   const sel = ui.selection;
   const selRoute = sel?.kind === "route" ? routes.find((r) => r.id === sel.id) : undefined;
+  const panelOpen = creation.open || !!selRoute;
   const selAirport = sel?.kind === "airport" ? airports.find((a) => a.id === sel.id) : undefined;
   const padding = useMemo(() => ({ top: 70, left: 70, right: window.innerWidth > 900 ? 360 : 40, bottom: 210 }), []);
   const dot = (tier: keyof typeof TIER_VAR) => ({ background: `var(${TIER_VAR[tier]})` });
@@ -53,7 +62,9 @@ export function MapView() {
         ref={mapRef} airports={airports} routes={routes} simTime={simTime} theme={ui.theme}
         preset={ui.preset} presetNonce={ui.presetNonce} padding={padding}
         selectedRouteId={selRoute?.id ?? null} selectedAirportId={selAirport?.id ?? null}
-        onSelectRoute={(id) => ui.select({ kind: "route", id })} onSelectAirport={(id) => ui.select({ kind: "airport", id })}
+        ghost={ghost} showAllAirports={creation.open}
+        onSelectRoute={(id) => { if (!creation.open) ui.select({ kind: "route", id }); }}
+        onSelectAirport={(id) => { if (creation.open) creation.assign(id); else ui.select({ kind: "airport", id }); }}
       />
 
       <div className="map-tools">
@@ -62,6 +73,7 @@ export function MapView() {
             <button key={p} aria-pressed={ui.preset === p && ui.presetNonce > 0} onClick={() => ui.flyTo(p)}>{PRESET_LABEL[p]}</button>
           ))}
         </div>
+        <button className="hud-btn" onClick={() => creation.begin()} title="New route (N)" aria-keyshortcuts="N">+ New route</button>
         <div className="hud legend">
           {(["profit", "marginal", "loss", "planned"] as const).map((t) => (
             <span key={t}><i style={dot(t)} />{t === "profit" ? "Profit" : t === "marginal" ? "Marginal" : t === "loss" ? "Loss" : "Planned"}</span>
@@ -73,21 +85,8 @@ export function MapView() {
         <button aria-label="Zoom out" onClick={() => mapRef.current?.zoomBy(-0.8)}>{"−"}</button>
       </div>
 
-      <aside className="hud side" aria-label="Selection details">
-        {selRoute ? (
-          <>
-            <h2>Route</h2>
-            <div className="big">{selRoute.origin} {"→"} {selRoute.destination}</div>
-            <div><span className="dot" style={dot(selRoute.tier)} />{selRoute.tier}</div>
-            <dl>
-              <dt>Weekly frequency</dt><dd>{selRoute.weeklyFrequency}</dd>
-              <dt>Economy fare</dt><dd>${selRoute.fares.Y}</dd>
-              <dt>Aircraft</dt><dd>{selRoute.typeId}</dd>
-              {selRoute.weeklyProfitUsd != null && (<><dt>Weekly profit</dt><dd>{selRoute.weeklyProfitUsd < 0 ? "−" : ""}${Math.abs(selRoute.weeklyProfitUsd).toLocaleString()}</dd></>)}
-            </dl>
-            <button onClick={() => ui.select(null)}>Clear</button>
-          </>
-        ) : selAirport ? (
+      {!panelOpen && (<aside className="hud side" aria-label="Selection details">
+        {selAirport ? (
           <>
             <h2>Airport</h2>
             <div className="big">{selAirport.id}</div>
@@ -100,7 +99,10 @@ export function MapView() {
               <dt>Slots / hour</dt><dd>{selAirport.slotsPerHour}</dd>
               <dt>Routes served</dt><dd>{routes.filter((r) => r.origin === selAirport.id || r.destination === selAirport.id).length}</dd>
             </dl>
-            <button onClick={() => ui.select(null)}>Clear</button>
+            <div className="side-actions">
+              <button onClick={() => creation.begin(selAirport.id)}>New route from {selAirport.id}</button>
+              <button onClick={() => ui.select(null)}>Clear</button>
+            </div>
           </>
         ) : (
           <>
@@ -119,7 +121,7 @@ export function MapView() {
             </ul>
           </>
         )}
-      </aside>
+      </aside>)}
       <div className="credit">Geometry: US Census via us-atlas. Demo data, not final.</div>
     </div>
   );

@@ -3,6 +3,7 @@ import type { Layer } from "@deck.gl/core";
 import type { Airport } from "@arg/contracts";
 import type { MapColors } from "./colors";
 import { aircraftAt, type AggEdge, type MapModel, type RouteGeo } from "./model";
+import { greatCircle } from "./geo";
 import type { ProfitTier, Rgba } from "./types";
 
 export type ZoomBand = "far" | "mid" | "near";
@@ -33,6 +34,8 @@ export interface LayerInput {
   dark: boolean;
   /** Airport ids whose label survived screen-space decluttering (null = show all). */
   labelIds: Set<string> | null;
+  /** Show every airport even in the far band (route creation: all airports are clickable). */
+  allAirports?: boolean;
 }
 
 const routeWidth = (freq: number) => Math.max(1.4, Math.min(7, 1 + Math.sqrt(freq) * 0.75));
@@ -40,7 +43,7 @@ const aggWidth = (freq: number) => Math.max(3, Math.min(18, 2 + Math.sqrt(freq) 
 
 /** Layers that only change with zoom band, data, theme or selection (not with simTime). */
 export function buildStaticLayers(inp: LayerInput): Layer[] {
-  const { model, colors: c, band, selectedRoute, selectedAirport, dark, labelIds } = inp;
+  const { model, colors: c, band, selectedRoute, selectedAirport, dark, labelIds, allAirports } = inp;
   const layers: Layer[] = [];
   const alpha = dark ? 205 : 225;
   const far = band === "far";
@@ -79,7 +82,7 @@ export function buildStaticLayers(inp: LayerInput): Layer[] {
     );
   }
 
-  const shown: Airport[] = far ? model.airports.filter((a) => model.hubs.has(a.id)) : model.airports;
+  const shown: Airport[] = far && !allAirports ? model.airports.filter((a) => model.hubs.has(a.id)) : model.airports;
   const showGlyph = band === "near";
   const isHub = (a: Airport) => model.hubs.has(a.id);
 
@@ -103,10 +106,10 @@ export function buildStaticLayers(inp: LayerInput): Layer[] {
     layers.push(
       new ScatterplotLayer<Airport>({
         id: "airports", data: shown, getPosition: (a) => [a.lon, a.lat],
-        getRadius: (a) => (far ? 7 : isHub(a) ? 6 : 4.2), radiusUnits: "pixels",
+        getRadius: (a) => (far && !allAirports ? 7 : far ? (isHub(a) ? 7 : 5) : isHub(a) ? 6 : 4.2), radiusUnits: "pixels",
         getFillColor: (a) => (isHub(a) ? c.airportHub : c.airportFill), getLineColor: c.airportStroke,
         getLineWidth: 1.6, lineWidthUnits: "pixels", stroked: true, pickable: true, autoHighlight: true,
-        highlightColor: [255, 255, 255, 120], updateTriggers: { getRadius: [band], getFillColor: [c], getLineColor: [c] },
+        highlightColor: [255, 255, 255, 120], updateTriggers: { getRadius: [band, allAirports], getFillColor: [c], getLineColor: [c] },
       }),
     );
   }
@@ -157,4 +160,43 @@ export function declutterLabels(
     keep.add(a.id);
   }
   return keep;
+}
+
+/** Route-creation preview: dashed great-circle arc plus rings on the chosen ends. Ends may be missing while editing. */
+export interface Ghost { a: Airport | null; b: Airport | null }
+
+/** Split a path into dash segments (every other chunk of `on` points, gap `off`). */
+export function dashPath(path: [number, number][], on = 3, off = 2): [number, number][][] {
+  const out: [number, number][][] = [];
+  for (let i = 0; i + 1 < path.length; i += on + off) out.push(path.slice(i, Math.min(path.length, i + on + 1)));
+  return out;
+}
+
+export function buildGhostLayers(ghost: Ghost, c: MapColors): Layer[] {
+  const layers: Layer[] = [];
+  const ends = [ghost.a, ghost.b].filter((x): x is Airport => !!x);
+  if (ghost.a && ghost.b) {
+    const path = greatCircle(ghost.a.lon, ghost.a.lat, ghost.b.lon, ghost.b.lat, 48);
+    const dashes = dashPath(path);
+    layers.push(
+      new PathLayer<[number, number][]>({
+        id: "ghost-casing", data: dashes, getPath: (d) => d, getColor: c.casing, getWidth: 7, widthUnits: "pixels", capRounded: true, pickable: false,
+        updateTriggers: { getColor: [c] },
+      }),
+      new PathLayer<[number, number][]>({
+        id: "ghost-arc", data: dashes, getPath: (d) => d, getColor: withA(c.airportHub, 255), getWidth: 3.6, widthUnits: "pixels", capRounded: true, pickable: false,
+        updateTriggers: { getColor: [c] },
+      }),
+    );
+  }
+  if (ends.length) {
+    layers.push(
+      new ScatterplotLayer<Airport>({
+        id: "ghost-ends", data: ends, getPosition: (a) => [a.lon, a.lat], getRadius: 15, radiusUnits: "pixels", filled: true, stroked: true,
+        getFillColor: withA(c.airportHub, 70), getLineColor: withA(c.airportHub, 255), getLineWidth: 3, lineWidthUnits: "pixels", pickable: false,
+        updateTriggers: { getFillColor: [c], getLineColor: [c] },
+      }),
+    );
+  }
+  return layers;
 }

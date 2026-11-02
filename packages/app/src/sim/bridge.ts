@@ -1,6 +1,8 @@
 // UI <-> sim boundary. The UI only talks to a SimBridge; swap `createBridge` to plug in the real sim.
-import type { Command, Day, WorldState } from "@arg/contracts";
+import type { Command, Day, Id, Route, WorldState } from "@arg/contracts";
 import { newWorld, stepDay } from "@arg/sim";
+import { routeName, validateRouteDraft, type CommandError } from "../routes/helpers";
+import { seedRoutes } from "../routes/seed";
 
 export type Speed = 0 | 1 | 2 | 3 | 4 | 5;
 export type Severity = "info" | "good" | "warn" | "alert";
@@ -20,13 +22,19 @@ export interface SimSnapshot {
   profitSeries: number[];
   notices: Notice[]; // newest first
   decisions: Decision[]; // pending
+  /** The player's current route network. */
+  routes: Route[];
   airline: { name: string; hub: string };
 }
+
+/** Outcome of a command. Bridges that cannot report an outcome return nothing, which the UI treats as accepted. */
+export type CommandResult = { ok: true; routeId?: Id } | { ok: false; error: CommandError };
+export type { CommandError };
 
 export interface SimBridge {
   getState(): SimSnapshot;
   subscribe(listener: () => void): () => void;
-  dispatch(cmd: Command): void;
+  dispatch(cmd: Command): CommandResult | void;
   setSpeed(speed: Speed): void;
   /** Resolve a pending decision card by choosing one of its options. */
   decide(decisionId: string, optionId: string): void;
@@ -81,8 +89,11 @@ export class MockSimBridge implements SimBridge {
   private snap: SimSnapshot;
   private timer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(opts: { startPaused?: boolean } = {}) {
+  private routes: Route[];
+
+  constructor(opts: { startPaused?: boolean; routes?: Route[] } = {}) {
     this.cash = this.world.cash;
+    this.routes = opts.routes ?? [];
     if (opts.startPaused) this.speed = 0;
     this.profits = Array.from({ length: 30 }, (_, i) => fakeDailyProfit(i - 30));
     this.pushNotice(0, "info", "Welcome to Skybridge Pacific. Your fleet is waiting at LAX.");
@@ -126,9 +137,39 @@ export class MockSimBridge implements SimBridge {
   getState = (): SimSnapshot => this.snap;
   subscribe = (l: () => void): (() => void) => { this.listeners.add(l); return () => { this.listeners.delete(l); }; };
 
-  dispatch(cmd: Command): void {
-    if (cmd.kind === "setSpeed") this.setSpeed(cmd.speed);
-    // Other commands are accepted and ignored by the mock.
+  dispatch(cmd: Command): CommandResult | void {
+    switch (cmd.kind) {
+      case "setSpeed": this.setSpeed(cmd.speed); return;
+      case "openRoute": {
+        const err = validateRouteDraft(cmd.route, this.routes);
+        if (err) return { ok: false, error: err };
+        const route: Route = { ...cmd.route, id: `${cmd.route.origin}-${cmd.route.destination}` };
+        this.routes = [...this.routes, route];
+        this.pushNotice(this.world.day, "good", `Opened ${routeName(route)}, ${route.weeklyFrequency}/wk.`);
+        this.emit();
+        return { ok: true, routeId: route.id };
+      }
+      case "updateRoute": {
+        const cur = this.routes.find((r) => r.id === cmd.id);
+        if (!cur) return { ok: false, error: { code: "unknown_route", message: "That route no longer exists." } };
+        const next: Route = { ...cur, ...cmd.patch, id: cur.id };
+        const err = validateRouteDraft(next, this.routes, undefined, cur.id);
+        if (err) return { ok: false, error: err };
+        this.routes = this.routes.map((r) => (r.id === cur.id ? next : r));
+        this.pushNotice(this.world.day, "info", `Updated ${routeName(next)}: ${next.weeklyFrequency}/wk, economy $${next.fares.Y}.`);
+        this.emit();
+        return { ok: true, routeId: cur.id };
+      }
+      case "closeRoute": {
+        const cur = this.routes.find((r) => r.id === cmd.id);
+        if (!cur) return { ok: false, error: { code: "unknown_route", message: "That route no longer exists." } };
+        this.routes = this.routes.filter((r) => r.id !== cur.id);
+        this.pushNotice(this.world.day, "warn", `Closed ${routeName(cur)}.`);
+        this.emit();
+        return { ok: true, routeId: cur.id };
+      }
+      default: return; // orderAircraft: accepted and ignored by the mock
+    }
   }
 
   setSpeed(speed: Speed): void {
@@ -164,7 +205,7 @@ export class MockSimBridge implements SimBridge {
     return {
       day: this.world.day, speed: this.speed, cash: this.cash,
       profit30: series.reduce((a, b) => a + b, 0), profitSeries: series,
-      notices: this.notices, decisions: this.pending,
+      notices: this.notices, decisions: this.pending, routes: this.routes,
       airline: { name: "Skybridge Pacific", hub: "LAX" },
     };
   }
@@ -177,7 +218,7 @@ export class MockSimBridge implements SimBridge {
 /** The one place to swap the mock for the real sim bridge. */
 export function createBridge(): SimBridge & { start?: () => void } {
   const startPaused = typeof location !== "undefined" && new URLSearchParams(location.search).has("paused");
-  const b = new MockSimBridge({ startPaused });
+  const b = new MockSimBridge({ startPaused, routes: seedRoutes() });
   b.start();
   return b;
 }

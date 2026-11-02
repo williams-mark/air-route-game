@@ -5,7 +5,7 @@ import { MapboxOverlay } from "@deck.gl/mapbox";
 import type { Airport } from "@arg/contracts";
 import { readMapColors } from "./colors";
 import { applyStyleColors, buildStyle } from "./style";
-import { bandOf, buildAircraftLayer, buildStaticLayers, declutterLabels, type ZoomBand } from "./layers";
+import { bandOf, buildAircraftLayer, buildGhostLayers, buildStaticLayers, declutterLabels, type Ghost, type ZoomBand } from "./layers";
 import { buildModel, type AggEdge, type RouteGeo } from "./model";
 import { PRESET_BOUNDS } from "./presets";
 import type { CameraPresetId, MapRoute, Theme } from "./types";
@@ -28,6 +28,10 @@ export interface AirMapProps {
   selectedAirportId?: string | null;
   /** Right-side screen padding (px) so presets centre in the free area. */
   padding?: { top?: number; bottom?: number; left?: number; right?: number };
+  /** Route-creation preview arc (dashed) and end markers. */
+  ghost?: Ghost | null;
+  /** Make every airport visible and clickable at all zoom levels. */
+  showAllAirports?: boolean;
   onSelectRoute?: (id: string) => void;
   onSelectAirport?: (id: string) => void;
 }
@@ -42,7 +46,7 @@ function fitCamera(map: MLMap, preset: CameraPresetId, padding: Required<NonNull
 const tierWord = { profit: "Profitable", marginal: "Marginal", loss: "Loss-making", planned: "Planned" } as const;
 
 export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(props, ref) {
-  const { airports, routes, simTime, theme, preset, presetNonce, selectedRouteId = null, selectedAirportId = null } = props;
+  const { airports, routes, simTime, theme, preset, presetNonce, selectedRouteId = null, selectedAirportId = null, ghost = null, showAllAirports = false } = props;
   const pad = useMemo(() => ({ top: 70, bottom: 60, left: 60, right: 60, ...props.padding }), [props.padding]);
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
@@ -148,14 +152,14 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
     if (!map || !ready) return;
     const run = () => {
       const b = bandOf(map.getZoom());
-      const pool = b === "far" ? model.airports.filter((a) => model.hubs.has(a.id)) : model.airports;
+      const pool = b === "far" && !showAllAirports ? model.airports.filter((a) => model.hubs.has(a.id)) : model.airports;
       const c = map.getContainer();
       setLabelIds(declutterLabels(pool, model.hubRank, b, (lon, lat) => map.project([lon, lat]), c.clientWidth, c.clientHeight));
     };
     run();
     map.on("moveend", run);
     return () => { map.off("moveend", run); };
-  }, [ready, model]);
+  }, [ready, model, showAllAirports]);
 
   // Camera presets.
   useEffect(() => {
@@ -171,14 +175,15 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
   }, [colors, ready]);
 
   const staticLayers = useMemo(
-    () => buildStaticLayers({ model, colors, band, selectedRoute: selectedRouteId, selectedAirport: selectedAirportId, dark: theme === "dark", labelIds }),
-    [model, colors, band, selectedRouteId, selectedAirportId, theme, labelIds],
+    () => buildStaticLayers({ model, colors, band, selectedRoute: selectedRouteId, selectedAirport: selectedAirportId, dark: theme === "dark", labelIds, allAirports: showAllAirports }),
+    [model, colors, band, selectedRouteId, selectedAirportId, theme, labelIds, showAllAirports],
   );
 
   useEffect(() => {
     if (!ready) return;
-    overlayRef.current?.setProps({ layers: [...staticLayers, buildAircraftLayer(model, colors, band, simTime)] });
-  }, [ready, staticLayers, model, colors, band, simTime]);
+    const ghostLayers = ghost ? buildGhostLayers(ghost, colors) : [];
+    overlayRef.current?.setProps({ layers: [...staticLayers, ...ghostLayers, buildAircraftLayer(model, colors, band, simTime)] });
+  }, [ready, staticLayers, model, colors, band, simTime, ghost]);
 
   return (
     <>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { setSpeed, togglePause } from "../sim/useSim";
 import type { Speed } from "../sim/bridge";
 import { useUi } from "../store";
+import { useCreation } from "../routes/store";
 import { PRESET_LABEL } from "../map/presets";
 import type { CameraPresetId } from "../map/types";
 import { VIEWS } from "./views";
@@ -12,6 +13,7 @@ function useCommands(): Cmd[] {
   const ui = useUi.getState;
   return useMemo(() => {
     const list: Cmd[] = VIEWS.map((v, i) => ({ id: `view-${v.id}`, label: `Go to ${v.label}`, group: "View", hint: `Alt+${i + 1}`, run: () => ui().setView(v.id) }));
+    list.push({ id: "new-route", label: "New route", group: "Routes", hint: "N", run: () => useCreation.getState().begin() });
     list.push({ id: "pause", label: "Pause / resume", group: "Game", hint: "Space", run: togglePause });
     for (const s of [1, 2, 3, 4, 5] as Speed[]) list.push({ id: `speed-${s}`, label: `Set speed ${s}`, group: "Game", hint: String(s), run: () => setSpeed(s) });
     for (const p of ["california", "hawaii", "both"] as CameraPresetId[]) {

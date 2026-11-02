@@ -40,6 +40,59 @@ const shellShots = [
   { name: "palette", run: async (page) => { await page.getByRole("button", { name: "Map", exact: true }).click(); await page.keyboard.press("Control+k"); await page.keyboard.type("go"); } },
   { name: "shortcuts", run: async (page) => { await page.keyboard.press("Escape"); await page.keyboard.press("?"); } },
 ];
+const shot = async (page, theme, name) => {
+  await page.waitForTimeout(450);
+  await page.screenshot({ path: path.join(outDir, `ui-${theme}-1440-${name}.png`) });
+  console.log("saved ui", theme, name);
+};
+const scrollPanel = (page, y) => page.locator(".rp-scroll").evaluate((el, top) => { el.scrollTop = top === "end" ? el.scrollHeight : top; }, y);
+
+/** Route inspector and creation flow (1440x900). */
+async function routeShots(page, theme) {
+  await page.getByRole("button", { name: "Routes" }).click();
+  await page.getByRole("button", { name: /Inspect LAX.SFO/ }).click();
+  await shot(page, theme, "routes-inspector");
+  await page.getByRole("button", { name: "Map", exact: true }).click();
+  await shot(page, theme, "inspector-map");
+  await page.locator(".ledger-row").nth(5).focus();
+  await scrollPanel(page, 360);
+  await shot(page, theme, "inspector-ledger-tip");
+  await scrollPanel(page, "end");
+  await shot(page, theme, "inspector-adjust");
+  await page.getByRole("button", { name: "Close route\u2026" }).click();
+  await shot(page, theme, "inspector-confirm");
+  await page.keyboard.press("Escape"); // closes the confirmation
+  await page.getByRole("button", { name: "Close route inspector" }).click();
+  // Creation flow
+  await page.keyboard.press("n");
+  await shot(page, theme, "create-empty");
+  const from = page.getByRole("combobox", { name: "From" });
+  await from.fill("sa");
+  await shot(page, theme, "create-autocomplete");
+  await page.keyboard.press("Enter");
+  await page.getByRole("combobox", { name: "To" }).fill("lih");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(600);
+  await shot(page, theme, "create-top");
+  await scrollPanel(page, "end");
+  await shot(page, theme, "create-projection");
+  // Duplicate route -> typed error toast
+  await page.getByRole("combobox", { name: "From" }).fill("lax");
+  await page.keyboard.press("Enter");
+  await page.getByRole("combobox", { name: "To" }).fill("sfo");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(600);
+  await page.getByRole("button", { name: "Open route" }).click();
+  await shot(page, theme, "create-error-toast");
+  // Valid route -> success toast and inspector
+  await page.getByRole("combobox", { name: "To" }).fill("bur");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(600);
+  await page.getByRole("button", { name: "Open route" }).click();
+  await shot(page, theme, "create-opened");
+  await page.getByRole("button", { name: "Close route inspector" }).click();
+}
+
 try {
   for (const theme of ["dark", "light"]) {
     for (const [w, h] of [[1440, 900], [1280, 720]]) {
@@ -56,6 +109,7 @@ try {
         console.log("saved ui", theme, w, s.name);
         if (s.name === "palette" || s.name === "shortcuts") await page.keyboard.press("Escape");
       }
+      if (w === 1440) await routeShots(page, theme);
       await page.close();
     }
   }
