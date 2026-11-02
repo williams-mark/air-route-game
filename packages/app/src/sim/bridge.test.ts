@@ -62,3 +62,20 @@ describe("formatDay", () => {
     expect(formatDay(31)).toBe("Sun 1 Feb 2015");
   });
 });
+
+describe("MockSimBridge route commands", () => {
+  const draft = { origin: "LAX", destination: "SFO", weeklyFrequency: 7, fares: { Y: 120 }, typeId: "B737-800" };
+  it("opens, updates and closes routes with typed results", () => {
+    const b = new MockSimBridge({ startPaused: true });
+    const res = b.dispatch({ kind: "openRoute", route: draft });
+    expect(res).toMatchObject({ ok: true, routeId: "LAX-SFO" });
+    expect(b.getState().routes).toHaveLength(1);
+    expect(b.dispatch({ kind: "openRoute", route: draft })).toMatchObject({ ok: false, error: { code: "duplicate_route" } });
+    expect(b.dispatch({ kind: "updateRoute", id: "LAX-SFO", patch: { weeklyFrequency: 14 } })).toMatchObject({ ok: true });
+    expect(b.getState().routes[0]!.weeklyFrequency).toBe(14);
+    expect(b.dispatch({ kind: "updateRoute", id: "LAX-SFO", patch: { weeklyFrequency: 0 } })).toMatchObject({ ok: false, error: { code: "bad_frequency" } });
+    expect(b.dispatch({ kind: "closeRoute", id: "LAX-SFO" })).toMatchObject({ ok: true });
+    expect(b.getState().routes).toHaveLength(0);
+    expect(b.dispatch({ kind: "closeRoute", id: "LAX-SFO" })).toMatchObject({ ok: false, error: { code: "unknown_route" } });
+  });
+});
