@@ -4,6 +4,7 @@ import { defaultLayout } from "./fleet/layout";
 import { distanceKm } from "./geo";
 import { makeRng, mixSeed } from "./rng";
 import { newSim, type StartOptions } from "./index";
+import { createRivals } from "./rivals";
 import type { SimState } from "./state";
 
 /** Placeholder airline for the 2015 campaign. */
@@ -71,5 +72,6 @@ export function startingScenario(airports: Airport[], aircraftTypes: AircraftTyp
     };
   });
   const opts: StartOptions = { cash: STARTING_CASH_USD, fleet, routes, airlineName: STARTING_AIRLINE, baseAirport: "LAX" };
-  return newSim(seed, airports, aircraftTypes, { notionalFleet: false }, opts);
+  const sim = newSim(seed, airports, aircraftTypes, { notionalFleet: false }, opts);
+  return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, sim.world.routes) };
 }

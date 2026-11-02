@@ -3,6 +3,7 @@ import type {
 } from "@arg/contracts";
 import type { RouteEvaluation } from "./finance/ledger";
 import type { Offer } from "./offers/types";
+import type { BankruptcyRecord, RivalsState } from "./rivals/types";
 
 // ---------------------------------------------------------------------------
 // SimState: WorldState (from contracts) plus sim-internal state
@@ -133,6 +134,10 @@ export interface SimState {
   offers: Offer[];
   /** Last day each `kind:typeId` was offered, for cooldowns. */
   offerLog: Record<string, Day>;
+  /** Modelled AI airlines; null = none (synthetic rivals only). See RIVALS.md. */
+  rivals: RivalsState | null;
+  /** Airlines that failed, with the fleet they released (for the offers lane). Oldest first. */
+  bankruptcies: BankruptcyRecord[];
   /** Monotonic counters for ids: route, aircraft, order. */
   counters: { route: number; aircraft: number; order: number };
 }

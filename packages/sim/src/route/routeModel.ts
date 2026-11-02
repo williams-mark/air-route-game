@@ -165,6 +165,8 @@ export interface RouteWeekOptions {
   operatedFraction?: number;
   /** Charge ownership via the ledger. Default: true when no fleet aircraft are supplied. */
   chargeOwnership?: boolean;
+  /** Modelled rival itineraries for this pair (rivals lane). When non-empty they replace the synthetic direct rivals; the synthetic one-stop stays. */
+  rivalItineraries?: Itinerary[];
 }
 
 /**
@@ -209,7 +211,10 @@ export function simulateRouteWeek(
     marketDistanceKm: dist,
   };
 
-  const rivals = buildRivals(a, b, dist, market, cfg);
+  const synthetic = buildRivals(a, b, dist, market, cfg);
+  const rivals = opts.rivalItineraries && opts.rivalItineraries.length > 0
+    ? [...opts.rivalItineraries, ...synthetic.filter((i) => i.id.startsWith("conn:"))]
+    : synthetic;
 
   const choice = runChoice({
     demand,

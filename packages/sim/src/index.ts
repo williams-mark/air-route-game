@@ -8,6 +8,7 @@ import { checkCostUsd, checkEndDay, dueCheck, initialMeta, MAINTENANCE_PARAMS, r
 import { assign } from "./fleet/scheduler";
 import { pushEvents } from "./commands";
 import { stepOffers } from "./offers";
+import { rivalItinerariesFor, stepRivals } from "./rivals";
 import { DEFAULT_SIM_PARAMS, type AircraftMeta, type CheckKind, type RouteReport, type SimParams, type SimState } from "./state";
 
 export { makeRng };
@@ -34,6 +35,7 @@ export * from "./fleet/layout";
 export * from "./fleet/maintenance";
 export * from "./fleet/scheduler";
 export { mixSeed } from "./rng";
+export * from "./rivals";
 
 export function newWorld(seed: number): WorldState {
   return { seed, day: 0, playerId: "player", cash: 100_000_000, routes: [], fleet: [] };
@@ -79,6 +81,8 @@ export function newSim(
     orders: [],
     offers: [],
     offerLog: {},
+    rivals: null,
+    bankruptcies: [],
     counters: { route: world.routes.length, aircraft: world.fleet.length, order: 0 },
   };
 }
@@ -199,6 +203,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
       operatedFraction: fraction,
       demandScale: noise,
       chargeOwnership: notional,
+      rivalItineraries: rivalItinerariesFor(state.rivals, airports.get(route.origin)!, airports.get(route.destination)!, types),
     });
     if (!week) continue;
     revenue += week.evaluation.revenue / 7;
@@ -264,7 +269,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     events,
     fleetMeta: meta,
   };
-  return stepOffers(pushEvents(next, [...events, ...notices]));
+  return stepOffers(stepRivals(pushEvents(next, [...events, ...notices]), day));
 }
 
 /** Total scheduled round trips with the fleet as given (used to test whether pulling an aircraft loses flights). */
