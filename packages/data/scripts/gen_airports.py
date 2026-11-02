@@ -53,9 +53,29 @@ T = {
  "LUP": ("Kalaupapa","HI","Kalaupapa",90,30000,0.20,4),
  "JRF": ("Kapolei","HI","Kalaeloa (John Rodgers Field)",992_000,61000,0.20,6),
  "MUE": ("Waimea","HI","Waimea-Kohala",10_000,40000,0.30,4),
+ # Oregon
+ "PDX": ("Portland","OR","Portland Intl",2_390_000,54000,0.45,60),
+ "EUG": ("Eugene","OR","Eugene (Mahlon Sweet Field)",360_000,46000,0.40,20),
+ "MFR": ("Medford","OR","Rogue Valley Intl-Medford",300_000,42000,0.40,15),
+ "RDM": ("Redmond","OR","Roberts Field (Redmond/Bend)",200_000,50000,0.60,12),
+ "SLE": ("Salem","OR","Salem-Willamette Valley (McNary Field)",410_000,42000,0.15,10),
+ "OTH": ("North Bend","OR","Southwest Oregon Regional",63_000,38000,0.40,6),
+ "LMT": ("Klamath Falls","OR","Crater Lake-Klamath Regional",66_000,37000,0.25,5),
+ "PDT": ("Pendleton","OR","Eastern Oregon Regional",76_000,40000,0.15,4),
+ # Washington
+ "SEA": ("Seattle","WA","Seattle-Tacoma Intl",3_733_000,85000,0.55,75),
+ "BFI": ("Seattle","WA","Boeing Field (King County Intl)",2_120_000,85000,0.30,15),
+ "PAE": ("Everett","WA","Paine Field (Snohomish County)",780_000,70000,0.30,20),
+ "GEG": ("Spokane","WA","Spokane Intl",680_000,45000,0.25,30),
+ "BLI": ("Bellingham","WA","Bellingham Intl",216_000,45000,0.40,15),
+ "PSC": ("Pasco","WA","Tri-Cities",280_000,50000,0.15,12),
+ "YKM": ("Yakima","WA","Yakima Air Terminal (McAllister Field)",250_000,38000,0.15,8),
+ "EAT": ("Wenatchee","WA","Pangborn Memorial",115_000,48000,0.35,6),
+ "ALW": ("Walla Walla","WA","Walla Walla Regional",65_000,45000,0.30,5),
+ "PUW": ("Pullman","WA","Pullman-Moscow Regional",86_000,40000,0.10,5),
 }
 
-ap = {r["iata_code"]: r for r in csv.DictReader(open(sys.argv[1], encoding="utf-8")) if r["iata_code"] in T and r["iso_region"] in ("US-CA","US-HI")}
+ap = {r["iata_code"]: r for r in csv.DictReader(open(sys.argv[1], encoding="utf-8")) if r["iata_code"] in T and r["iso_region"] in ("US-CA","US-HI","US-OR","US-WA")}
 longest = {}
 for r in csv.DictReader(open(sys.argv[2], encoding="utf-8")):
     if r["closed"] == "1" or not r["length_ft"]: continue

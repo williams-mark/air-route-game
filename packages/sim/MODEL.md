@@ -65,6 +65,7 @@ Metro population is the sum of the `metroPopulation` of non-overlapping anchor M
 
 so the sum over airport pairs of two metros equals the metro-to-metro volume. Income and tourism use each airport's own values. Long routes concentrate on the
 dominant airport: weights are share^phi renormalised within the metro, phi = 1 + 1.2 min(1, (d/2500)^2), so LAX carries about 95% of LA-Hawaii but about 74% of LA-SF.
+Seattle (SEA 0.88, PAE 0.08, BFI 0.04; population = SEA's MSA 3.73M) was added with the Oregon/Washington lane; these shares are tuning weights. Portland (PDX) is single-airport. Land pairs for ground damping and the drive outside option are any two of CA/OR/WA (`hasSurfaceAlternative`).
 Single-airport metros (SAN, SMF, HNL ...) have share 1. LAX-SFO alone is 22.6k (real about 18-21k).
 
 ### Segments (`segmentShares`)

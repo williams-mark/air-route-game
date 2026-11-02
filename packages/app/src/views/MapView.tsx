@@ -71,7 +71,7 @@ export function MapView() {
 
       <div className="map-tools">
         <div className="hud seg" role="group" aria-label="Camera presets">
-          {(["california", "hawaii", "both"] as CameraPresetId[]).map((p) => (
+          {(["california", "northwest", "hawaii", "both"] as CameraPresetId[]).map((p) => (
             <button key={p} aria-pressed={ui.preset === p && ui.presetNonce > 0} onClick={() => ui.flyTo(p)}>{PRESET_LABEL[p]}</button>
           ))}
         </div>

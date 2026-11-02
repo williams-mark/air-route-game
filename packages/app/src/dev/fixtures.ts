@@ -6,7 +6,7 @@ import type { MapRoute, ProfitTier } from "../map/types";
 
 export const DEV_MIN_AIRPORTS = 12;
 
-const a = (id: string, name: string, city: string, lat: number, lon: number, region: "CA" | "HI", pop: number, slots: number): Airport => ({
+const a = (id: string, name: string, city: string, lat: number, lon: number, region: Airport["region"], pop: number, slots: number): Airport => ({
   id, name, city, lat, lon, region, runwayM: 3000, metroPopulation: pop, gdpPerCapita: 70000, tourismIndex: 0.5, slotsPerHour: slots,
 });
 

@@ -1,7 +1,7 @@
 import type { Aircraft, AircraftType, Airport, Day, Id, Route, SimEvent } from "@arg/contracts";
 import { canFlyRoute } from "@arg/data";
 import { benchmarkFare, runChoice, type Itinerary } from "../demand/choice";
-import { baseWeeklyDemand, marketOnDay, segmentMap } from "../demand/market";
+import { baseWeeklyDemand, hasSurfaceAlternative, marketOnDay, segmentMap } from "../demand/market";
 import { aircraftEquivalentFor, evaluateRoute, isRangeFeasible, monthlyOwnershipUsd, type CabinInput } from "../finance/ledger";
 import { defaultLayout } from "../fleet/layout";
 import { distanceKm, simRunwayM } from "../geo";
@@ -143,7 +143,7 @@ export function evaluateMarket(ctx: RivalCtx, a: Airport, b: Airport, entries: E
   }
   const choice = runChoice({
     demand, itineraries: its,
-    outside: { distanceKm: dist, driveAvailable: a.region === "CA" && b.region === "CA" },
+    outside: { distanceKm: dist, driveAvailable: hasSurfaceAlternative(a, b) },
     params: ROUTE_CHOICE_PARAMS,
   });
   const out = new Map<RivalRoute, RouteResult>();
@@ -568,7 +568,7 @@ export function stepRivalsWeek(
     if (active < RP.maxActive && ctx.rng() < RP.randomEntrantChancePerYear) {
       const name = ENTRANT_NAME_POOL.find((n) => !rivals.airlines.some((a) => a.name === n));
       if (name) {
-        const hubs = [...ctx.airports.values()].filter((a) => a.region === "CA" && a.metroPopulation > 900_000).sort((x, y) => cmp(x.id, y.id));
+        const hubs = [...ctx.airports.values()].filter((a) => a.region !== "HI" && a.metroPopulation > 900_000 && (a.region === "CA" || a.slotsPerHour >= 30)).sort((x, y) => cmp(x.id, y.id));
         const pick = hubs[Math.floor(ctx.rng() * hubs.length)]!;
         const pick2 = hubs[Math.floor(ctx.rng() * hubs.length)]!;
         launchAirline(ctx, rivals, sink, {

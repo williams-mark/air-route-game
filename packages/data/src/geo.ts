@@ -46,11 +46,19 @@ export function runwayRequiredM(type: AircraftType, km: number): number {
   return type.runwayNeededM * Math.min(RUNWAY_SECTOR_FRACTION, ramp);
 }
 
-/** True if the route crosses open water: CA<->HI, or HI<->HI on different islands. */
+/** Regions on the North American mainland, joined by roads: CA, OR and WA. Hawaii is separated from all of them by open water. */
+const MAINLAND_REGIONS: ReadonlySet<Airport["region"]> = new Set(["CA", "OR", "WA"]);
+
+/** True when both airports are on the contiguous mainland (a road trip is possible and no water is crossed). */
+export function isLandPair(a: Airport, b: Airport): boolean {
+  return MAINLAND_REGIONS.has(a.region) && MAINLAND_REGIONS.has(b.region);
+}
+
+/** True if the route crosses open water: mainland (CA, OR, WA) <-> HI, or HI<->HI on different islands. */
 export function isOverwaterRoute(a: Airport, b: Airport): boolean {
-  if (a.region !== b.region) return true;
-  if (a.region === "HI") return (HI_ISLAND[a.id] ?? a.id) !== (HI_ISLAND[b.id] ?? b.id);
-  return false;
+  if (isLandPair(a, b)) return false;
+  if (a.region === "HI" && b.region === "HI") return (HI_ISLAND[a.id] ?? a.id) !== (HI_ISLAND[b.id] ?? b.id);
+  return true;
 }
 
 /**

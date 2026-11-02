@@ -77,7 +77,7 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
     const map = new maplibregl.Map({
       container: el.current!, style: buildStyle(c), attributionControl: false, minZoom: 2.8, maxZoom: 13,
       renderWorldCopies: false, dragRotate: false, pitchWithRotate: false, touchPitch: false, keyboard: false,
-      doubleClickZoom: true, bearing: 0, pitch: 0, center: [-138, 31], zoom: 3.6, fadeDuration: 0,
+      doubleClickZoom: true, bearing: 0, pitch: 0, center: [-138, 36], zoom: 3.4, fadeDuration: 0,
     });
     map.touchZoomRotate.disableRotation();
     map.scrollZoom.setWheelZoomRate(1 / 300); // gentler, smooth for trackpads

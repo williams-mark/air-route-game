@@ -33,7 +33,7 @@ const browser = await chromium.launch({
   args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--enable-webgl"],
 });
 const views = [
-  { name: "1-far-both", center: null, preset: "Both" },
+  { name: "1-far-both", center: null, preset: "All" },
   { name: "2-mid-california", preset: "California" },
   { name: "3-near-la", jump: { center: [-118.15, 33.95], zoom: 9.4 } },
   { name: "4-mid-hawaii", preset: "Hawaii" },
