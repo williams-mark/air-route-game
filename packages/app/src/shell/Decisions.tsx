@@ -1,10 +1,10 @@
-import { bridge, useSim } from "../sim/useSim";
+import { bridge, useSimSelector } from "../sim/useSim";
 import { useUi } from "../store";
 import { DecisionCard } from "./DecisionCard";
 
 /** Shows the first non-snoozed pending decision in a corner; never covers the whole map. */
 export function Decisions() {
-  const { decisions } = useSim();
+  const decisions = useSimSelector((s) => s.decisions);
   const snoozed = useUi((s) => s.snoozed);
   const snooze = useUi((s) => s.snooze);
   const visible = decisions.filter((d) => !snoozed.includes(d.id));

@@ -7,14 +7,14 @@ import { DEV_MIN_AIRPORTS, fixtureAirports, stressRoutes } from "../dev/fixtures
 import { useCreation } from "../routes/store";
 import { toMapRoutes, useRouteSummaries } from "../routes/useRoutes";
 import { useUi } from "../store";
-import { useSim } from "../sim/useSim";
+import { useSimSelector } from "../sim/useSim";
 
 const SIM_MIN_PER_SEC = 20;
 const TIER_VAR = { profit: "--route-profit", marginal: "--route-marginal", loss: "--route-loss", planned: "--route-planned" } as const;
 
 export function MapView() {
   const ui = useUi();
-  const { speed } = useSim();
+  const speed = useSimSelector((s) => s.speed);
   const active = ui.view === "map";
   const mapRef = useRef<AirMapHandle>(null);
   const [simTime, setSimTime] = useState(() => {

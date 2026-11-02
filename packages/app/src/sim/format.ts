@@ -14,3 +14,15 @@ export function formatMoney(v: number, opts: { sign?: boolean } = {}): string {
   const sign = v < 0 ? "−" : opts.sign && v > 0 ? "+" : "";
   return `${sign}$${s}`;
 }
+
+/** "Mar 2016" */
+export function formatMonthYear(day: number): string {
+  const d = new Date(EPOCH_UTC + Math.floor(day) * 86_400_000);
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+/** "12 Mar 2016" */
+export function formatDate(day: number): string {
+  const d = new Date(EPOCH_UTC + Math.floor(day) * 86_400_000);
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}

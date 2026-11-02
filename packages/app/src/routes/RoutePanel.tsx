@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { useUi } from "../store";
-import { useSim } from "../sim/useSim";
+import { useSimSelector } from "../sim/useSim";
 import { RouteCreator } from "./RouteCreator";
 import { RouteInspector } from "./RouteInspector";
 import { useCreation } from "./store";
@@ -8,7 +8,7 @@ import { useCreation } from "./store";
 /** The route (if any) shown in the inspector. */
 export function useInspectedRoute() {
   const sel = useUi((s) => s.selection);
-  const { routes } = useSim();
+  const routes = useSimSelector((s) => s.routes);
   return sel?.kind === "route" ? routes.find((r) => r.id === sel.id) : undefined;
 }
 export function usePanelOpen(): boolean {

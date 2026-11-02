@@ -245,7 +245,7 @@ export class RealSimBridge implements SimBridge {
       profit30: profitSeries.reduce((a, b) => a + b, 0),
       profitSeries,
       notices: this.notices,
-      decisions: this.pending.map(({ commands: _c, expiresDay: _e, key: _k, ...d }): Decision => d),
+      decisions: this.decisionsView(),
       routes: sim.world.routes,
       airline: { name: sim.airlineName, hub: sim.baseAirport ?? "" },
       fleet: buildFleet(sim),
@@ -253,6 +253,17 @@ export class RealSimBridge implements SimBridge {
       reports: sim.routeReports,
       ledger: this.ledger.slice(),
     };
+  }
+
+  private viewOf: PendingDecision[] | null = null;
+  private view: Decision[] = [];
+  /** Public card list; keeps the same array while the pending set is unchanged so subscribers can skip renders. */
+  private decisionsView(): Decision[] {
+    if (this.viewOf !== this.pending) {
+      this.viewOf = this.pending;
+      this.view = this.pending.map(({ commands: _c, expiresDay: _e, key: _k, ...d }): Decision => d);
+    }
+    return this.view;
   }
 
   private emit(): void {
