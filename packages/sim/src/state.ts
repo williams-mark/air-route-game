@@ -72,7 +72,7 @@ export interface AircraftMeta {
   /** Per-aircraft check intervals (days for B/C/D, flight hours for A). */
   intervals: Record<CheckKind, number>;
   /** Set while the aircraft is in a heavy check. */
-  maintenance: { check: CheckKind; startDay: Day; endDay: Day; cost: number } | null;
+  maintenance: { check: CheckKind; startDay: Day; endDay: Day; cost: number; refit?: boolean } | null;
   /** Day a status 'delivery' aircraft joins the fleet. */
   deliveryDay: Day | null;
   /** Order that produced it (if any). */

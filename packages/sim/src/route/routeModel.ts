@@ -10,10 +10,12 @@ import {
 } from "../demand/choice";
 import { marketOnDay, SEGMENTS, segmentMap, type DayMarket, type MarketParams, DEFAULT_MARKET_PARAMS } from "../demand/market";
 import { distanceKm } from "../geo";
+import { cabinFillRatios, layoutEffects } from "../cabin/effects";
 import {
   aircraftEquivalentFor,
   blockHours,
   evaluateRoute,
+  LEDGER_PARAMS,
   type CabinInput,
   type RouteEvaluation,
 } from "../finance/ledger";
@@ -185,7 +187,10 @@ export function simulateRouteWeek(
   if (!a || !b || !type || a.id === b.id) return null;
 
   const fleet = opts.fleetAircraft ?? [];
-  const cabins = cabinsFor(route, type, fleet[0]);
+  let cabins = cabinsFor(route, type, fleet[0]);
+  // Cabin lane: layout quality feeds the choice model's quality term (0.5 for the default layout).
+  const layout = fleet[0]?.layout;
+  const fx = layout && layout.sections.length > 0 ? layoutEffects(type, layout) : null;
   const seatsPerFlight = cabins.reduce((s, c) => s + c.seats, 0);
   const dist = distanceKm(a, b);
   const fraction = Math.max(0, Math.min(1, opts.operatedFraction ?? 1));
@@ -205,7 +210,7 @@ export function simulateRouteWeek(
     carrier: "player",
     legs: [makeLeg(`player:${route.id}`, a.id, b.id, dist, type.cruiseKmh, flownFreq, seatsPerFlight)],
     fare: route.fares.Y,
-    quality: 0.5,
+    quality: fx ? fx.qualityIndex : 0.5,
     marketDistanceKm: dist,
   };
 
@@ -218,8 +223,15 @@ export function simulateRouteWeek(
     params: cfg.choice,
   });
   const mine = choice.itineraries[0]!;
+  // Cabin lane: premium cabins fill by the market's business/premium demand; crew and catering follow the cabin mix.
+  if (fx && layout && flownFreq > 0) {
+    const paxPerFlight = mine.passengers / (flownFreq * 1);
+    const ratios = cabinFillRatios(type, layout, paxPerFlight, { shares: market.shares, routeKm: dist });
+    cabins = cabins.map((c) => ({ ...c, fillWeight: LEDGER_PARAMS.cabinFillWeight[c.cls] * ratios[c.cls] }));
+  }
   const evaluation = evaluateRoute({
     origin: a, destination: b, aircraft: type, day, weeklyFrequency: route.weeklyFrequency, cabins,
+    cabinCost: fx ? { paxServices: fx.serviceCostMultiplier, crewSeats: fx.crewSeatEquivalent } : undefined,
     weeklyPassengers: 2 * mine.passengers,
     operatedFraction: fraction,
     ownership: (opts.chargeOwnership ?? fleet.length === 0) ? "fractional" : "excluded",

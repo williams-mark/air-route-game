@@ -8,6 +8,7 @@ import { makeRng, mixSeed } from "./rng";
 import type { AircraftOrder, SimState } from "./state";
 import { dayToDate, START_YEAR, isLeapYear } from "./time/calendar";
 import { applyOfferCommand, type OfferCommand, type OfferResult } from "./offers";
+import { applyRefit, type CabinCommand, type RefitResult } from "./cabin/refit";
 
 // ---------------------------------------------------------------------------
 // Parameters (documented in MODEL.md section 6)
@@ -53,7 +54,9 @@ export type CommandErrorCode =
   | "type_unavailable"
   | "insufficient_cash"
   | "unknown_offer"
-  | "offer_expired";
+  | "offer_expired"
+  | "unknown_aircraft"
+  | "aircraft_unavailable";
 
 export interface CommandError {
   ok: false;
@@ -78,9 +81,9 @@ export interface CommandResultMap {
   };
 }
 
-export type AnyCommand = Command | OfferCommand;
+export type AnyCommand = Command | OfferCommand | CabinCommand;
 type OfferOk = Exclude<OfferResult, CommandError>;
-type FullResultMap = CommandResultMap & { acceptOffer: Extract<OfferOk, { kind: "acceptOffer" }>; dismissOffer: Extract<OfferOk, { kind: "dismissOffer" }> };
+type FullResultMap = CommandResultMap & { acceptOffer: Extract<OfferOk, { kind: "acceptOffer" }>; dismissOffer: Extract<OfferOk, { kind: "dismissOffer" }>; refitAircraft: Extract<RefitResult, { ok: true }> };
 export type CommandResult<K extends AnyCommand["kind"] = AnyCommand["kind"]> = FullResultMap[K] | CommandError;
 export type ResultOf<C extends AnyCommand> = CommandResult<C["kind"]>;
 
@@ -290,6 +293,8 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
     case "acceptOffer":
     case "dismissOffer":
       return applyOfferCommand(state, cmd);
+    case "refitAircraft":
+      return applyRefit(state, cmd);
     case "setSpeed": {
       if (![0, 1, 2, 3, 4, 5].includes(cmd.speed)) return { state, result: fail("invalid_speed", "Speed must be 0 to 5.") };
       return { state: { ...state, speed: cmd.speed }, result: { ok: true, kind: "setSpeed", speed: cmd.speed } };

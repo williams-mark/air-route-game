@@ -35,6 +35,8 @@ export interface CabinInput {
   seats: number;
   /** One-way fare in USD. */
   fare: number;
+  /** Cabin-lane hook: overrides the static fill weight for this cabin (see cabin/effects.ts). */
+  fillWeight?: number;
 }
 
 export interface RouteInputs {
@@ -54,6 +56,8 @@ export interface RouteInputs {
   ownership?: "fractional" | "excluded";
   /** Multiplier on frequency actually flown (0..1), e.g. when the fleet is too small. */
   operatedFraction?: number;
+  /** Cabin-lane hook, omitted = no change: multiplier on passenger-services cost and seat count used for crew sizing. */
+  cabinCost?: { paxServices?: number; crewSeats?: number };
 }
 
 export interface LedgerLine {
@@ -109,11 +113,11 @@ export function allocateCabins(cabins: CabinInput[], pax: number): number[] {
   let left = Math.min(pax, cabins.reduce((s, c) => s + c.seats, 0));
   const active = new Set(cabins.map((_, i) => i).filter((i) => cabins[i]!.seats > 0));
   for (let guard = 0; guard < 8 && left > 1e-9 && active.size > 0; guard++) {
-    const wsum = [...active].reduce((s, i) => s + cabins[i]!.seats * P.cabinFillWeight[cabins[i]!.cls], 0);
+    const wsum = [...active].reduce((s, i) => s + cabins[i]!.seats * (cabins[i]!.fillWeight ?? P.cabinFillWeight[cabins[i]!.cls]), 0);
     let given = 0;
     for (const i of [...active]) {
       const c = cabins[i]!;
-      const want = (left * c.seats * P.cabinFillWeight[c.cls]) / wsum;
+      const want = (left * c.seats * (c.fillWeight ?? P.cabinFillWeight[c.cls])) / wsum;
       const room = c.seats - out[i]!;
       const g = Math.min(want, room);
       out[i]! += g;
@@ -181,7 +185,7 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
     `${r2(flights)} flights x ${Math.round(fuelPerFlightKg)} kg (burn ${aircraft.fuelBurnKgPerKm} kg/km x ${Math.round(dist * P.routeExtension)} km x load adj ${r2(loadFactorBurn)} + taxi) x ${usd(fuelKg * 1000) } per tonne @ $${r2(fuelGal)}/gal`);
 
   const pilots = bh > 12 ? 4 : bh > 8 ? 3 : 2;
-  const fas = Math.max(2, Math.ceil(seatsPerFlight / P.seatsPerFlightAttendant));
+  const fas = Math.max(2, Math.ceil((inp.cabinCost?.crewSeats ?? seatsPerFlight) / P.seatsPerFlightAttendant));
   const crewPerFlight = (pilots * P.pilotUsdPerHour + fas * P.faUsdPerHour) * bh;
   add("cost", "crew", "Flight and cabin crew", flights * crewPerFlight,
     `${r2(flights)} flights x ${r2(bh)} block h x (${pilots} pilots x ${usd(P.pilotUsdPerHour)} + ${fas} FAs x ${usd(P.faUsdPerHour)})`);
@@ -193,8 +197,8 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
   add("cost", "handling", "Ground handling", flights * P.groundHandlingUsd[kind],
     `${r2(flights)} turnarounds x ${usd(P.groundHandlingUsd[kind])} (${kind}body)`);
 
-  add("cost", "paxServices", "Passenger services", pax * P.passengerServicesUsdPerPax,
-    `${r2(pax)} pax x ${usd(P.passengerServicesUsdPerPax)} (catering, check-in, claims)`);
+  add("cost", "paxServices", "Passenger services", pax * P.passengerServicesUsdPerPax * (inp.cabinCost?.paxServices ?? 1),
+    `${r2(pax)} pax x ${usd(P.passengerServicesUsdPerPax)}${inp.cabinCost?.paxServices && inp.cabinCost.paxServices !== 1 ? ` x ${r2(inp.cabinCost.paxServices)} cabin mix` : ""} (catering, check-in, claims)`);
 
   const maintPerHour = P.maintenanceUsdPerSeatHour[kind] * seatsPerFlight;
   add("cost", "maintenance", "Maintenance", flights * bh * maintPerHour,

@@ -30,6 +30,7 @@ export * from "./state";
 export * from "./commands";
 export * from "./scenario";
 export * from "./offers";
+export * from "./cabin";
 export * from "./fleet/layout";
 export * from "./fleet/maintenance";
 export * from "./fleet/scheduler";
@@ -135,7 +136,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   for (const ac of byId) {
     const m = meta[ac.id]!;
     if (ac.status === "maintenance" && m.maintenance && m.maintenance.endDay <= day) {
-      say(`${ac.tailNumber} (${ac.typeId}) is back in service after its ${m.maintenance.check} check.`);
+      say(m.maintenance.refit ? `${ac.tailNumber} (${ac.typeId}) is back in service with its new cabin.` : `${ac.tailNumber} (${ac.typeId}) is back in service after its ${m.maintenance.check} check.`);
       m.maintenance = null;
       ac.status = "active";
     }
