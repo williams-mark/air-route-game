@@ -48,7 +48,7 @@ describe("openRoute", () => {
     [spec("LAX", "SFO", "B737-800"), "duplicate_route"],
     [spec("SFO", "LAX", "B737-800"), "duplicate_route"],
     [spec("SFO", "HNL", "E175"), "out_of_range"],
-    [spec("SFO", "OGG", "B737-800"), "runway_too_short"],
+    [spec("LAX", "LUP", "B737-800"), "runway_too_short"],
   ])("rejects %j with %s", (route, code) => {
     const { state, result } = applyCommand(sc(), { kind: "openRoute", route });
     expect(result.ok).toBe(false);

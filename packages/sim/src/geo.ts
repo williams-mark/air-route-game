@@ -17,10 +17,7 @@ export function distanceKm(a: Airport, b: Airport): number {
   return haversineKm(a.lat, a.lon, b.lat, b.lon);
 }
 
-/**
- * Runway the sim requires for a sector. Narrowbodies keep the full runwayNeededM (calibrated behaviour); widebodies use the
- * data package's stage-length rule so A330/787 class aircraft can serve OGG from the mainland.
- */
+/** Runway the sim requires for a sector: the data package's rule, so sim and route picker always agree. */
 export function simRunwayM(type: AircraftType, km: number): number {
-  return type.widebody ? runwayRequiredM(type, km) : type.runwayNeededM;
+  return runwayRequiredM(type, km);
 }

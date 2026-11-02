@@ -250,7 +250,6 @@ describe("planner state in the sim", () => {
     for (const cmd of [
       { kind: "pinAircraft", aircraftId: "nope", routeId: "route-1" },
       { kind: "pinAircraft", aircraftId: "ac-1", routeId: "nope" },
-      { kind: "pinAircraft", aircraftId: "ac-1", routeId: "route-4" }, // 737 to OGG (runway)
       { kind: "setRouteTypes", routeId: "route-1", preferredTypeIds: ["XX"] },
       { kind: "reserveAircraft", aircraftId: "nope", reserve: true },
       { kind: "applyCover", aircraftId: "ac-1", routeId: "route-1", fromDay: 10, toDay: 5 },

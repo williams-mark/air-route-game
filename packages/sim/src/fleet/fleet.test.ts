@@ -44,9 +44,11 @@ describe("scheduler", () => {
     expect(sched([route("r1", "LAX", "HNL", 14, "B777-200ER")], []).routes["r1"]!.underSupplied).toBe(14);
   });
 
-  it("respects aircraft range and runway: a regional jet cannot take LAX-HNL, a 737-800 cannot serve OGG", () => {
+  it("respects aircraft range and runway: a regional jet cannot take LAX-HNL, a 737-800 cannot serve Kalaupapa", () => {
     expect(sched([route("r1", "LAX", "HNL", 7, "E175")], fleetOf("E175", 4)).routes["r1"]!.scheduledFrequency).toBe(0);
-    expect(sched([route("r1", "LAX", "OGG", 7, "B737-800")], fleetOf("B737-800", 4)).routes["r1"]!.scheduledFrequency).toBe(0);
+    expect(sched([route("r1", "HNL", "LUP", 7, "B737-800")], fleetOf("B737-800", 4)).routes["r1"]!.scheduledFrequency).toBe(0);
+    // ...but it can serve Maui from the mainland (737-800s fly there daily)
+    expect(sched([route("r2", "LAX", "OGG", 7, "B737-800")], fleetOf("B737-800", 4)).routes["r2"]!.scheduledFrequency).toBeGreaterThan(0);
   });
 
   it("substitutes another feasible type of the same size class when the requested type is not available", () => {
