@@ -1,15 +1,20 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { aircraftTypes } from "@arg/data";
+import { refitQuote } from "@arg/sim";
+import { CabinDialog } from "../cabin/CabinDialog";
+import { usd } from "../cabin/helpers";
+import { useToasts } from "../routes/store";
 import type { FleetItem } from "../sim/bridge";
 import { formatDate } from "../sim/format";
-import { useSimSelector } from "../sim/useSim";
+import { bridge, useSim, useSimSelector } from "../sim/useSim";
 
 const ORDER = { maintenance: 0, active: 1, delivery: 2, stored: 3 } as const;
 const LABEL = { active: "Active", maintenance: "In check", delivery: "On order", stored: "Stored" } as const;
 const CHECK_NAME = { A: "A check", B: "B check", C: "C check", D: "D check" } as const;
 
-function Card({ a }: { a: FleetItem }) {
+function Card({ a, onRefit }: { a: FleetItem; onRefit: (a: FleetItem) => void }) {
   const idle = a.status === "active" && a.routes.length === 0;
-  const status = a.status === "maintenance" && a.check ? `${CHECK_NAME[a.check.kind]}, ${a.check.daysRemaining} ${a.check.daysRemaining === 1 ? "day" : "days"} left` : LABEL[a.status];
+  const status = a.status === "maintenance" && a.check ? `${a.refit ? "Cabin refit" : CHECK_NAME[a.check.kind]}, ${a.check.daysRemaining} ${a.check.daysRemaining === 1 ? "day" : "days"} left` : LABEL[a.status];
   return (
     <li className="card">
       <div className="card-top"><strong>{a.tail}</strong><span className={`status st-${a.status}`}>{idle ? "Idle" : LABEL[a.status]}</span></div>
@@ -29,12 +34,19 @@ function Card({ a }: { a: FleetItem }) {
           </>
         )}
       </dl>
+      {(a.status === "active" || a.status === "stored") && a.layout && (
+        <button type="button" className="card-action" onClick={() => onRefit(a)} aria-label={`Refit cabin of ${a.tail}`}>Refit cabin{"…"}</button>
+      )}
     </li>
   );
 }
 
 export default function FleetView() {
   const fleet = useSimSelector((s) => s.fleet);
+  const { day, cash } = useSim();
+  const push = useToasts((s) => s.push);
+  const [refitting, setRefitting] = useState<FleetItem | null>(null);
+  const refitType = refitting ? aircraftTypes.find((t) => t.id === refitting.typeId) : undefined;
   const sorted = useMemo(() => [...fleet].sort((x, y) => ORDER[x.status] - ORDER[y.status] || x.typeId.localeCompare(y.typeId) || x.tail.localeCompare(y.tail)), [fleet]);
   const n = (st: FleetItem["status"]) => fleet.filter((a) => a.status === st).length;
   const byType = useMemo(() => {
@@ -56,7 +68,21 @@ export default function FleetView() {
         <h1>Fleet</h1>
         <p>{fleet.length - n("delivery")} in the fleet ({byType}). {n("maintenance")} in check, {n("delivery")} on order.</p>
       </header>
-      <ul className="cards">{sorted.map((a) => <Card key={a.id} a={a} />)}</ul>
+      <ul className="cards">{sorted.map((a) => <Card key={a.id} a={a} onRefit={setRefitting} />)}</ul>
+      {refitting && refitType && refitting.layout && (
+        <CabinDialog
+          title={`Refit ${refitting.tail} (${refitType.name})`} type={refitType} initial={refitting.layout} day={day} confirmLabel="Start refit"
+          quote={(l) => { const q = refitQuote(refitType, l); return <>Cost {usd(q.costUsd)}, out of service {q.downtimeDays} days.</>; }}
+          blocker={(l) => (refitQuote(refitType, l).costUsd > cash ? "Not enough cash for this refit." : null)}
+          onClose={() => setRefitting(null)}
+          onConfirm={(l) => {
+            const res = bridge.dispatch({ kind: "refitAircraft", aircraftId: refitting.id, layout: l });
+            if (res && !res.ok) push("alert", res.error.message);
+            else push("good", `${refitting.tail} is in the hangar for its cabin refit.`);
+            setRefitting(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { CameraPresetId, Theme } from "./map/types";
 
 export type Selection = { kind: "route" | "airport"; id: string } | null;
-export type ViewId = "map" | "routes" | "fleet" | "orders" | "finance" | "settings";
+export type ViewId = "map" | "routes" | "fleet" | "orders" | "cabin" | "finance" | "settings";
 export const UI_SCALES = [90, 100, 110, 125] as const;
 
 interface UiState {

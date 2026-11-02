@@ -1,6 +1,6 @@
 // UI <-> sim boundary. The UI only talks to a SimBridge; swap `createBridge` to plug in the real sim.
-import type { Command, Day, Id, Route, WorldState } from "@arg/contracts";
-import { newWorld, stepDay, type CheckKind, type Offer, type OfferCommand, type RouteReport } from "@arg/sim";
+import type { CabinLayout, Command, Day, Id, Route, WorldState } from "@arg/contracts";
+import { newWorld, stepDay, type CheckKind, type Offer, type CabinCommand, type OfferCommand, type RouteReport } from "@arg/sim";
 import { routeName, validateRouteDraft, type CommandError } from "../routes/helpers";
 import type { DayRecord } from "./finance";
 
@@ -20,6 +20,9 @@ export interface FleetItem {
   status: "active" | "maintenance" | "delivery" | "stored";
   ageYears: number;
   seats: number;
+  layout?: CabinLayout;
+  /** True while the heavy-check slot is a cabin refit. */
+  refit?: boolean;
   /** Names of the routes this aircraft flies today (empty when idle). */
   routes: string[];
   /** Heavy check in progress (status maintenance). */
@@ -87,7 +90,7 @@ export type { CommandError };
 export interface SimBridge {
   getState(): SimSnapshot;
   subscribe(listener: () => void): () => void;
-  dispatch(cmd: Command | OfferCommand): CommandResult | void;
+  dispatch(cmd: Command | OfferCommand | CabinCommand): CommandResult | void;
   setSpeed(speed: Speed): void;
   /** Resolve a pending decision card by choosing one of its options. */
   decide(decisionId: string, optionId: string): void;
@@ -192,7 +195,7 @@ export class MockSimBridge implements SimBridge {
   getState = (): SimSnapshot => this.snap;
   subscribe = (l: () => void): (() => void) => { this.listeners.add(l); return () => { this.listeners.delete(l); }; };
 
-  dispatch(cmd: Command | OfferCommand): CommandResult | void {
+  dispatch(cmd: Command | OfferCommand | CabinCommand): CommandResult | void {
     switch (cmd.kind) {
       case "setSpeed": this.setSpeed(cmd.speed); return;
       case "openRoute": {

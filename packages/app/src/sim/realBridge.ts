@@ -4,7 +4,7 @@
 import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as dataAirports } from "@arg/data";
 import {
-  applyCommand, createClock, defaultLayout, drainEvents, layoutSeats, type OfferCommand, startingScenario, stepDay,
+  applyCommand, createClock, defaultLayout, drainEvents, layoutSeats, type CabinCommand, type OfferCommand, startingScenario, stepDay,
   type AutoSlowHook, type Clock, type SimState,
 } from "@arg/sim";
 import type {
@@ -191,7 +191,7 @@ export class RealSimBridge implements SimBridge {
     this.emit();
   }
 
-  dispatch(cmd: Command | OfferCommand): CommandResult | void {
+  dispatch(cmd: Command | OfferCommand | CabinCommand): CommandResult | void {
     if (cmd.kind === "setSpeed") {
       if (![0, 1, 2, 3, 4, 5].includes(cmd.speed)) return { ok: false, error: { code: "invalid_speed", message: "Speed must be 0 to 5." } };
       this.setSpeed(cmd.speed);
@@ -303,8 +303,9 @@ export function buildFleet(sim: SimState): FleetItem[] {
     const meta = sim.fleetMeta[ac.id];
     const item: FleetItem = {
       id: ac.id, tail: ac.tailNumber, typeId: ac.typeId, typeName: types.get(ac.typeId)?.name ?? ac.typeId,
-      status: ac.status, ageYears: ac.ageDays / 365.25, seats: layoutSeats(ac.layout), routes: flies.get(ac.id) ?? [],
+      status: ac.status, ageYears: ac.ageDays / 365.25, seats: layoutSeats(ac.layout), layout: ac.layout, routes: flies.get(ac.id) ?? [],
     };
+    if (meta?.maintenance?.refit) item.refit = true;
     if (meta?.maintenance) item.check = { kind: meta.maintenance.check, endDay: meta.maintenance.endDay, daysRemaining: Math.max(0, meta.maintenance.endDay - day) };
     if (ac.status === "delivery" && meta?.deliveryDay != null) item.deliveryDay = meta.deliveryDay;
     if (meta?.orderId) item.orderId = meta.orderId;

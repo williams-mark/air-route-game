@@ -14,8 +14,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "screenshots");
 mkdirSync(outDir, { recursive: true });
 const argv = process.argv.slice(2);
-const doMock = argv.includes("--mock") || !argv.includes("--real");
-const doReal = argv.includes("--real") || !argv.includes("--mock");
+const onlyCabin = argv.includes("--cabin");
+const doMock = !onlyCabin && (argv.includes("--mock") || !argv.includes("--real"));
+const doReal = !onlyCabin && (argv.includes("--real") || !argv.includes("--mock"));
 const PORT = 5199;
 const url = `http://localhost:${PORT}/`;
 
@@ -97,6 +98,34 @@ async function routeShots(page, theme) {
   await page.getByRole("button", { name: "Close route inspector" }).click();
 }
 
+/** Cabin designer: narrowbody and widebody, plus the order and refit dialogs. */
+async function cabinShots(theme) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const problems = [];
+  page.on("console", (m) => { if (m.type() === "error") problems.push(m.text()); });
+  page.on("pageerror", (e) => problems.push(e.message));
+  await page.goto(`${url}?theme=${theme}&t=420&paused=1&ff=30`);
+  await page.waitForFunction(() => window.__argMap && window.__argMap.loaded(), null, { timeout: 20000 });
+  await page.getByRole("button", { name: "Cabin designer" }).click();
+  const snap = async (name) => { await page.waitForTimeout(400); await page.screenshot({ path: path.join(outDir, `cabin-${theme}-${name}.png`), fullPage: true }); console.log("saved cabin", theme, name); };
+  await page.locator("#cabin-type").selectOption("A320N");
+  await page.getByRole("button", { name: "Standard" }).click();
+  await snap("narrowbody");
+  await page.locator("#cabin-type").selectOption("A350-900");
+  await page.getByRole("button", { name: "Premium" }).click();
+  await snap("widebody");
+  await page.getByRole("button", { name: "Orders / Offers" }).click();
+  await page.locator("#ord-type").selectOption("A350-900");
+  await page.getByRole("button", { name: /Design cabin/ }).click();
+  await snap("order-dialog");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Fleet" }).click();
+  await page.getByRole("button", { name: /Refit cabin of/ }).first().click();
+  await snap("refit-dialog");
+  if (problems.length) console.log("[cabin problems]", theme, problems.slice(0, 5));
+  await page.close();
+}
+
 /** Real simulation after about three simulated months (ff=91 days). */
 async function realShots(theme) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -136,6 +165,7 @@ async function realShots(theme) {
 
 try {
   if (doReal) for (const theme of ["dark", "light"]) await realShots(theme);
+  if (doReal || argv.includes("--cabin")) for (const theme of ["dark", "light"]) await cabinShots(theme);
   if (doMock) for (const theme of ["dark", "light"]) {
     for (const [w, h] of [[1440, 900], [1280, 720]]) {
       const page = await browser.newPage({ viewport: { width: w, height: h } });

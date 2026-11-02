@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import { aircraftTypes } from "@arg/data";
-import { COMMAND_PARAMS, dayToDate, orderDiscount } from "@arg/sim";
+import { COMMAND_PARAMS, dayToDate, defaultLayout, layoutSeats, orderDiscount } from "@arg/sim";
 import { bridge, useSim } from "../sim/useSim";
 import { formatDate, formatMoney, formatMonthYear } from "../sim/format";
 import { useToasts } from "../routes/store";
 import { OffersPanel } from "../offers/OffersPanel";
 import { useOffersUi } from "../offers/store";
+import { CabinDialog } from "../cabin/CabinDialog";
+import { useCabinDrafts } from "../cabin/store";
 
 /** Types the sim will take an order for in `year` (not out of production, not more than three years before introduction). */
 export function orderableTypes(year: number) {
@@ -23,6 +25,9 @@ export default function OrdersView() {
   const types = useMemo(() => orderableTypes(year), [year]);
   const [typeId, setTypeId] = useState("");
   const [qty, setQty] = useState(1);
+  const [designing, setDesigning] = useState(false);
+  const orderLayouts = useCabinDrafts((s) => s.orderLayouts);
+  const setOrderLayout = useCabinDrafts((s) => s.setOrderLayout);
   // Default to the in-production type closest to a 180-seat narrowbody, a sensible first order.
   const type = types.find((t) => t.id === typeId) ?? [...types].sort((a, b) => Math.abs(a.maxSeats - 190) - Math.abs(b.maxSeats - 190))[0];
   const count = Math.max(1, Math.min(COMMAND_PARAMS.maxOrderCount, Math.round(qty) || 1));
@@ -31,10 +36,11 @@ export default function OrdersView() {
   const deposit = unit * count * COMMAND_PARAMS.depositFraction;
   const short = deposit > cash;
 
+  const custom = type ? orderLayouts[type.id] : undefined;
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!type) return;
-    const res = bridge.dispatch({ kind: "orderAircraft", typeId: type.id, count, layout: { sections: [] } });
+    const res = bridge.dispatch({ kind: "orderAircraft", typeId: type.id, count, layout: custom ?? { sections: [] } });
     if (res && !res.ok) { push("alert", res.error.message); return; }
     push("good", `Ordered ${count} ${type.id}. Deposit ${formatMoney(deposit)} paid.`);
   };
@@ -69,7 +75,13 @@ export default function OrdersView() {
           </div>
           <div className="rp-field">
             <label htmlFor="ord-layout">Cabin layout</label>
-            <select id="ord-layout" value="default" onChange={() => {}} disabled><option value="default">Default for the type</option></select>
+            <div className="cabin-head-row" style={{ margin: 0 }}>
+              <select id="ord-layout" value={custom ? "custom" : "default"} onChange={(e) => { if (e.target.value === "default" && type) setOrderLayout(type.id, null); }}>
+                <option value="default">Default for the type{type ? ` (${layoutSeats(defaultLayout(type))} seats)` : ""}</option>
+                {custom && <option value="custom">Custom design ({layoutSeats(custom)} seats)</option>}
+              </select>
+              <button type="button" disabled={!type} onClick={() => setDesigning(true)}>Design cabin{"…"}</button>
+            </div>
           </div>
           <dl className="mini order-quote" aria-live="polite">
             <dt>List price</dt><dd>{type ? formatMoney(type.listPriceUsdM * 1e6) : "–"} each</dd>
@@ -80,6 +92,12 @@ export default function OrdersView() {
           <button type="submit" className="primary" disabled={!type}>Place order</button>
         </form>
       </section>
+      {designing && type && (
+        <CabinDialog
+          title={`Cabin layout for new ${type.name}`} type={type} initial={custom ?? defaultLayout(type)} day={day} confirmLabel="Use this layout"
+          onConfirm={(l) => { setOrderLayout(type.id, l); setDesigning(false); }} onClose={() => setDesigning(false)}
+        />
+      )}
 
       <section className="panel-box" aria-labelledby="pending-h">
         <h2 id="pending-h">Pending orders</h2>

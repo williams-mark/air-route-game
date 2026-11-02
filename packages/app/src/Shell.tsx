@@ -20,6 +20,7 @@ const LAZY: Partial<Record<ViewId, ReturnType<typeof lazy>>> = {
   routes: lazy(() => import("./views/RoutesView")),
   fleet: lazy(() => import("./views/FleetView")),
   orders: lazy(() => import("./views/OrdersView")),
+  cabin: lazy(() => import("./views/CabinView")),
   finance: lazy(() => import("./views/FinanceView")),
   settings: lazy(() => import("./views/SettingsView")),
 };
@@ -40,7 +41,7 @@ function useGlobalKeys() {
       }
       if (st.paletteOpen || st.helpOpen) return;
       if (isTyping(e.target)) return;
-      if (e.altKey && /^[1-6]$/.test(e.key)) { st.setView(VIEWS[Number(e.key) - 1]!.id); e.preventDefault(); return; }
+      if (e.altKey && /^[1-7]$/.test(e.key)) { st.setView(VIEWS[Number(e.key) - 1]!.id); e.preventDefault(); return; }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === " " || e.code === "Space") { e.preventDefault(); if (!e.repeat) togglePause(); }
       else if (/^[1-5]$/.test(e.key)) setSpeed(Number(e.key) as Speed);

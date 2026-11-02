@@ -47,3 +47,7 @@ button[aria-pressed="true"], button.on { background: var(--accent); color: var(-
 .tip { position: absolute; z-index: 6; pointer-events: none; padding: 6px 9px; font-size: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; box-shadow: var(--shadow); white-space: nowrap; transform: translate(12px, 12px); }
 .credit { position: absolute; left: 50%; transform: translateX(-50%); bottom: 4px; font-size: 10px; color: var(--text-dim); z-index: 4; opacity: .8; }
 @media (max-width: 900px) { .side { display: none; } }
+
+/* Cabin designer class colours (seat maps, legends). */
+:root[data-theme="dark"] { --cabin-F: #e0b04a; --cabin-J: #5fb4f0; --cabin-W: #9b8cf0; --cabin-Y: #5c7a96; }
+:root[data-theme="light"] { --cabin-F: #b8841a; --cabin-J: #1f78c1; --cabin-W: #6b57d6; --cabin-Y: #7f95aa; }
