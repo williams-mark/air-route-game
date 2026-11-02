@@ -6,21 +6,21 @@ load factor, adds frequency where full, closes losers, orders when under-supplie
 and `orderChurn` (repeated ordering and route open/close). Bankrupt = cash below zero for 60 consecutive days. Exploit = cash above 50x the starting cash (USD 7.5B), reported with the best year multiple and best
 route margin. `src/bots/bots.test.ts` runs 20 half-year games (about 2 s) and checks determinism, no crash, no exploit.
 
-## Latest run (18 games, 10 years each, 2015-2025, seeds 1-18)
-Bankruptcies 12/18, exploits 0, crashes 0. Runtime: 68 s for all 18 games, mean 3.8 s, max 11.6 s per 10-year game (target: under 60 s per game; met by 5x).
+## Latest run (18 games, 10 years each, 2015-2025, seeds 1-18, real AI rivals active)
+Bankruptcies 14/18, exploits 0, crashes 0. Runtime: 81 s for all 18 games, mean 4.5 s, max 11.5 s per 10-year game (target: under 60 s per game).
 
 | strategy | games | bankrupt | final cash USD M (min / median / max) | mean s |
 |---|---|---|---|---|
-| passive | 3 | 0 | 434 / 435 / 439 | 5.6 |
-| random | 3 | 3 | -20 / -12 / -6 | 1.8 |
-| greedy | 3 | 0 | 157 / 262 / 303 | 11.0 |
-| yolo | 3 | 3 | -38 / -24 / -5 | 1.0 |
-| fareProbe | 3 | 3 | -16 / -14 / -11 | 1.0 |
-| orderChurn | 3 | 3 | -19 / -9 / -4 | 2.3 |
+| passive | 3 | 0 | 326 / 345 / 450 | 8.9 |
+| random | 3 | 3 | -15 / -8 / -7 | 2.3 |
+| greedy | 3 | 2 | -9 / -5 / 213 | 8.6 |
+| yolo | 3 | 3 | -37 / -28 / -21 | 1.8 |
+| fareProbe | 3 | 3 | -18 / -15 / -12 | 1.6 |
+| orderChurn | 3 | 3 | -19 / -17 / -6 | 3.7 |
 
-Reading: random play loses money (good: decisions matter); the passive starting airline roughly triples its cash in 10 years (about 10% margin, 2.5% market growth, fuel spike in 2022);
-the greedy heuristic is *worse* than doing nothing in two of three seeds (it fills the map with marginal routes, pays 10 years of lease for aircraft it orders and overprices into low load factors),
-which is the right way round for a management game: expansion has to be judged, not automatic. No run comes close to the 50x bound (best passive year multiple x1.21).
+Reading: with competitors that react, random and greedy play now mostly fail; the passive starting airline still more than doubles its cash (7-11% average margin, dips when a new rival enters its trunk routes
+and in the 2022 fuel spike). The greedy heuristic is worse than doing nothing in two of three seeds. No run approaches the 50x bound (best passive year multiple x1.25).
+Before the rivals merge (synthetic rivals only) the same run gave passive 434-439M and greedy 157-303M.
 
 ## Exploits found and fixed
 1. **Premium fares were free money.** Cabin passengers were allocated by seats and fill weight only, and demand reacted to the Y fare alone, so `fares.J = 400 x Y` multiplied cabin revenue. `fareProbe` reached USD 5-7.5B
@@ -31,7 +31,7 @@ which is the right way round for a management game: expansion has to be judged, 
 
 ## Known remaining issues
 - Aircraft discount is cosmetic (see above): a real purchase/lease price model is needed before the order book matters.
-- Rivals do not react to the player's fare or capacity, so undercutting by 20-25% on a short route fills it (LAX-SAN at 55 USD runs 90% full). The rivals lane should add competitive response.
+- Rivals now react to undercutting (RIVALS.md); the passive airline's fixed fares are exposed to that, which is intended.
 - No bankruptcy rule in the sim itself (the bots define it); negative cash simply continues.
 - Greedy and passive are both stable but the market has no saturation signal for the player's own slot or airport capacity (`slotsPerHour` is unused).
 - SAN-SFO metro volume is about 15.8k against a 8-14k target (structural, see MODEL.md section 1). Pandemic 2020-21 is not modelled; passive margins do not dip in 2020.

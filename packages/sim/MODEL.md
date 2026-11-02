@@ -194,7 +194,7 @@ Corporate overhead 8,000/day + 600/aircraft/day (`DEFAULT_SIM_PARAMS`).
 ### Synthetic rivals (`buildRivals`, `RouteModelConfig`)
 **Sizing on carried demand (`route/rivalSizing.ts`).** Rivals used to be sized on the potential market, which on drivable pairs is mostly lost to the driving option (LAX-SAN carried 23%), so they flew nearly empty and diluted the player to a 17% load factor. A probe run with the rivals alone measures the share of demand an all-rival market carries (`airShare`); `buildRivals` then receives `baseWeekly x airShare`. Long-haul pairs carry 75-80%, so coverage moved from 0.6 to 0.8 of carried demand (long-haul results unchanged). Costs one extra choice run per route per day.
 
-Rival count by annual one-way demand *that flies* (see below): up to 1,500/wk 1 rival, up to 6,000/wk 2, above 3 (`rivalCountBands`). Combined rival seats =
+Rival count by annual one-way demand *that flies* (synthetic rivals only; real rivals: RIVALS.md) (see below): up to 1,500/wk 1 rival, up to 6,000/wk 2, above 3 (`rivalCountBands`). Combined rival seats =
 `carriedWeekly x rivalMarketCoverage (0.8) / rivalTargetLoadFactor (0.8)`, split 45/33/22% (profiles: fare x1.00/0.96/1.05, quality 0.55/0.5/0.45),
 aircraft of 90-250 seats by distance and market size, minimum 2 departures a week each. The one-stop rival is sized at a quarter of the
 rival direct frequency. Coverage 0.6 (not 1.0) because only about 75-80% of potential demand is carried after the outside option, so
@@ -255,7 +255,12 @@ LAX-SAN choice of fare and frequency (one A320, ownership charged, mean of four 
 | 18 | 20 / 88 | 15 / 76 | 1 / 65 | -22 / 59 |
 
 Profit is maximised at 14 to 16 a week at any fare, and the benchmark 81 USD fare loses money at every frequency, so the 17% load factor was a pricing problem (and the rival oversizing above), not a frequency problem.
-62 USD at 14/wk gives 73% local load factor and 78% with the feeder traffic for HNL/OGG/SFO (day 30), USD +16k a week. Startup state after this lane: passive airline margin about 10% a year (2015-2019), 3% in the 2022 fuel spike.
+62 USD at 14/wk gives 73% local load factor and 78% with the feeder traffic for HNL/OGG/SFO (day 30), USD +16k a week. Startup state: passive airline margin 5-15% a year (see section 8a for the version with the real rival field).
+
+### 8a. Starting network with the real rival field (lane/reconcile)
+Real rival itineraries replace the synthetic rivals on every pair a rival flies (RIVALS.md). Day 30, seed 2015: LAX-SFO LF 72% (113 through passengers each way a week), LAX-SAN 80% (90), LAX-HNL 76% (112), LAX-OGG 79% (25).
+Passive company margin by year (seed 2015): 14.8, 12.1, 1.0, 5.2, 5.2, 10.9, 5.5 (2015-2021), -5.3 in the 2022 fuel spike, 9.1, 14.8; seeds 1-5 average 7-11% over ten years. Ember Air entering LAX-SFO in 2017 is the dip.
+Before this reconciliation the pairs with a single real rival ran 100% full and sold no seats to hub passengers.
 
 ## 9. Hub connections (`route/routeModel.ts`)
 `evaluateHubConnection({ origin, hub, destination, leg1, leg2, types, day, ... })` (e.g. SAN-HNL via LAX): local traffic on each leg is simulated first with `simulateRouteWeek` and keeps its seats (local priority);

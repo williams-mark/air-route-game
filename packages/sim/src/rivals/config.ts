@@ -49,7 +49,7 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     seatDensity: 0.86, premiumSeatShare: 0.08, premiumFareMult: 3.0, fareFactor: 1.04, quality: 0.62,
     minFrequency: 7, maxEntryFrequency: 28, maxFrequency: 120, entryShare: 0.2,
     maxFareCut: 0.22, floorFareFactor: 0.72, matchFactor: 1.08, memoryDays: 120, cooldownDays: 60, freqResponse: true,
-    estimateNoise: 0.18, indirectCostPct: 0.19, minEntryProfitPerWeek: 12_000, minEntryMargin: 0.05,
+    estimateNoise: 0.18, indirectCostPct: 0.155, minEntryProfitPerWeek: 12_000, minEntryMargin: 0.05,
     corporateOverheadPerDay: 14_000, reserveWeeks: 10, maxRoutes: 40,
     candidate: { minKm: 250, maxKm: 6000, minDemand: 1500, minMetro: 0, minSlots: 15, interislandOnly: false },
     types: ["B737-800", "A320", "B737-900ER", "A321", "B757-200", "B737-8", "A321N", "A320N", "B767-300ER", "A330-200", "B777-200ER", "B787-8", "B787-9", "A330-300", "B777-300ER", "A350-900"],
@@ -60,9 +60,9 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     seatDensity: 0.97, premiumSeatShare: 0, premiumFareMult: 1, fareFactor: 0.86, quality: 0.42,
     minFrequency: 7, maxEntryFrequency: 21, maxFrequency: 100, entryShare: 0.17,
     maxFareCut: 0.3, floorFareFactor: 0.58, matchFactor: 0.99, memoryDays: 75, cooldownDays: 45, freqResponse: false,
-    estimateNoise: 0.22, indirectCostPct: 0.135, minEntryProfitPerWeek: 8_000, minEntryMargin: 0.04,
+    estimateNoise: 0.22, indirectCostPct: 0.105, minEntryProfitPerWeek: 8_000, minEntryMargin: 0.04,
     corporateOverheadPerDay: 5_000, reserveWeeks: 8, maxRoutes: 32,
-    candidate: { minKm: 250, maxKm: 4300, minDemand: 1000, minMetro: 400_000, minSlots: 15, interislandOnly: false },
+    candidate: { minKm: 250, maxKm: 4300, minDemand: 400, minMetro: 400_000, minSlots: 15, interislandOnly: false },
     types: ["B737-800", "A320", "B737-700", "A319", "A321", "B737-8", "A320N", "A321N", "B737-900ER"],
     maxAgeYears: 22,
   },
@@ -71,7 +71,7 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     seatDensity: 0.92, premiumSeatShare: 0, premiumFareMult: 1, fareFactor: 1.12, quality: 0.46,
     minFrequency: 7, maxEntryFrequency: 24, maxFrequency: 70, entryShare: 0.45,
     maxFareCut: 0.15, floorFareFactor: 0.8, matchFactor: 1.05, memoryDays: 60, cooldownDays: 45, freqResponse: true,
-    estimateNoise: 0.28, indirectCostPct: 0.19, minEntryProfitPerWeek: 4_000, minEntryMargin: 0.06,
+    estimateNoise: 0.28, indirectCostPct: 0.155, minEntryProfitPerWeek: 4_000, minEntryMargin: 0.06,
     corporateOverheadPerDay: 3_000, reserveWeeks: 10, maxRoutes: 26,
     candidate: { minKm: 150, maxKm: 1000, minDemand: 150, minMetro: 0, minSlots: 8, interislandOnly: false },
     types: ["ATR72-600", "CRJ700", "CRJ900", "E175", "A220-100"],
@@ -82,7 +82,7 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     seatDensity: 0.9, premiumSeatShare: 0.06, premiumFareMult: 2.0, fareFactor: 1.0, quality: 0.5,
     minFrequency: 14, maxEntryFrequency: 56, maxFrequency: 150, entryShare: 0.4,
     maxFareCut: 0.2, floorFareFactor: 0.7, matchFactor: 1.02, memoryDays: 90, cooldownDays: 60, freqResponse: true,
-    estimateNoise: 0.2, indirectCostPct: 0.17, minEntryProfitPerWeek: 5_000, minEntryMargin: 0.06,
+    estimateNoise: 0.2, indirectCostPct: 0.13, minEntryProfitPerWeek: 5_000, minEntryMargin: 0.06,
     corporateOverheadPerDay: 4_000, reserveWeeks: 10, maxRoutes: 20,
     candidate: { minKm: 40, maxKm: 600, minDemand: 200, minMetro: 0, minSlots: 4, interislandOnly: true },
     types: ["B737-700", "A319", "ATR72-600", "CRJ700"],
@@ -108,10 +108,10 @@ export const STARTING_RIVALS: StartingRivalSpec[] = [
   {
     id: "pacific-crown", name: "Pacific Crown", archetype: "legacy", bases: ["SFO", "LAX"], cash: 450_000_000,
     routes: [
-      ["SFO", "LAX", 0.17], ["SFO", "SAN", 0.18], ["SFO", "BUR", 0.12], ["SFO", "SNA", 0.14], ["SFO", "ONT", 0.1],
+      ["SFO", "LAX", 0.3], ["SFO", "SAN", 0.18], ["SFO", "BUR", 0.12], ["SFO", "SNA", 0.14], ["SFO", "ONT", 0.1],
       ["LAX", "SJC", 0.1], ["LAX", "SMF", 0.1], ["LAX", "OAK", 0.06],
       ["SFO", "HNL", 0.24], ["SFO", "OGG", 0.24], ["SFO", "KOA", 0.16], ["SFO", "LIH", 0.16],
-      ["LAX", "HNL", 0.22], ["LAX", "OGG", 0.22], ["LAX", "KOA", 0.14], ["LAX", "LIH", 0.14],
+      ["LAX", "HNL", 0.3], ["LAX", "OGG", 0.3], ["LAX", "KOA", 0.14], ["LAX", "LIH", 0.14],
     ],
   },
   {
@@ -120,6 +120,8 @@ export const STARTING_RIVALS: StartingRivalSpec[] = [
       ["SAN", "OAK", 0.2], ["SAN", "SMF", 0.2], ["SAN", "SFO", 0.16], ["SAN", "SJC", 0.12],
       ["OAK", "LAX", 0.14], ["OAK", "BUR", 0.14], ["OAK", "SNA", 0.14], ["OAK", "LGB", 0.12],
       ["OAK", "HNL", 0.12], ["OAK", "OGG", 0.12], ["SAN", "HNL", 0.08],
+      // Trunk routes the player also flies: several carriers share them, as on the real LAX-SFO and LAX-Hawaii markets.
+      ["LAX", "SFO", 0.2], ["LAX", "HNL", 0.28], ["LAX", "SAN", 0.6],
     ],
   },
   {
@@ -142,7 +144,7 @@ export const STARTING_RIVALS: StartingRivalSpec[] = [
     routes: [
       ["SMF", "LAX", 0.14], ["SMF", "SAN", 0.18], ["SMF", "BUR", 0.14], ["SMF", "SNA", 0.12], ["SMF", "ONT", 0.1],
       ["SJC", "SAN", 0.14], ["SJC", "LAX", 0.14], ["SJC", "SNA", 0.1], ["SMF", "HNL", 0.1], ["SJC", "HNL", 0.1],
-      ["SMF", "OGG", 0.1], ["SJC", "OGG", 0.1], ["SMF", "LGB", 0.1],
+      ["SMF", "OGG", 0.1], ["SJC", "OGG", 0.1], ["SMF", "LGB", 0.1], ["LAX", "OGG", 0.2],
     ],
   },
 ];
@@ -161,7 +163,7 @@ export interface EntrantSpec {
 
 /** Scheduled new entrants (rare). Random extra entrants: see RIVAL_PARAMS.randomEntrantChancePerYear. */
 export const SCHEDULED_ENTRANTS: EntrantSpec[] = [
-  { id: "ember-air", name: "Ember Air", archetype: "lcc", bases: ["ONT", "LGB"], cash: 70_000_000, launchYear: 2.3, jitterDays: 90, initialRoutes: 4 },
+  { id: "ember-air", name: "Ember Air", archetype: "lcc", bases: ["LAX", "SNA"], cash: 70_000_000, launchYear: 2.3, jitterDays: 90, initialRoutes: 4 },
 ];
 
 /** Names for random startups. Fictional. */

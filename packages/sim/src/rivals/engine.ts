@@ -7,6 +7,7 @@ import { defaultLayout } from "../fleet/layout";
 import { distanceKm } from "../geo";
 import { makeRng, mixSeed } from "../rng";
 import { buildRivals, DEFAULT_ROUTE_MODEL_CONFIG, ROUTE_CHOICE_PARAMS } from "../route/routeModel";
+import { carriedShare } from "../route/rivalSizing";
 import { dayToDate } from "../time/calendar";
 import {
   ARCHETYPES, ENTRANT_NAME_POOL, RIVAL_PARAMS as RP, SCHEDULED_ENTRANTS, STARTING_RIVALS,
@@ -19,6 +20,17 @@ import type {
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Potential demand a new rival route is sized on: `baseWeeklyDemand` scaled down on pairs where most passengers drive
+ * (carried share relative to the 0.8 an ordinary air market carries, capped at 1), so rivals do not fly empty on LAX-SAN.
+ */
+export function sizingDemand(ctx: RivalCtx, a: Airport, b: Airport): number {
+  const dist = distanceKm(a, b);
+  const m = marketOnDay(a, b, ctx.day);
+  const share = carriedShare(a, b, dist, m.bySegment, benchmarkFare(dist), ROUTE_CHOICE_PARAMS);
+  return baseWeeklyDemand(a, b) * Math.min(1, share / 0.8);
+}
 
 export const marketKey = (a: string, b: string) => (a < b ? `${a}-${b}` : `${b}-${a}`);
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -306,7 +318,7 @@ function quietMemory(ctx: RivalCtx, aggressor: string): RivalMemory {
 function planEntry(ctx: RivalCtx, air: RivalAirline, all: Map<string, Entry[]>, a: Airport, b: Airport, freqOverride?: number) {
   const spec = ARCHETYPES[air.archetype];
   const dist = distanceKm(a, b);
-  const base = baseWeeklyDemand(a, b);
+  const base = sizingDemand(ctx, a, b);
   const target = (spec.entryShare * base) / RP.targetLoadFactor;
   const t = chooseType(ctx, air, a, b, target);
   if (!t) return null;
@@ -462,7 +474,7 @@ export function createRivals(
       const a = ctx.airports.get(o);
       const b = ctx.airports.get(d);
       if (!a || !b) continue;
-      const target = (share * baseWeeklyDemand(a, b)) / RP.targetLoadFactor;
+      const target = (share * sizingDemand(ctx, a, b)) / RP.targetLoadFactor;
       const t = chooseType(ctx, air, a, b, target);
       if (!t) continue;
       const bench = benchmarkFare(distanceKm(a, b));
@@ -615,7 +627,7 @@ export function stepRivalsWeek(
     // 5. Quarterly: exits then entries.
     if (isQuarter) {
       quarterlyExits(ctx, sink, air, rivals, spec);
-      if (air.cash > 0) considerEntries(ctx, air, rivals, sink, RP.entriesPerQuarter, false);
+      if (air.cash > 0) considerEntries(ctx, air, rivals, sink, RP.entriesPerQuarter, air.routes.length < 2);
     }
     // 6. Annual: fleet.
     if (isYear) annualFleet(ctx, sink, air, spec);

@@ -47,7 +47,7 @@ worst loss-making route closes and surplus aircraft go back. Bankrupt after 26 c
 contract `Aircraft` (default layout, ages, status active) for the offers lane. The airline stays in `rivals.airlines` with status "bankrupt", no routes/fleet.
 
 ## Entrants
-Ember Air (LCC at ONT/LGB, USD 70M) launches about mid-2017 +/- 90 days (seeded). From 2018 a 10% chance a year of a random LCC startup (name pool) while fewer than 8 are active.
+Ember Air (LCC at LAX/SNA, USD 70M; it was ONT/LGB, whose metro-split demand is too thin for any candidate route) launches about mid-2017 +/- 90 days (seeded). From 2018 a 10% chance a year of a random LCC startup (name pool) while fewer than 8 are active.
 
 ## Fog of war and notices
 `rivalReports(state, {playerOnly?})` returns per pair: carriers with frequency, seats, type, fare band (true fare +/- 7-13% with a stable per-rival error,
@@ -59,3 +59,13 @@ Note `SimState.rivals` itself contains the true state; the UI should read throug
 Rival schedule is evaluated once a week on one day's demand. Hub connections (`evaluateHubConnection`) still use the synthetic rivals. Rivals do not fly
 connecting traffic. With the model's metro-sized airports rivals favour duplicate-metro pairs. No baseline seed produced an organic bankruptcy in 10 years
 (rivals shed losers fast); bankruptcy is driven by price wars, shocks and the tests force it.
+
+## Reconciliation with the balance lane (lane/reconcile)
+- **Sizing on carried demand.** `engine.sizingDemand` = `baseWeeklyDemand x min(1, carriedShare / 0.8)`, where `route/rivalSizing.carriedShare` runs the choice model with one benchmark-fare itinerary against the outside option (driving included).
+  Used for starting routes and entries. Ordinary air markets carry about 0.8, so they are unchanged; drivable pairs shrink (LAX-SAN carries about 0.25, so its rivals are about 3x smaller than the potential would give).
+- **Starting field.** With the metro split, a pair's potential is per airport pair, so the old single-rival shares left the player alone on the trunk routes (100% load factor, no seats left for hub passengers). Added carriers on the player's pairs:
+  Pacific Crown LAX-SFO 0.30, LAX-HNL 0.30, LAX-OGG 0.30 (were 0.17 / 0.22 / 0.22), Kestrel Air LAX-SFO 0.20, LAX-HNL 0.28, LAX-SAN 0.60, Sierra Jet LAX-OGG 0.20. Day 30: LAX-SFO 47 + 35 weekly round trips of rivals,
+  LAX-HNL 14 + 27, LAX-OGG 10 + 7, LAX-SAN 20.
+- **Indirect cost.** The recalibrated route ledger now carries 6% overhead plus USD 5k per route a week and higher crew/airport costs, so `indirectCostPct` fell (legacy and regional 0.19 to 0.155, lcc 0.135 to 0.105, interisland 0.17 to 0.13). Rival margins stay at 5-15% and no airline sheds all its routes (Kestrel did in 2022 before).
+- **Empty airlines.** An airline with fewer than two routes takes any positive-estimate entry at its quarterly review (`relaxed`), and LCC candidate markets need only 400 potential passengers a week (was 1,000).
+- **Result (seed 2015, ten years):** 5 active rivals plus 1 bankruptcy (Ember Air in 2021, after launching into LAX-SFO), 110 aircraft, 46 routes, rival cash USD 993M in total; no active airline with an empty fleet; 9 s per ten-year game with the full rival model.

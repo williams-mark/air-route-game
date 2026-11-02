@@ -28,6 +28,25 @@ describe("hub connecting passengers in stepDay", () => {
     expect(localLf).toBeGreaterThan(0.5);
   });
 
+  it("with the real rival field every starting route runs 60-90% full and carries hub passengers", () => {
+    for (const r of Object.values(s.routeReports)) {
+      expect(r.evaluation.loadFactor, r.routeId).toBeGreaterThan(0.6);
+      expect(r.evaluation.loadFactor, r.routeId).toBeLessThan(0.9);
+      expect(r.connecting?.passengersOneWay ?? 0, r.routeId).toBeGreaterThan(5);
+    }
+  });
+
+  it("passive company margin over the first two years is plausible (3-18%)", () => {
+    const y2 = runDays(s, 700);
+    const sn = y2.snapshots.slice(-730);
+    const rev = sn.reduce((t, x) => t + x.revenue, 0);
+    const cost = sn.reduce((t, x) => t + x.costs, 0);
+    const margin = (rev - cost) / rev;
+    console.log(`passive margin first two years ${(100 * margin).toFixed(1)}%`);
+    expect(margin).toBeGreaterThan(0.03);
+    expect(margin).toBeLessThan(0.18);
+  });
+
   it("never sells a seat twice: every leg stays at or under its capacity and connecting <= leftover seats", () => {
     for (const r of Object.values(s.routeReports)) {
       expect(r.evaluation.passengersPerWeek).toBeLessThanOrEqual(r.evaluation.seatsPerWeek + 1e-6);
