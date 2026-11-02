@@ -40,6 +40,7 @@ export * from "./fleet/maintenance";
 export * from "./fleet/scheduler";
 export { mixSeed } from "./rng";
 export * from "./rivals";
+export * from "./serialize";
 
 export function newWorld(seed: number): WorldState {
   return { seed, day: 0, playerId: "player", cash: 100_000_000, routes: [], fleet: [] };
