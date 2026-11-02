@@ -1,6 +1,6 @@
 # Build status (update at the end of every work session)
 
-Last updated: Mon 2 Nov 2026 (early morning UTC). `main` passes typecheck, test (data 12, sim 165, app 46) and build.
+Last updated: Mon 2 Nov 2026 (UTC morning). `main` passes typecheck, test (data 12, sim 172, app 55) and build.
 
 ## Task table (T1-T18 from the Week-One Build Plan doc)
 | Task | State | Notes |
@@ -20,11 +20,13 @@ Last updated: Mon 2 Nov 2026 (early morning UTC). `main` passes typecheck, test 
 | T13 offers panel | done (lane/offers) | launch, end-of-life, flash-sale and used offers; Offers tab, popup, badge. See MODEL.md "Offers" |
 | T14 basic rivals | done (lane/saveui UI) | sim + Rivals view, competition block in route inspector, map competitor layer, rival fare-cut decision cards (match / partial + frequency / hold; one at a time) |
 | T15 why ledger and hub board | partial | ledger in inspector; hub board not started |
-| T16 save/load, cabin sliders, light polish | partial | Cabin sliders done: designer view, order and refit editors (lane/cabin, see MODEL.md "Cabin"); save/load done (lane/saveui): IndexedDB 5 slots + autosave (monthly, tab hide), Ctrl+S, export/import, start screen (skip with ?newgame/?seed/?nostart/?ff/?mock/?paused) |
-| T17 QA and balance bots | partly done | bots + BALANCE.md (pnpm --filter @arg/sim bots); premium-fare exploit fixed; UI QA not started |
+| T16 save/load, cabin sliders, light polish | done | Cabin sliders done: designer view, order and refit editors (lane/cabin, see MODEL.md "Cabin"); save/load done (lane/saveui): IndexedDB 5 slots + autosave (monthly, tab hide), Ctrl+S, export/import, start screen (skip with ?newgame/?seed/?nostart/?ff/?mock/?paused) |
+| T17 QA and balance bots | done (first pass) | bots + BALANCE.md; soak (30 games), fuzz, Playwright e2e (32/32), QA.md with manual checklist. Open: no player bankruptcy rule; save/load, start screen and rivals UI not in e2e |
 | T18 deploy and hardening | partly done (lane/ship) | manualChunks vendor split, build:single, deploy.yml, netlify.toml, DEPLOY.md, build stamp in Settings. Nothing deployed yet; needs Mark's Cloudflare secrets |
 
 ## Known issues to fix next
+- Player bankruptcy rule missing (QA.md bug 1): 23 of 30 bot games end with negative cash and nothing happens.
+- Hub board (T15) not built. First-party SQA by the owner is next: follow the checklist in QA.md.
 - Rivals UI not wired (market view of competitors, rival news cards); bankruptcies rare in normal play, so few distressed lots (see RIVALS.md).
 - Save/load (IndexedDB), hub board, QA Playwright smoke tests, deploy not started. Sim still on main thread.
 - Rival bankruptcies: only Ember Air fails in the seed-2015 baseline; consider shocks (2020 pandemic is not modelled).
