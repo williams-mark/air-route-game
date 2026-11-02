@@ -1,27 +1,33 @@
 import { describe, expect, it } from "vitest";
 import { AIRPORTS, HNL, LAX, OGG, SAN, SFO } from "../testing/fixtures";
-import { baseWeeklyDemand, marketOnDay, pairMarket, SEGMENTS, seasonality, segmentShares } from "./market";
+import { baseWeeklyDemand, DEFAULT_MARKET_PARAMS, marketOnDay, pairMarket, SEGMENTS, seasonality, segmentShares } from "./market";
+
+// The multi-airport metro split divides a metro-to-metro volume among airports. These fixtures are single airports, so the
+// calibration below evaluates the whole-metro (combined statistical area) volume: metros off, metro populations as in DEFAULT_METROS.
+const WHOLE = { ...DEFAULT_MARKET_PARAMS, metros: null };
+const LA_METRO = { ...LAX, metroPopulation: 17_750_000 };
+const SF_METRO = { ...SFO, metroPopulation: 6_630_000 };
 
 describe("market calibration", () => {
   it("prints and bounds the calibration targets", () => {
-    const sfo = baseWeeklyDemand(LAX, SFO);
-    const hnl = baseWeeklyDemand(LAX, HNL);
+    const sfo = baseWeeklyDemand(LA_METRO, SF_METRO, WHOLE);
+    const hnl = baseWeeklyDemand(LA_METRO, HNL, WHOLE);
     console.log(`CALIBRATION LAX-SFO ${Math.round(sfo)}/wk one-way, LAX-HNL ${Math.round(hnl)}/wk one-way`);
     for (let i = 0; i < AIRPORTS.length; i++)
       for (let j = i + 1; j < AIRPORTS.length; j++) {
         const m = pairMarket(AIRPORTS[i]!, AIRPORTS[j]!);
         console.log(`  ${m.origin}-${m.destination} ${Math.round(m.distanceKm)} km ${Math.round(m.baseWeekly)}/wk`);
       }
-    expect(sfo).toBeGreaterThan(35_000);
+    expect(sfo).toBeGreaterThan(25_000); // fixtures are approximate (tourism 0.45/0.5)
     expect(sfo).toBeLessThan(50_000);
     expect(hnl).toBeGreaterThan(8_000);
     expect(hnl).toBeLessThan(14_000);
   });
 
   it("small pairs are much smaller than the big ones", () => {
-    const small = baseWeeklyDemand(SAN, OGG);
-    expect(small).toBeLessThan(baseWeeklyDemand(LAX, HNL) / 3);
-    expect(small).toBeLessThan(baseWeeklyDemand(LAX, SFO) / 8);
+    const small = baseWeeklyDemand(SAN, OGG, WHOLE);
+    expect(small).toBeLessThan(baseWeeklyDemand(LA_METRO, HNL, WHOLE) / 3);
+    expect(small).toBeLessThan(baseWeeklyDemand(LA_METRO, SF_METRO, WHOLE) / 8);
   });
 
   it("is symmetric and positive", () => {

@@ -1,6 +1,7 @@
 import type { Airport, Day } from "@arg/contracts";
 import { distanceKm } from "../geo";
 import { monthPosition } from "../time/calendar";
+import { catchmentOf, DEFAULT_METROS, type Metro } from "./metros";
 
 export const SEGMENTS = ["business", "leisure", "vfr", "budget"] as const;
 export type Segment = (typeof SEGMENTS)[number];
@@ -32,20 +33,26 @@ export interface MarketParams {
   tourismPower: number;
   /** Multiplier for pairs inside Hawaii (no road alternative, dense business/VFR flows between islands). */
   interislandBoost: number;
+  /** Multi-airport metro catchments (null/undefined: every airport counts its whole metro population). */
+  metros?: readonly Metro[] | null;
+  /** Compound annual growth of the whole market from day 0 (2015); 0 disables. Pandemic shocks are not modelled. */
+  growthPerYear?: number;
 }
 
 export const DEFAULT_MARKET_PARAMS: MarketParams = {
-  scale: 3700,
-  popExponent: 0.45,
-  distExponent: 0.5,
+  scale: 1780,
+  popExponent: 0.47,
+  distExponent: 0.25,
   minDistanceKm: 150,
-  groundSubstitutionKm: 400,
+  groundSubstitutionKm: 150,
   groundPower: 3,
-  incomeExponent: 1.0,
+  incomeExponent: 1.28,
   incomeRefUsd: 75_000,
-  tourismBoost: 1.0,
-  tourismPower: 1.1,
-  interislandBoost: 5,
+  tourismBoost: 1.7,
+  tourismPower: 3,
+  interislandBoost: 12.5,
+  metros: DEFAULT_METROS,
+  growthPerYear: 0.025,
 };
 
 export interface PairMarket {
@@ -83,11 +90,13 @@ export function baseWeeklyDemand(a: Airport, b: Airport, p: MarketParams = DEFAU
   const d = Math.max(dTrue, p.minDistanceKm);
   const ground = hasSurfaceAlternative(a, b) ? dTrue ** p.groundPower / (dTrue ** p.groundPower + p.groundSubstitutionKm ** p.groundPower) : 1;
   const island = a.region === "HI" && b.region === "HI" ? p.interislandBoost : 1;
-  const pop = ((a.metroPopulation / 1e6) * (b.metroPopulation / 1e6)) ** p.popExponent;
+  const ca = catchmentOf(a.id, a.metroPopulation, p.metros, dTrue);
+  const cb = catchmentOf(b.id, b.metroPopulation, p.metros, dTrue);
+  const pop = ((ca.population / 1e6) * (cb.population / 1e6)) ** p.popExponent;
   const income = (Math.sqrt(a.gdpPerCapita * b.gdpPerCapita) / p.incomeRefUsd) ** p.incomeExponent;
   const tourism = 1 + p.tourismBoost * pairTourism(a, b) ** p.tourismPower;
   const dist = (d / 1000) ** -p.distExponent;
-  return p.scale * pop * income * tourism * dist * ground * island;
+  return p.scale * pop * income * tourism * dist * ground * island * ca.share * cb.share;
 }
 
 /**
@@ -172,7 +181,8 @@ export function pairMarket(a: Airport, b: Airport, p: MarketParams = DEFAULT_MAR
 /** Potential one-way weekly passengers on `day`, split by segment with seasonality applied. */
 export function marketOnDay(a: Airport, b: Airport, day: Day, p: MarketParams = DEFAULT_MARKET_PARAMS): DayMarket {
   const base = pairMarket(a, b, p);
-  const bySegment = segmentMap((s) => base.baseWeekly * base.shares[s] * seasonality(day, s, a, b));
+  const growth = (1 + (p.growthPerYear ?? 0)) ** (day / 365.25);
+  const bySegment = segmentMap((s) => base.baseWeekly * growth * base.shares[s] * seasonality(day, s, a, b));
   const weekly = SEGMENTS.reduce((acc, s) => acc + bySegment[s], 0);
   return { ...base, day, weekly, bySegment };
 }

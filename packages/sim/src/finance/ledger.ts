@@ -8,25 +8,25 @@ import { jetAPriceUsdPerGallon, KG_PER_GALLON } from "./fuel";
 export const LEDGER_PARAMS = {
   routeExtension: 1.04, // flown distance / great circle
   airborneSpeedFactor: 0.93, // average block speed while airborne vs cruise speed
-  groundBlockHours: 0.5, // taxi, climb and approach allowance per flight
+  groundBlockHours: 0.65, // taxi, climb and approach allowance per flight
   reserveKm: 370, // range reserve (alternate + holding)
   fuelLoadSensitivity: 0.16, // burn = base x (1 - s/2 + s x LF)
   taxiFuelKg: { narrow: 450, wide: 900 },
-  pilotUsdPerHour: 230,
-  faUsdPerHour: 62,
+  pilotUsdPerHour: 340,
+  faUsdPerHour: 85,
   seatsPerFlightAttendant: 40,
-  landingFeeBaseUsd: 450,
-  landingFeePerSeatUsd: 6.2,
-  groundHandlingUsd: { narrow: 450, wide: 900 },
-  passengerServicesUsdPerPax: 11,
-  maintenanceUsdPerSeatHour: { narrow: 6.0, wide: 7.5 },
+  landingFeeBaseUsd: 800,
+  landingFeePerSeatUsd: 7.5,
+  groundHandlingUsd: { narrow: 700, wide: 1400 },
+  passengerServicesUsdPerPax: 13,
+  maintenanceUsdPerSeatHour: { narrow: 3.5, wide: 4.5 },
   streetPriceOfList: 0.55,
   leaseRatePerMonth: 0.0075,
   utilizationBlockHoursPerDay: { narrow: 11, wide: 13 },
   ancillaryUsdPerPax: 14,
   distributionShareOfRevenue: 0.06,
-  generalOverheadShareOfRevenue: 0.03,
-  routeFixedOverheadUsdPerWeek: 3000,
+  generalOverheadShareOfRevenue: 0.06,
+  routeFixedOverheadUsdPerWeek: 5000,
   cabinFillWeight: { F: 0.75, J: 0.8, W: 0.88, Y: 1 } as Record<CabinClass, number>,
 } as const;
 
