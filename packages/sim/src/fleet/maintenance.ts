@@ -22,6 +22,26 @@ export const MAINTENANCE_PARAMS = {
   graceDays: 30,
 } as const;
 
+/**
+ * Master switch for the whole maintenance programme (A/B/C/D checks, deferral and heavy-check decisions, the
+ * per-flight-hour maintenance cost line, check windows in the planner forecast). The owner has suppressed it for
+ * now; flip this to `true` to bring it back, nothing else needs to change. Cabin refits do not depend on it: they
+ * keep their own downtime and cost and never need a check slot.
+ */
+export const MAINTENANCE_ENABLED: boolean = false;
+
+let maintenanceOn: boolean = MAINTENANCE_ENABLED;
+
+/** Is the maintenance programme running? Read this, not the constant, so tests can switch it. */
+export function maintenanceEnabled(): boolean {
+  return maintenanceOn;
+}
+
+/** TEST ONLY. Override the switch (null restores `MAINTENANCE_ENABLED`). Tests that exercise checks call this in beforeAll. */
+export function setMaintenanceEnabledForTests(value: boolean | null): void {
+  maintenanceOn = value ?? MAINTENANCE_ENABLED;
+}
+
 export const CHECK_ORDER: readonly CheckKind[] = ["D", "C", "B", "A"];
 
 export function checkCostUsd(type: AircraftType, kind: CheckKind): number {

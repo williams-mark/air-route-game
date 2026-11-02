@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
-import { drainEvents, newSim, runDays, startingScenario, STARTING_CASH_USD } from "./index";
+import { drainEvents, newSim, runDays, setMaintenanceEnabledForTests, startingScenario, STARTING_CASH_USD } from "./index";
 
 describe("startingScenario", () => {
   const s = startingScenario(airports, aircraftTypes);
@@ -23,6 +23,8 @@ describe("startingScenario", () => {
   });
 
   it("flies every starting route fully scheduled, with no notional fleet, and earns money in a year", () => {
+    setMaintenanceEnabledForTests(true); // the last assertion looks for check notices
+    try {
     let st = runDays(s, 7);
     for (const r of Object.values(st.routeReports)) {
       expect(r.evaluation.feasible).toBe(true);
@@ -35,6 +37,7 @@ describe("startingScenario", () => {
     // checks happened and the schedule recovered from them
     const { events } = drainEvents(st);
     expect(events.some((e) => e.kind === "notice" && e.text.includes("check"))).toBe(true);
+    } finally { setMaintenanceEnabledForTests(null); }
   });
 
   it("is deterministic for a seed", () => {

@@ -1,5 +1,6 @@
 import type { AircraftType, Airport, CabinClass, Day } from "@arg/contracts";
 import { distanceKm, simRunwayM } from "../geo";
+import { maintenanceEnabled } from "../fleet/maintenance";
 import { jetAPriceUsdPerGallon, KG_PER_GALLON } from "./fuel";
 
 // ---------------------------------------------------------------------------
@@ -208,8 +209,10 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
     `${r2(pax)} pax x ${usd(P.passengerServicesUsdPerPax)}${inp.cabinCost?.paxServices && inp.cabinCost.paxServices !== 1 ? ` x ${r2(inp.cabinCost.paxServices)} cabin mix` : ""} (catering, check-in, claims)`);
 
   const maintPerHour = P.maintenanceUsdPerSeatHour[kind] * seatsPerFlight;
-  add("cost", "maintenance", "Maintenance", flights * bh * maintPerHour,
-    `${r2(flights * bh)} block h x ${usd(maintPerHour)}/h (${P.maintenanceUsdPerSeatHour[kind]}/seat-h x ${seatsPerFlight})`);
+  add("cost", "maintenance", "Maintenance", maintenanceEnabled() ? flights * bh * maintPerHour : 0,
+    maintenanceEnabled()
+      ? `${r2(flights * bh)} block h x ${usd(maintPerHour)}/h (${P.maintenanceUsdPerSeatHour[kind]}/seat-h x ${seatsPerFlight})`
+      : "Maintenance is suspended in this version");
 
   // Ownership
   const util = P.utilizationBlockHoursPerDay[kind] * 7;

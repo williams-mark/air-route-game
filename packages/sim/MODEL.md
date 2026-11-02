@@ -223,6 +223,8 @@ queue (ticks, finance snapshots and notices from `stepDay`, oldest first; capped
   Aircraft are created at once with status `delivery` (no lease, not scheduled), and become `active` with age 0 on the delivery day.
 
 ## 7. Fleet, scheduler and maintenance
+**Maintenance is currently SUSPENDED** by one switch, `MAINTENANCE_ENABLED = false` in `fleet/maintenance.ts` (read through `maintenanceEnabled()`; tests flip it with `setMaintenanceEnabledForTests`). While it is false: no A-D check ever starts, `hoursSinceCheck` and the B/C/D calendar clocks do not accrue, there are no deferrals, no check notices or heavy-check decision cards, no check costs (`checkCosts` = 0), the route ledger's per-hour "Maintenance" line is 0 (ownership/lease, overhead and everything else are unchanged, so the removed cost raises margins by roughly 2-3 points), the planner forecast has no B/C/D/A entries and the scheduler never sees a check window. Cabin refits are independent of the switch (own downtime and cost, no check slot). An aircraft that an older save left in a check is returned to service on the next step. Set the constant to `true` to restore everything below exactly as documented; nothing was deleted. Old saves load unchanged (the switch is not part of the save).
+
 Daily order in `stepDay`: deliveries, finished checks, checks falling due, scheduling, route economics, utilisation counters, costs.
 - **Scheduler** `assign(routes, fleet, {airports, types})`: only `active` aircraft. Routes are served widebody-first, then by weekly block-hour need. Per route, whole round
   trips are taken from aircraft of the requested type first (smallest aircraft with room for all of it, else the one with the most room), then from other feasible types

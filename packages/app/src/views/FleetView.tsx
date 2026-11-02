@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { aircraftTypes } from "@arg/data";
-import { refitQuote } from "@arg/sim";
+import { maintenanceEnabled, refitQuote } from "@arg/sim";
 import { CabinDialog } from "../cabin/CabinDialog";
 import { usd } from "../cabin/helpers";
 import { useToasts } from "../routes/store";
@@ -9,15 +9,16 @@ import { formatDate } from "../sim/format";
 import { bridge, useSim, useSimSelector } from "../sim/useSim";
 
 const ORDER = { maintenance: 0, active: 1, delivery: 2, stored: 3 } as const;
-const LABEL = { active: "Active", maintenance: "In check", delivery: "On order", stored: "Stored" } as const;
+/** "In check" only exists while the maintenance programme runs; otherwise the hangar holds cabin refits only. */
+const label = (st: FleetItem["status"]) => ({ active: "Active", maintenance: maintenanceEnabled() ? "In check" : "Cabin refit", delivery: "On order", stored: "Stored" })[st];
 const CHECK_NAME = { A: "A check", B: "B check", C: "C check", D: "D check" } as const;
 
 function Card({ a, onRefit }: { a: FleetItem; onRefit: (a: FleetItem) => void }) {
   const idle = a.status === "active" && a.routes.length === 0;
-  const status = a.status === "maintenance" && a.check ? `${a.refit ? "Cabin refit" : CHECK_NAME[a.check.kind]}, ${a.check.daysRemaining} ${a.check.daysRemaining === 1 ? "day" : "days"} left` : LABEL[a.status];
+  const status = a.status === "maintenance" && a.check ? `${a.refit ? "Cabin refit" : CHECK_NAME[a.check.kind]}, ${a.check.daysRemaining} ${a.check.daysRemaining === 1 ? "day" : "days"} left` : label(a.status);
   return (
     <li className="card">
-      <div className="card-top"><strong>{a.tail}</strong><span className={`status st-${a.status}`}>{idle ? "Idle" : LABEL[a.status]}</span></div>
+      <div className="card-top"><strong>{a.tail}</strong><span className={`status st-${a.status}`}>{idle ? "Idle" : label(a.status)}</span></div>
       <div className="card-sub">{a.typeName} {"·"} {a.seats} seats</div>
       <dl className="mini">
         {a.status === "delivery" ? (
@@ -66,7 +67,7 @@ export default function FleetView() {
     <div className="page">
       <header className="page-head">
         <h1>Fleet</h1>
-        <p>{fleet.length - n("delivery")} in the fleet ({byType}). {n("maintenance")} in check, {n("delivery")} on order.</p>
+        <p>{fleet.length - n("delivery")} in the fleet ({byType}). {n("maintenance")} {maintenanceEnabled() ? "in check" : "in cabin refit"}, {n("delivery")} on order.</p>
       </header>
       <ul className="cards">{sorted.map((a) => <Card key={a.id} a={a} onRefit={setRefitting} />)}</ul>
       {refitting && refitType && refitting.layout && (

@@ -19,6 +19,9 @@ Fuzz (`fuzz.test.ts`): 4 seeds x 400 random commands (openRoute, updateRoute, cl
 - Soak: 30 games x 10 years, 6 strategies x 5 seeds (seeds 1-30). 0 invariant violations, 0 crashes. Cash identity checked on 109,292 quiet days, max error USD 0.0000. Determinism 3/3 replays byte-identical. Runtime total 799.6 s, mean 23.8 s, max 50.3 s per game (measured while other jobs shared the CPU, so the sim is faster than that on an idle machine).
 - e2e: 32/32 checks pass (16 per theme) in 196 s, no console or page errors. Checks: boot and theme, all views key text, Offers tab, theme toggle changes CSS variables, command palette and shortcuts overlay, Space pause/resume and speed keys, route sandbox (SFO to SAN) then listed in Routes, duplicate route attempt, order 2 aircraft shows "0 of 2" pending and "on order" in Fleet, cabin designer, 90 simulated days at speed 5, date rate at speeds 1-4 within a tolerance band of the nominal 0.5/1/3/7 days per second.
 
+## Maintenance switch (lane/nomaint)
+Aircraft maintenance (A-D checks, deferral, heavy-check decision cards, per-hour maintenance cost line) is suspended with `MAINTENANCE_ENABLED = false` (`packages/sim/src/fleet/maintenance.ts`). Tests that exercise maintenance (`fleet.test.ts`, `planner.test.ts`, `economics.test.ts`, one scenario test) turn it on with `setMaintenanceEnabledForTests(true)`; `fleet/maintenanceOff.test.ts` checks a 3-year run has zero maintenance events. Manual checks while it is off: Fleet shows no "Next check" and no "In check" (only "Cabin refit"); Planner legend, aircraft panel and timeline show only refits, deliveries, pins and spares; Finance has no Maintenance column; no heavy-check card ever appears. The e2e suite has no maintenance expectations, so it is unchanged. When re-enabling, re-run bots, soak and this checklist.
+
 ## Bugs and observations
 No failing invariant was found, and no game code was changed. Notes, by severity:
 

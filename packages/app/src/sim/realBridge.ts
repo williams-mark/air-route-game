@@ -4,7 +4,7 @@
 import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as dataAirports } from "@arg/data";
 import {
-  applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay,
+  applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay,
   type AutoSlowHook, type Clock, type SimState,
 } from "@arg/sim";
 import type {
@@ -374,10 +374,10 @@ export function buildFleet(sim: SimState): FleetItem[] {
       status: ac.status, ageYears: ac.ageDays / 365.25, seats: layoutSeats(ac.layout), layout: ac.layout, routes: flies.get(ac.id) ?? [],
     };
     if (meta?.maintenance?.refit) item.refit = true;
-    if (meta?.maintenance) item.check = { kind: meta.maintenance.check, endDay: meta.maintenance.endDay, daysRemaining: Math.max(0, meta.maintenance.endDay - day) };
+    if (meta?.maintenance && (meta.maintenance.refit || maintenanceEnabled())) item.check = { kind: meta.maintenance.check, endDay: meta.maintenance.endDay, daysRemaining: Math.max(0, meta.maintenance.endDay - day) };
     if (ac.status === "delivery" && meta?.deliveryDay != null) item.deliveryDay = meta.deliveryDay;
     if (meta?.orderId) item.orderId = meta.orderId;
-    if (meta && ac.status !== "delivery") {
+    if (meta && ac.status !== "delivery" && maintenanceEnabled()) {
       let best: FleetItem["nextCheck"];
       for (const kind of ["B", "C", "D"] as const) {
         const inDays = meta.intervals[kind] - meta.daysSince[kind];
