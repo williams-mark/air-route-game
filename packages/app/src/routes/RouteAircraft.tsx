@@ -7,6 +7,7 @@ import { routeBlock, typicalSeats } from "../aircraft/availability";
 import { usePickerMemory } from "../aircraft/memory";
 import { bridge, useSim } from "../sim/useSim";
 import { useUi } from "../store";
+import { usePlanner } from "../planner/store";
 import { IconAlert } from "../shell/icons";
 import { pct, usdSigned } from "./fmt";
 import { projectRoute, routeName } from "./helpers";
@@ -41,6 +42,11 @@ export function RouteAircraft({ route }: { route: Route }) {
   const name = routeName(route);
   const type = aircraftTypes.find((t) => t.id === route.typeId);
   const flying = fleet.filter((f) => f.routes.includes(name));
+  const mix = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const f of flying) m.set(f.typeId, (m.get(f.typeId) ?? 0) + 1);
+    return [...m.entries()].sort((x, y) => y[1] - x[1]);
+  }, [flying]);
   const { owned, onOrder } = useMemo(() => ownedByType(fleet), [fleet]);
 
   useEffect(() => {
@@ -71,10 +77,14 @@ export function RouteAircraft({ route }: { route: Route }) {
       <dl className="mini rp-dl">
         <dt>Type</dt><dd>{type?.name ?? route.typeId}{type ? `, ${typicalSeats(type)} seats` : ""}</dd>
         <dt>Flown by</dt><dd>{flying.length === 0 ? "No aircraft assigned right now" : flying.slice(0, 6).map((f) => f.tail).join(", ") + (flying.length > 6 ? ` and ${flying.length - 6} more` : "")}</dd>
+        {mix.length > 1 && <><dt>Mixed fleet</dt><dd>{mix.map(([t, n]) => `${n} x ${t}`).join(", ")}</dd></>}
         <dt>You own</dt><dd>{owned.get(route.typeId) ? `${owned.get(route.typeId)!.total} ${route.typeId} (${owned.get(route.typeId)!.free} free)` : `None${onOrder.get(route.typeId) ? `, ${onOrder.get(route.typeId)} on order` : ""}`}</dd>
       </dl>
       {!changing ? (
-        <div className="rp-actions"><button type="button" onClick={() => { setNewId(route.typeId); setChanging(true); }}>Change aircraft type</button></div>
+        <div className="rp-actions">
+          <button type="button" onClick={() => { setNewId(route.typeId); setChanging(true); }}>Change aircraft type</button>
+          <button type="button" onClick={() => { usePlanner.getState().set({ routeId: route.id, tab: "routes" }); setView("planner"); }}>Fly several types on this route</button>
+        </div>
       ) : (
         <div className="rp-acswap">
           <AircraftPicker label="New aircraft type" value={newId} onChange={setNewId} year={year} types={aircraftTypes} hideBlocked defaultOpen={!changed}

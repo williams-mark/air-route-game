@@ -1,7 +1,7 @@
 // Rule-based, deterministic decision cards generated from sim state. Pure apart from the engine's own counters,
 // which are a function of the sequence of states it has seen.
 import type { AircraftType, Command, Day, Route } from "@arg/contracts";
-import { COMMAND_PARAMS, dayToDate, orderDiscount, rivalNews, typeCanServe, type RivalNewsItem, type SimState } from "@arg/sim";
+import { COMMAND_PARAMS, dayToDate, orderDiscount, rivalNews, typeCanServe, type PlannerCommand, type RivalNewsItem, type SimState } from "@arg/sim";
 import { scaleFares } from "../rivals/helpers";
 import { bestFrequency, frequencySweep, projectRoute, routeName, dataWorld } from "../routes/helpers";
 import type { Decision } from "./bridge";
@@ -11,7 +11,7 @@ export interface PendingDecision extends Decision {
   /** Subject key; the id is `${key}@${day}`. */
   key: string;
   /** Command to dispatch for each option id (null: just acknowledge). */
-  commands: Record<string, Command | null>;
+  commands: Record<string, Command | PlannerCommand | null>;
   expiresDay: Day;
 }
 
@@ -274,24 +274,40 @@ export class DecisionEngine {
       const under = rep.scheduling?.underSupplied ?? 0;
       const lf = rep.evaluation.loadFactor;
       if (under === 0 && lf < 0.8) continue;
+      const reqType = sim.aircraftTypes.find((t) => t.id === r.typeId);
+      // A different size class only flies the route through an explicit extra-type entry, which only makes sense for missing flights.
+      if (under === 0 && reqType && reqType.widebody !== type.widebody) continue;
       const roundTrip = 2 * rep.evaluation.blockHours;
       const capacity = (type.widebody ? 12.5 : 9.5) * 7;
-      const extra = under > 0 ? under : Math.max(1, Math.floor(capacity / roundTrip));
-      if (r.weeklyFrequency + extra > COMMAND_PARAMS.maxWeeklyFrequency) continue;
+      const room = Math.max(1, Math.floor(capacity / roundTrip));
+      // Missing flights are covered by the aircraft itself; frequency only goes up when the route is already fully flown.
+      const extra = under > 0 ? Math.min(under, room) : room;
+      if (under === 0 && r.weeklyFrequency + extra > COMMAND_PARAMS.maxWeeklyFrequency) continue;
       const score = under * 10 + lf;
       if (!best || score > best.score) best = { r, score, lf, extra };
     }
     const options: Decision["options"] = [];
     const commands: PendingDecision["commands"] = {};
     if (best) {
-      const newFreq = best.r.weeklyFrequency + best.extra;
-      const now = sim.routeReports[best.r.id]?.evaluation.profit ?? 0;
-      const proj = projectRoute({ ...best.r, weeklyFrequency: newFreq }, day)?.evaluation;
-      options.push({
-        id: "fly", label: `Add ${best.extra} a week on ${routeName(best.r)}`,
-        effect: proj ? `Load ${Math.round(proj.loadFactor * 100)}%, ${money(proj.profit - now)}/wk before fleet costs` : `To ${newFreq} a week`,
-      });
-      commands.fly = { kind: "updateRoute", id: best.r.id, patch: { weeklyFrequency: newFreq } };
+      const missing = sim.routeReports[best.r.id]?.scheduling?.underSupplied ?? 0;
+      const sameType = best.r.typeId === type.id;
+      if (missing > 0) {
+        const prefs = sim.planner?.routeTypes?.[best.r.id] ?? [];
+        options.push({
+          id: "fly", label: `Fly it on ${routeName(best.r)}${sameType ? "" : ` alongside the ${best.r.typeId}`}`,
+          effect: `Covers about ${best.extra} of the ${missing} weekly flights the route cannot staff; frequency stays ${best.r.weeklyFrequency} a week`,
+        });
+        commands.fly = sameType || prefs.includes(type.id) ? null : { kind: "setRouteTypes", routeId: best.r.id, preferredTypeIds: [...prefs, type.id] };
+      } else {
+        const newFreq = best.r.weeklyFrequency + best.extra;
+        const now = sim.routeReports[best.r.id]?.evaluation.profit ?? 0;
+        const proj = projectRoute({ ...best.r, weeklyFrequency: newFreq }, day)?.evaluation;
+        options.push({
+          id: "fly", label: `Add ${best.extra} a week on ${routeName(best.r)}`,
+          effect: proj ? `Load ${Math.round(proj.loadFactor * 100)}%, ${money(proj.profit - now)}/wk before fleet costs` : `To ${newFreq} a week`,
+        });
+        commands.fly = { kind: "updateRoute", id: best.r.id, patch: { weeklyFrequency: newFreq } };
+      }
     }
     options.push({ id: "spare", label: "Keep it as a spare", effect: "Covers heavy checks; costs lease while idle" });
     commands.spare = null;
