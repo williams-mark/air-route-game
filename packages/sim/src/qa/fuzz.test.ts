@@ -41,7 +41,7 @@ function gen(rng: () => number, s: SimState) {
       })),
     };
   };
-  const kind = pick(["openRoute", "openRoute", "updateRoute", "closeRoute", "orderAircraft", "acceptOffer", "dismissOffer", "refitAircraft"] as const);
+  const kind = pick(["openRoute", "openRoute", "updateRoute", "closeRoute", "orderAircraft", "acceptOffer", "dismissOffer", "refitAircraft", "pinAircraft", "applyCover", "setRouteTypes", "reserveAircraft", "ignoreGap"] as const);
   switch (kind) {
     case "openRoute": return { kind, route: { origin: apId(), destination: apId(), weeklyFrequency: num(() => 1 + Math.floor(rng() * 40)), fares: fares(), typeId: typeId() } } as AnyCommand;
     case "updateRoute": {
@@ -57,6 +57,11 @@ function gen(rng: () => number, s: SimState) {
     case "acceptOffer": return { kind, offerId: offerId(), quantity: num(() => 1 + Math.floor(rng() * 5)) };
     case "dismissOffer": return { kind, offerId: offerId() };
     case "refitAircraft": return { kind, aircraftId: acId(), layout: layout() };
+    case "pinAircraft": return { kind, aircraftId: acId(), routeId: rng() < 0.2 ? null : routeId(), ...(rng() < 0.4 ? { fromDay: num(() => s.world.day + Math.floor(rng() * 60)), toDay: num(() => s.world.day + 60 + Math.floor(rng() * 60)) } : {}) } as AnyCommand;
+    case "applyCover": return { kind, aircraftId: acId(), routeId: routeId(), fromDay: num(() => s.world.day + Math.floor(rng() * 60)), toDay: num(() => s.world.day + 30 + Math.floor(rng() * 60)) } as AnyCommand;
+    case "setRouteTypes": return { kind, routeId: routeId(), preferredTypeIds: Array.from({ length: Math.floor(rng() * 4) }, () => typeId()) } as AnyCommand;
+    case "reserveAircraft": return { kind, aircraftId: acId(), reserve: rng() < 0.6 };
+    case "ignoreGap": return { kind, gapId: rng() < 0.8 ? `${routeId()}:${Math.floor(rng() * 90)}:${Math.floor(rng() * 90)}` : (pick(WEIRD_IDS) as string), ignore: rng() < 0.7 };
   }
 }
 

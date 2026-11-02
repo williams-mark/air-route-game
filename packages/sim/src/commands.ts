@@ -9,6 +9,8 @@ import type { AircraftOrder, SimState } from "./state";
 import { dayToDate, START_YEAR, isLeapYear } from "./time/calendar";
 import { applyOfferCommand, type OfferCommand, type OfferResult } from "./offers";
 import { applyRefit, type CabinCommand, type RefitResult } from "./cabin/refit";
+import { applyPlannerCommand, type PlannerOk } from "./planner/commands";
+import type { PlannerCommand } from "./planner/types";
 
 // ---------------------------------------------------------------------------
 // Parameters (documented in MODEL.md section 6)
@@ -81,9 +83,10 @@ export interface CommandResultMap {
   };
 }
 
-export type AnyCommand = Command | OfferCommand | CabinCommand;
+export type AnyCommand = Command | OfferCommand | CabinCommand | PlannerCommand;
 type OfferOk = Exclude<OfferResult, CommandError>;
-type FullResultMap = CommandResultMap & { acceptOffer: Extract<OfferOk, { kind: "acceptOffer" }>; dismissOffer: Extract<OfferOk, { kind: "dismissOffer" }>; refitAircraft: Extract<RefitResult, { ok: true }> };
+type FullResultMap = CommandResultMap & { acceptOffer: Extract<OfferOk, { kind: "acceptOffer" }>; dismissOffer: Extract<OfferOk, { kind: "dismissOffer" }>; refitAircraft: Extract<RefitResult, { ok: true }> }
+  & { [K in PlannerCommand["kind"]]: Extract<PlannerOk, { kind: K }> };
 export type CommandResult<K extends AnyCommand["kind"] = AnyCommand["kind"]> = FullResultMap[K] | CommandError;
 export type ResultOf<C extends AnyCommand> = CommandResult<C["kind"]>;
 
@@ -295,6 +298,12 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
       return applyOfferCommand(state, cmd);
     case "refitAircraft":
       return applyRefit(state, cmd);
+    case "pinAircraft":
+    case "setRouteTypes":
+    case "reserveAircraft":
+    case "applyCover":
+    case "ignoreGap":
+      return applyPlannerCommand(state, cmd);
     case "setSpeed": {
       if (![0, 1, 2, 3, 4, 5].includes(cmd.speed)) return { state, result: fail("invalid_speed", "Speed must be 0 to 5.") };
       return { state: { ...state, speed: cmd.speed }, result: { ok: true, kind: "setSpeed", speed: cmd.speed } };

@@ -6,6 +6,7 @@ import { simulateRouteWeek } from "./route/routeModel";
 import { makeRng, mixSeed } from "./rng";
 import { checkCostUsd, checkEndDay, dueCheck, initialMeta, MAINTENANCE_PARAMS, resetAfterCheck } from "./fleet/maintenance";
 import { assign } from "./fleet/scheduler";
+import { plannerPrefs } from "./planner/forecast";
 import { evaluateNetwork } from "./route/network";
 import { pushEvents } from "./commands";
 import { stepOffers } from "./offers";
@@ -41,6 +42,7 @@ export * from "./fleet/scheduler";
 export { mixSeed } from "./rng";
 export * from "./rivals";
 export * from "./serialize";
+export * from "./planner";
 
 export function newWorld(seed: number): WorldState {
   return { seed, day: 0, playerId: "player", cash: 100_000_000, routes: [], fleet: [] };
@@ -113,7 +115,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   const rng = makeRng(mixSeed(world.seed, day));
   const notices: SimEvent[] = [];
   const say = (text: string) => notices.push({ kind: "notice", day, text });
-  const ctx = { airports, types };
+  const ctx = { airports, types, prefs: plannerPrefs(state, day) };
 
   // Work on private copies so the input state is never modified.
   const fleet: Aircraft[] = world.fleet.map((ac) => ({ ...ac, hoursSinceCheck: { ...ac.hoursSinceCheck } }));
