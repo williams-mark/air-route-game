@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
 import type { Aircraft, Route } from "@arg/contracts";
-import { applyCommand, stepDay } from "../index";
+import { applyCommand, setMaintenanceEnabledForTests, stepDay } from "../index";
+// Maintenance is suspended by default (MAINTENANCE_ENABLED); this file exercises it, so switch it on (module scope, this file only).
+setMaintenanceEnabledForTests(true);
+
 import { assign, defaultLayout, initialMeta, runDays, startingScenario, newSim, makeSave, parseSave, stringifySave, type SimState } from "../index";
 import { makeRng } from "../rng";
 import { applyPlannerCommand, coverageGaps, forecastFleet, plannerDemoFleet, plannerPrefs, suggestCover, EMPTY_PLANNER, type PlannerCommand } from "./index";

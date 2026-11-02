@@ -1,6 +1,6 @@
 # Build status (update at the end of every work session)
 
-Last updated: Mon 2 Nov 2026 (UTC morning). `main` passes typecheck, test (data 12, sim 172, app 55) and build.
+Last updated: Mon 2 Nov 2026 (UTC morning). `main` passes typecheck, test (data 13, sim 197, app 82; on lane/nomaint) and build.
 
 ## Task table (T1-T18 from the Week-One Build Plan doc)
 | Task | State | Notes |
@@ -28,6 +28,12 @@ Last updated: Mon 2 Nov 2026 (UTC morning). `main` passes typecheck, test (data 
 - Planner view (toolbar, Alt+4, palette "Go to Planner"): swimlane timeline, Issues with suggested cover, route fallback types, aircraft panel. Sim side in packages/sim/src/planner, see MODEL.md "Fleet planner". `?fleetdemo` loads a 36-aircraft fleet.
 - TODO for the uifix lane: the heavy-check decision card (app/src/sim/decisions.ts checkCard + shell/DecisionCard.tsx) should offer "Plan cover" calling `usePlanner.getState().focus(aircraftId)` (planner/store.ts opens the planner on that aircraft).
 - Data limit: widebodies cannot serve OGG (runway 2133 m vs 2650-3200 m needed), so LAX-OGG cannot be swapped to an A330 by any means; the planner shows the reason in the pin list.
+
+## Maintenance suspended (lane/nomaint)
+- `MAINTENANCE_ENABLED = false` in packages/sim/src/fleet/maintenance.ts suspends A-D checks, check clocks, deferrals, heavy-check decision cards, check costs and the per-hour maintenance ledger line. Flip to `true` to bring it all back; nothing was deleted. Cabin refits still work (own downtime and cost, no check slot). Details: MODEL.md section 7, QA.md "Maintenance switch".
+- Tests that exercise maintenance switch it on with `setMaintenanceEnabledForTests(true)` (fleet, planner, economics, one scenario test); `fleet/maintenanceOff.test.ts` covers the off state (3-year run, zero events).
+- App hides it when off: heavy-check cards, Planner B/C/D/A legend entries, Fleet "Next check" and "In check" wording, Finance Maintenance column. Planner keeps assignments, deliveries, pins, spares and coverage gaps from deliveries and refits.
+- Balance: removing maintenance raises margins slightly (see BALANCE.md note); re-run bots and soak when re-enabling.
 
 ## Known issues to fix next
 - Player bankruptcy rule missing (QA.md bug 1): 23 of 30 bot games end with negative cash and nothing happens.

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
 import type { Aircraft, Route } from "@arg/contracts";
-import { assign, defaultLayout, MAINTENANCE_PARAMS, newSim, runDays, SCHEDULER_PARAMS, stepDay, type SimState } from "../index";
+import { assign, defaultLayout, MAINTENANCE_PARAMS, newSim, runDays, SCHEDULER_PARAMS, setMaintenanceEnabledForTests, stepDay, type SimState } from "../index";
+// Maintenance is suspended by default (MAINTENANCE_ENABLED); this file exercises it, so switch it on (module scope, this file only).
+setMaintenanceEnabledForTests(true);
+
 
 const A = new Map(airports.map((a) => [a.id, a]));
 const T = new Map(aircraftTypes.map((t) => [t.id, t]));

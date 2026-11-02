@@ -1,7 +1,7 @@
 // Rule-based, deterministic decision cards generated from sim state. Pure apart from the engine's own counters,
 // which are a function of the sequence of states it has seen.
 import type { AircraftType, Command, Day, Route } from "@arg/contracts";
-import { COMMAND_PARAMS, dayToDate, orderDiscount, rivalNews, typeCanServe, type PlannerCommand, type RivalNewsItem, type SimState } from "@arg/sim";
+import { COMMAND_PARAMS, dayToDate, maintenanceEnabled, orderDiscount, rivalNews, typeCanServe, type PlannerCommand, type RivalNewsItem, type SimState } from "@arg/sim";
 import { scaleFares } from "../rivals/helpers";
 import { bestFrequency, frequencySweep, projectRoute, routeName, dataWorld } from "../routes/helpers";
 import type { Decision } from "./bridge";
@@ -219,6 +219,7 @@ export class DecisionEngine {
   }
 
   private checkCard(sim: SimState): Raised | null {
+    if (!maintenanceEnabled()) return null; // maintenance is suspended: no heavy-check cards
     const day = sim.world.day;
     const year = dayToDate(day).year;
     const busy = new Set<string>();

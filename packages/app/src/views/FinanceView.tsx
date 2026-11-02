@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { dayToDate } from "@arg/sim";
+import { dayToDate, maintenanceEnabled } from "@arg/sim";
 import { monthly, type CostKey, type DayRecord, type MonthRecord } from "../sim/finance";
 import { formatMoney } from "../sim/format";
 import { useSimSelector } from "../sim/useSim";
@@ -87,6 +87,8 @@ export default function FinanceView() {
   const ledger = useSimSelector((s) => s.ledger);
   const cash = useSimSelector((s) => s.cash);
   const months = useMemo(() => monthly(ledger), [ledger]);
+  // Maintenance is suspended (sim MAINTENANCE_ENABLED): hide its column unless an older save has maintenance costs in it.
+  const cols = useMemo(() => (maintenanceEnabled() || months.some((m) => m.by.maintenance !== 0) ? COLS : COLS.filter(([c]) => c !== "Maintenance")), [months]);
   if (ledger.length === 0) {
     return (
       <div className="page">
@@ -113,18 +115,18 @@ export default function FinanceView() {
         <h2>Monthly P&amp;L</h2>
         <div className="table-wrap">
           <table className="data">
-            <thead><tr><th scope="col">Month</th>{COLS.map(([c]) => <th key={c} scope="col" className="num">{c}</th>)}</tr></thead>
+            <thead><tr><th scope="col">Month</th>{cols.map(([c]) => <th key={c} scope="col" className="num">{c}</th>)}</tr></thead>
             <tbody>
               {rows.map((m) => (
                 <tr key={m.index}>
                   <th scope="row">{m.label}{m.days < daysIn(m) ? <span className="hint"> so far</span> : null}</th>
-                  {COLS.map(([c, f]) => { const v = f(m); return <td key={c} className={`num ${c === "Profit" ? (v < 0 ? "neg" : "pos") : ""}`}>{formatMoney(v)}</td>; })}
+                  {cols.map(([c, f]) => { const v = f(m); return <td key={c} className={`num ${c === "Profit" ? (v < 0 ? "neg" : "pos") : ""}`}>{formatMoney(v)}</td>; })}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="foot-note">Fleet and corporate costs are aircraft lease, overhead and maintenance checks. Route costs are summed from each route's weekly ledger divided by seven.</p>
+        <p className="foot-note">Fleet and corporate costs are aircraft lease, overhead{maintenanceEnabled() ? " and maintenance checks" : ""}. Route costs are summed from each route's weekly ledger divided by seven.</p>
       </section>
     </div>
   );

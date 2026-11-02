@@ -4,7 +4,7 @@ import type {
 import { monthlyOwnershipUsd } from "./finance/ledger";
 import { simulateRouteWeek } from "./route/routeModel";
 import { makeRng, mixSeed } from "./rng";
-import { checkCostUsd, checkEndDay, dueCheck, initialMeta, MAINTENANCE_PARAMS, resetAfterCheck } from "./fleet/maintenance";
+import { checkCostUsd, checkEndDay, dueCheck, initialMeta, MAINTENANCE_PARAMS, maintenanceEnabled, resetAfterCheck } from "./fleet/maintenance";
 import { assign } from "./fleet/scheduler";
 import { plannerPrefs } from "./planner/forecast";
 import { evaluateNetwork } from "./route/network";
@@ -110,6 +110,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
 
   const { world, params } = state;
   const day = world.day;
+  const maint = maintenanceEnabled();
   const airports = new Map(state.airports.map((a) => [a.id, a]));
   const types = new Map(state.aircraftTypes.map((t) => [t.id, t]));
   const rng = makeRng(mixSeed(world.seed, day));
@@ -145,7 +146,12 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   // 2. Heavy checks that finish today.
   for (const ac of byId) {
     const m = meta[ac.id]!;
-    if (ac.status === "maintenance" && m.maintenance && m.maintenance.endDay <= day) {
+    // With maintenance switched off, an aircraft left in a check by an older save returns at once; refits still run their course.
+    if (!maint && ac.status === "maintenance" && m.maintenance && !m.maintenance.refit) {
+      m.maintenance = null;
+      ac.status = "active";
+      say(`${ac.tailNumber} (${ac.typeId}) is back in service (maintenance checks are suspended).`);
+    } else if (ac.status === "maintenance" && m.maintenance && m.maintenance.endDay <= day) {
       say(m.maintenance.refit ? `${ac.tailNumber} (${ac.typeId}) is back in service with its new cabin.` : `${ac.tailNumber} (${ac.typeId}) is back in service after its ${m.maintenance.check} check.`);
       m.maintenance = null;
       ac.status = "active";
@@ -155,7 +161,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   // 3. Checks that fall due. A checks happen overnight (cost, no downtime). Heavier checks are deferred
   //    (up to the grace period) when pulling the aircraft would leave scheduled flights uncovered.
   let baseline: number | null = null;
-  for (const ac of byId) {
+  for (const ac of maint ? byId : []) {
     const m = meta[ac.id]!;
     if (ac.status !== "active") continue;
     const kind = dueCheck(ac, m);
@@ -258,9 +264,9 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     const cycles = load ? load.assignments.reduce((s, a) => s + (2 * a.roundTrips) / 7, 0) : 0;
     m.flightHours += hours;
     m.cycles += cycles;
-    for (const k of ["A", "B", "C", "D"] as CheckKind[]) ac.hoursSinceCheck[k] += hours;
+    if (maint) for (const k of ["A", "B", "C", "D"] as CheckKind[]) ac.hoursSinceCheck[k] += hours;
     if (ac.status !== "delivery") {
-      if (ac.status !== "maintenance") for (const k of ["B", "C", "D"] as const) m.daysSince[k] += 1;
+      if (maint && ac.status !== "maintenance") for (const k of ["B", "C", "D"] as const) m.daysSince[k] += 1;
       ac.ageDays += 1;
     }
   }

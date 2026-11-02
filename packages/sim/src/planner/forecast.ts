@@ -1,5 +1,5 @@
 import type { Aircraft, Day, Id } from "@arg/contracts";
-import { checksCoveredBy, dueCheck, MAINTENANCE_PARAMS } from "../fleet/maintenance";
+import { checksCoveredBy, dueCheck, MAINTENANCE_PARAMS, maintenanceEnabled } from "../fleet/maintenance";
 import { assign, type AssignPrefs } from "../fleet/scheduler";
 import type { AircraftMeta, CheckKind, SimState } from "../state";
 import type { AircraftForecast, DowntimeWindow, FleetForecast, PlannerPin } from "./types";
@@ -68,11 +68,14 @@ export function forecastFleet(state: SimState, horizonDays: number): FleetForeca
 
 function forecastAircraft(ac: Aircraft, meta: AircraftMeta, start: Day, end: Day, hoursDay: number): AircraftForecast {
   const P = MAINTENANCE_PARAMS;
+  const maint = maintenanceEnabled();
   const res: AircraftForecast = { aircraftId: ac.id, deliveryDay: null, aChecks: [], windows: [] };
   if (ac.status === "stored") return res;
   const daysSince = { ...meta.daysSince };
   const hoursA = { v: ac.hoursSinceCheck.A };
-  let status: "delivery" | "active" | "maintenance" = ac.status === "delivery" ? "delivery" : ac.status === "maintenance" ? "maintenance" : "active";
+  // Switched off: a leftover (non-refit) check is released by stepDay at once, so only refits remain as windows.
+  const staleCheck = !maint && ac.status === "maintenance" && !meta.maintenance?.refit;
+  let status: "delivery" | "active" | "maintenance" = ac.status === "delivery" ? "delivery" : ac.status === "maintenance" && !staleCheck ? "maintenance" : "active";
   let backDay: Day = meta.maintenance?.endDay ?? 0;
   if (status === "maintenance" && meta.maintenance) {
     const kind = meta.maintenance.refit ? "refit" : meta.maintenance.check === "A" ? "refit" : meta.maintenance.check;
@@ -83,7 +86,7 @@ function forecastAircraft(ac: Aircraft, meta: AircraftMeta, start: Day, end: Day
     // Mirrors stepDay: deliveries, end of checks, checks falling due, then counters.
     if (status === "delivery" && meta.deliveryDay !== null && meta.deliveryDay <= day) status = "active";
     if (status === "maintenance" && backDay <= day) status = "active";
-    if (status === "active") {
+    if (status === "active" && maint) {
       const fake = { hoursSinceCheck: { A: hoursA.v, B: 0, C: 0, D: 0 } } as Aircraft;
       const m = { intervals: meta.intervals, daysSince } as AircraftMeta;
       const kind = dueCheck(fake, m);
@@ -100,8 +103,8 @@ function forecastAircraft(ac: Aircraft, meta: AircraftMeta, start: Day, end: Day
       }
     }
     if (status !== "delivery") {
-      if (status !== "maintenance") for (const k of ["B", "C", "D"] as const) daysSince[k] += 1;
-      if (status === "active") hoursA.v += hoursDay;
+      if (maint && status !== "maintenance") for (const k of ["B", "C", "D"] as const) daysSince[k] += 1;
+      if (maint && status === "active") hoursA.v += hoursDay;
     }
   }
   return res;

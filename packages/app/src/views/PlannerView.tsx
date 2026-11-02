@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 import { aircraftTypes } from "@arg/data";
 import type { Aircraft, Id, Route } from "@arg/contracts";
 import {
-  coverageGaps, dayToDate, forecastFleet, infeasibleReason, layoutSeats, refitQuote, suggestCover, typeCanServe,
+  coverageGaps, dayToDate, forecastFleet, infeasibleReason, layoutSeats, maintenanceEnabled, refitQuote, suggestCover, typeCanServe,
   type CoverageGap, type CoverSuggestion, type FleetForecast, type SimState,
 } from "@arg/sim";
 import { CabinDialog } from "../cabin/CabinDialog";
@@ -54,7 +54,7 @@ function statusText(it: Item, state: SimState, fc: FleetForecast): { text: strin
   const meta = state.fleetMeta[ac.id];
   if (ac.status === "stored") return { text: "Stored", cls: "st-stored" };
   if (ac.status === "delivery") return { text: meta?.deliveryDay != null ? `Due ${formatDate(meta.deliveryDay).slice(0, -5)}` : "On order", cls: "st-delivery" };
-  if (ac.status === "maintenance") return { text: meta?.maintenance ? `${meta.maintenance.refit ? "Refit" : meta.maintenance.check} ${Math.max(0, meta.maintenance.endDay - state.world.day)}d` : "In check", cls: "st-maintenance" };
+  if (ac.status === "maintenance") return { text: meta?.maintenance ? `${meta.maintenance.refit || !maintenanceEnabled() ? "Refit" : meta.maintenance.check} ${Math.max(0, meta.maintenance.endDay - state.world.day)}d` : maintenanceEnabled() ? "In check" : "Refit", cls: "st-maintenance" };
   if (state.planner?.reserved[ac.id]) return { text: "Spare", cls: "st-spare" };
   const next = fc.aircraft[ac.id]?.windows.find((w) => !w.underway);
   if (!it.baseRoute) return { text: "Idle", cls: "st-idle" };
@@ -75,7 +75,7 @@ export default function PlannerView() {
     return <div className="page"><header className="page-head"><h1>Fleet planner</h1><p>The planner needs the real simulation; it is not available in mock mode.</p></header></div>;
   }
   if (state.world.fleet.length === 0) {
-    return <div className="page"><header className="page-head"><h1>Fleet planner</h1></header><div className="empty-state"><h2>No aircraft</h2><p>Order aircraft first; the planner shows their checks, deliveries and coverage.</p></div></div>;
+    return <div className="page"><header className="page-head"><h1>Fleet planner</h1></header><div className="empty-state"><h2>No aircraft</h2><p>Order aircraft first; the planner shows their {maintenanceEnabled() ? "checks, " : "assignments, "}deliveries and coverage.</p></div></div>;
   }
   const selected = aircraftId ? state.world.fleet.find((a) => a.id === aircraftId) ?? null : null;
   return (
@@ -261,8 +261,10 @@ function Legend({ routes, colorBy }: { routes: Route[]; colorBy: "route" | "stat
       {colorBy === "route"
         ? routes.slice(0, ROUTE_COLORS * 2).map((r, i) => <li key={r.id}><i style={{ background: `var(--pl-r${i % ROUTE_COLORS})` }} />{rname(r)}</li>)
         : <><li><i style={{ background: "var(--pl-active)" }} />Flying</li><li><i style={{ background: "var(--pl-idle)" }} />Idle or spare</li></>}
-      <li><i className="lg-check c-B" />B</li><li><i className="lg-check c-C" />C</li><li><i className="lg-check c-D" />D</li><li><i className="lg-check c-refit" />Refit</li>
-      <li><i className="lg-a" />A check</li><li><i className="lg-del" />Delivery</li><li><i className="lg-pin" />Pinned</li>
+      {maintenanceEnabled() && <><li><i className="lg-check c-B" />B</li><li><i className="lg-check c-C" />C</li><li><i className="lg-check c-D" />D</li></>}
+      <li><i className="lg-check c-refit" />Refit</li>
+      {maintenanceEnabled() && <li><i className="lg-a" />A check</li>}
+      <li><i className="lg-del" />Delivery</li><li><i className="lg-pin" />Pinned</li>
     </ul>
   );
 }
@@ -278,7 +280,7 @@ function Issues({ state, data }: { state: SimState; data: Data }) {
         <label className="pl-check-label"><input type="checkbox" checked={showShort} onChange={(e) => set({ showShort: e.target.checked })} /> Include short gaps (under 4 days)</label>
         {ignored.length > 0 && <button type="button" className="pl-link" onClick={() => ignored.forEach((g) => send({ kind: "ignoreGap", gapId: g, ignore: false }))}>Restore {ignored.length} ignored</button>}
       </div>
-      {data.gaps.length === 0 ? <p className="pl-dim pl-pad">No coverage gaps in the forecast. Every route keeps its full schedule while aircraft are in the hangar.</p> : (
+      {data.gaps.length === 0 ? <p className="pl-dim pl-pad">No coverage gaps in the forecast. Every route keeps its full schedule{maintenanceEnabled() ? " while aircraft are in the hangar" : " through deliveries and cabin refits"}.</p> : (
         <ul className="pl-issues">
           {data.gaps.map((g) => <Issue key={g.id} gap={g} open={openGap === g.id} state={state} data={data} />)}
         </ul>
@@ -366,7 +368,7 @@ function AircraftPanel({ state, data, ac }: { state: SimState; data: Data; ac: A
         <button type="button" className="icon-btn" aria-label="Close aircraft detail" onClick={() => set({ aircraftId: null })}>{"✕"}</button>
       </div>
       <dl className="pl-dl">
-        <dt>Status</dt><dd>{ac.status === "maintenance" ? "In the hangar" : ac.status === "delivery" ? "On order" : ac.status === "stored" ? "Stored" : reserved ? "Held as a spare" : "In service"}</dd>
+        <dt>Status</dt><dd>{ac.status === "maintenance" ? (maintenanceEnabled() ? "In the hangar" : "In cabin refit") : ac.status === "delivery" ? "On order" : ac.status === "stored" ? "Stored" : reserved ? "Held as a spare" : "In service"}</dd>
         <dt>Flying now</dt><dd>{current.length ? current.join(", ") : "Nothing"}</dd>
       </dl>
       <label className="pl-field">Assign to route
@@ -385,7 +387,7 @@ function AircraftPanel({ state, data, ac }: { state: SimState; data: Data; ac: A
       <ul className="pl-up">
         {f?.deliveryDay != null && <li><b>Delivery</b> {formatDate(f.deliveryDay)}</li>}
         {(f?.windows ?? []).map((w, i) => <li key={i}><b>{WIN_LABEL[w.kind]}</b> {w.underway ? "until" : `${formatDate(w.startDay)} to`} {formatDate(w.endDay - 1)}{!w.underway && <span className="pl-dim"> (may slip to {formatDate(w.latestStartDay)} if it would drop flights)</span>}</li>)}
-        {(f?.aChecks ?? []).slice(0, 3).map((d) => <li key={d}><b>A check</b> {formatDate(d)} <span className="pl-dim">overnight</span></li>)}
+        {(maintenanceEnabled() ? f?.aChecks ?? [] : []).slice(0, 3).map((d) => <li key={d}><b>A check</b> {formatDate(d)} <span className="pl-dim">overnight</span></li>)}
         {!f?.windows.length && !f?.aChecks.length && f?.deliveryDay == null && <li className="pl-dim">Nothing due in this horizon.</li>}
       </ul>
       {refit && ac.layout && (
@@ -436,7 +438,7 @@ function RoutesPanel({ state, data }: { state: SimState; data: Data }) {
         </select>
       </label>
       <h3 className="pl-sub">Fallback types, in order</h3>
-      <p className="pl-dim pl-small">When the primary type is busy or in the hangar, the scheduler tries these before any other aircraft of the same size.</p>
+      <p className="pl-dim pl-small">When the primary type is busy or out of service, the scheduler tries these before any other aircraft of the same size.</p>
       <ol className="pl-types">
         {list.length === 0 && <li className="pl-dim">None set (automatic).</li>}
         {list.map((t, i) => (

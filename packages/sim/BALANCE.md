@@ -22,6 +22,9 @@ Reading: with competitors that react, random and greedy play now mostly fail; th
 and in the 2022 fuel spike). The greedy heuristic is worse than doing nothing in two of three seeds. No run approaches the 50x bound (best passive year multiple x1.25).
 Before the rivals merge (synthetic rivals only) the same run gave passive 434-439M and greedy 157-303M.
 
+## Maintenance suspended (lane/nomaint)
+With `MAINTENANCE_ENABLED = false` the per-hour maintenance cost and all A-D downtime are gone. `pnpm --filter @arg/sim bots` (12 games x 10 years, default seeds): bankruptcies 8/12, exploits 0, crashes 0; passive 335 / 616M, greedy 274 / 285M, random, yolo, fareProbe and orderChurn still all bankrupt. Best year x1.34, best route margin 60%, nowhere near the 50x bound. No parameter was recalibrated; the one margin test that is tuned with maintenance in it (`economics.test.ts`) runs with the switch on. Re-run bots and soak when re-enabling.
+
 ## Exploits found and fixed
 1. **Premium fares were free money.** Cabin passengers were allocated by seats and fill weight only, and demand reacted to the Y fare alone, so `fares.J = 400 x Y` multiplied cabin revenue. `fareProbe` reached USD 5-7.5B
    (up to x10.9 in one year, 87% route margins; flagged as exploit at 50x). Worse, once Y seats filled, overflow passengers were dumped into the highly priced J cabin. Fix: a cabin priced above its going multiple
