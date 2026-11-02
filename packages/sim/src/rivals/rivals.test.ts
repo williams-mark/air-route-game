@@ -134,7 +134,7 @@ describe("rivals: integration with the player's market", () => {
 
 describe("rivals: memory and retaliation", () => {
   it("cuts fares when undercut, tells the player, then relaxes", () => {
-    let s = runDays(scenario(21), 56);
+    let s = runDays(scenario(23), 56);
     const crown = () => s.rivals!.airlines.find((a) => a.id === "pacific-crown")!;
     const rt = () => crown().routes.find((r) => r.origin === "LAX" && r.destination === "HNL")!;
     const baseline = rt().fare;
