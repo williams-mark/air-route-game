@@ -6,7 +6,7 @@ export type StartableBridge = SimBridge & { start?: () => void };
 
 /**
  * The real simulation is the default. `?mock=1` selects the scripted mock (tests, screenshots of fixtures);
- * `?seed=N` seeds the real sim (default 2015); `?paused` starts at speed 0.
+ * `?seed=N` seeds the real sim (default 2015); `?paused` starts at speed 0; `?ff=N` fast-forwards N days at load (screenshots).
  */
 export function createBridge(search: string = typeof location !== "undefined" ? location.search : ""): StartableBridge {
   const q = new URLSearchParams(search);
@@ -18,6 +18,8 @@ export function createBridge(search: string = typeof location !== "undefined" ? 
   }
   const seed = Number(q.get("seed"));
   const b = new RealSimBridge({ seed: q.has("seed") && Number.isFinite(seed) ? seed : 2015, startPaused });
+  const ff = Number(q.get("ff"));
+  if (ff > 0) b.stepDays(Math.min(ff, 3650));
   b.start();
   return b;
 }

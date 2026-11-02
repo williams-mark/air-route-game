@@ -91,7 +91,7 @@ export function Shell() {
       <div className={`main ${view === "map" ? "on-map" : ""} ${panel ? "has-panel" : ""}`}>
         <MapView />
         {page}
-        <div className="overlay-left"><EventFeed /></div>
+        {view === "map" && <div className="overlay-left"><EventFeed /></div>}
         <div className="overlay-right"><Decisions /></div>
         <RoutePanel />
       </div>

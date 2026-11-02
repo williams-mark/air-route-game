@@ -19,7 +19,8 @@ export default function OrdersView() {
   const types = useMemo(() => orderableTypes(year), [year]);
   const [typeId, setTypeId] = useState("");
   const [qty, setQty] = useState(1);
-  const type = types.find((t) => t.id === typeId) ?? types[0];
+  // Default to the in-production type closest to a 180-seat narrowbody, a sensible first order.
+  const type = types.find((t) => t.id === typeId) ?? [...types].sort((a, b) => Math.abs(a.maxSeats - 190) - Math.abs(b.maxSeats - 190))[0];
   const count = Math.max(1, Math.min(COMMAND_PARAMS.maxOrderCount, Math.round(qty) || 1));
   const discount = orderDiscount(count);
   const unit = type ? type.listPriceUsdM * 1e6 * (1 - discount) : 0;

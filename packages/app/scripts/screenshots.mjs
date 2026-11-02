@@ -1,4 +1,5 @@
-// Usage: node scripts/screenshots.mjs   (needs playwright resolvable; uses the pre-installed Chromium)
+// Usage: node scripts/screenshots.mjs [--mock|--real]   (needs playwright resolvable; uses the pre-installed Chromium)
+// --mock: fixture screenshots (ui-*, dark-*/light-*) against ?mock=1. --real: real-sim screenshots (real-*) after ~3 simulated months. Default: both.
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
@@ -12,6 +13,9 @@ try { ({ chromium } = require("playwright")); } catch { ({ chromium } = require(
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "screenshots");
 mkdirSync(outDir, { recursive: true });
+const argv = process.argv.slice(2);
+const doMock = argv.includes("--mock") || !argv.includes("--real");
+const doReal = argv.includes("--real") || !argv.includes("--mock");
 const PORT = 5199;
 const url = `http://localhost:${PORT}/`;
 
@@ -93,13 +97,48 @@ async function routeShots(page, theme) {
   await page.getByRole("button", { name: "Close route inspector" }).click();
 }
 
+/** Real simulation after about three simulated months (ff=91 days). */
+async function realShots(theme) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const problems = [];
+  page.on("console", (m) => { if (m.type() === "error") problems.push(m.text()); });
+  page.on("pageerror", (e) => problems.push(e.message));
+  await page.goto(`${url}?theme=${theme}&t=420&paused=1&ff=91`);
+  await page.waitForFunction(() => window.__argMap && window.__argMap.loaded(), null, { timeout: 20000 });
+  await page.waitForTimeout(1500);
+  const snap = async (name) => {
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: path.join(outDir, `real-${theme}-${name}.png`) });
+    console.log("saved real", theme, name);
+  };
+  await snap("map");
+  await page.getByRole("button", { name: "Routes" }).click();
+  await snap("routes");
+  await page.getByRole("button", { name: /Inspect LAX.SFO/ }).click();
+  await snap("route-inspector");
+  await page.getByRole("button", { name: "Close route inspector" }).click();
+  await page.getByRole("button", { name: "Fleet" }).click();
+  await snap("fleet");
+  await page.getByRole("button", { name: "Orders" }).click();
+  await page.locator("#ord-type").selectOption("A320N");
+  await page.locator("#ord-qty").fill("4");
+  await snap("orders-form");
+  await page.getByRole("button", { name: "Place order" }).click();
+  await snap("orders");
+  await page.getByRole("button", { name: "Finance" }).click();
+  await snap("finance");
+  if (problems.length) console.log("[real problems]", theme, problems.slice(0, 5));
+  await page.close();
+}
+
 try {
-  for (const theme of ["dark", "light"]) {
+  if (doReal) for (const theme of ["dark", "light"]) await realShots(theme);
+  if (doMock) for (const theme of ["dark", "light"]) {
     for (const [w, h] of [[1440, 900], [1280, 720]]) {
       const page = await browser.newPage({ viewport: { width: w, height: h } });
       page.on("console", (m) => { if (m.type() === "error") console.log("[console]", m.text()); });
       page.on("pageerror", (e) => console.log("[pageerror]", e.message));
-      await page.goto(`${url}?theme=${theme}&t=420&paused=1`);
+      await page.goto(`${url}?mock=1&theme=${theme}&t=420&paused=1`);
       await page.waitForFunction(() => window.__argMap && window.__argMap.loaded(), null, { timeout: 20000 });
       await page.waitForTimeout(1500);
       for (const s of shellShots) {
@@ -113,11 +152,11 @@ try {
       await page.close();
     }
   }
-  for (const theme of ["dark", "light"]) {
+  if (doMock) for (const theme of ["dark", "light"]) {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     page.on("console", (m) => { if (m.type() === "error") console.log("[console]", m.text()); });
     page.on("pageerror", (e) => console.log("[pageerror]", e.message));
-    await page.goto(`${url}?theme=${theme}&t=420&paused=1`);
+    await page.goto(`${url}?mock=1&theme=${theme}&t=420&paused=1`);
     await page.waitForFunction(() => window.__argMap && window.__argMap.loaded(), null, { timeout: 20000 });
     await page.waitForTimeout(1200);
     for (const v of views) {
