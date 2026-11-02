@@ -176,7 +176,8 @@ export class MockSimBridge implements SimBridge {
 
 /** The one place to swap the mock for the real sim bridge. */
 export function createBridge(): SimBridge & { start?: () => void } {
-  const b = new MockSimBridge();
+  const startPaused = typeof location !== "undefined" && new URLSearchParams(location.search).has("paused");
+  const b = new MockSimBridge({ startPaused });
   b.start();
   return b;
 }

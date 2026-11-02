@@ -124,8 +124,10 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key === "+" || e.key === "=" || e.code === "NumpadAdd") { map.easeTo({ zoom: map.getZoom() + 0.7, duration: 200 }); e.preventDefault(); }
-      else if (e.key === "-" || e.key === "_" || e.code === "NumpadSubtract") { map.easeTo({ zoom: map.getZoom() - 0.7, duration: 200 }); e.preventDefault(); }
+      if (document.documentElement.dataset.view !== "map") return; // other views own the keyboard
+      // +/- and 1-5 are game-speed keys in the shell; map zoom uses PageUp/PageDown.
+      if (e.key === "PageUp") { map.easeTo({ zoom: map.getZoom() + 0.7, duration: 200 }); e.preventDefault(); }
+      else if (e.key === "PageDown") { map.easeTo({ zoom: map.getZoom() - 0.7, duration: 200 }); e.preventDefault(); }
       else if (e.key.startsWith("Arrow")) {
         const k = 120;
         map.panBy([e.key === "ArrowLeft" ? -k : e.key === "ArrowRight" ? k : 0, e.key === "ArrowUp" ? -k : e.key === "ArrowDown" ? k : 0], { duration: 200 });
@@ -159,7 +161,7 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || presetNonce === 0) return;
-    map.flyTo({ ...fitCamera(map, preset, pad), duration: 1800, essential: true });
+    map.flyTo({ ...fitCamera(map, preset, pad), duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1800, essential: true });
   }, [presetNonce, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Theme restyle.
