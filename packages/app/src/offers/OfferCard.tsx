@@ -35,7 +35,7 @@ export function OfferCard({ offer, day, cash }: { offer: OfferItem; day: number;
         <div><dt>Available</dt><dd>{offer.quantity} of {offer.initialQuantity}</dd></div>
         <div>
           <dt>Price each</dt>
-          <dd>{formatMoney(offer.unitPriceUsd)} <s className="offer-list">{formatMoney(offer.listPriceUsd)}</s> <strong className="pos">{Math.round(offer.discount * 100)}% off</strong></dd>
+          <dd className="offer-price"><span>{formatMoney(offer.unitPriceUsd)}</span><s className="offer-list">{formatMoney(offer.listPriceUsd)}</s><strong className="pos">{Math.round(offer.discount * 100)}% off</strong></dd>
         </div>
         <div><dt>Deposit</dt><dd>{Math.round(offer.depositFraction * 100)}% ({formatMoney(offer.unitPriceUsd * offer.depositFraction)} each), credited back at delivery</dd></div>
         <div><dt>Delivery</dt><dd>{windowText(offer, day, q)}{typical && offer.kind !== "used" && offer.kind !== "distressed" ? <span className="offer-sub">{typical}</span> : null}</dd></div>

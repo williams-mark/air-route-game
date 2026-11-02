@@ -103,7 +103,7 @@ async function realShots(theme) {
   const problems = [];
   page.on("console", (m) => { if (m.type() === "error") problems.push(m.text()); });
   page.on("pageerror", (e) => problems.push(e.message));
-  await page.goto(`${url}?theme=${theme}&t=420&paused=1&ff=91`);
+  await page.goto(`${url}?theme=${theme}&t=420&paused=1&ff=${process.env.ARG_FF ?? 91}`);
   await page.waitForFunction(() => window.__argMap && window.__argMap.loaded(), null, { timeout: 20000 });
   await page.waitForTimeout(1500);
   const snap = async (name) => {
@@ -120,6 +120,9 @@ async function realShots(theme) {
   await page.getByRole("button", { name: "Fleet" }).click();
   await snap("fleet");
   await page.getByRole("button", { name: "Orders" }).click();
+  await page.getByRole("tab", { name: /Offers/ }).click();
+  await snap("offers");
+  await page.getByRole("tab", { name: "Orders" }).click();
   await page.locator("#ord-type").selectOption("A320N");
   await page.locator("#ord-qty").fill("4");
   await snap("orders-form");

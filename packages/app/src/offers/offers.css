@@ -40,3 +40,5 @@
 .offer-popup-sub { font-size: .78rem; color: var(--text-dim); }
 .offer-popup-actions { display: flex; gap: .5rem; margin-top: .4rem; }
 .offers-badge { border-color: var(--accent); }
+.offer-facts dd.offer-price { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .6rem; }
+.offer-price s { margin: 0; display: inline; }
