@@ -624,7 +624,7 @@ export function stepRivalsWeek(
   // 7. Insolvency.
   for (const air of rivals.airlines) {
     if (air.status !== "active") continue;
-    if (air.negCashWeeks >= RP.bankruptNegCashWeeks || air.cash < -RP.bankruptDeepWeeksOfCost * weeklyFixed(air, ctx)) {
+    if (air.negCashWeeks >= RP.bankruptNegCashWeeks || air.cash < -Math.max(air.initialCash, RP.bankruptDeepWeeksOfCost * weeklyFixed(air, ctx))) {
       bankruptcies.push(bankrupt(ctx, air, sink));
     }
   }

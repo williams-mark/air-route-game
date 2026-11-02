@@ -188,7 +188,7 @@ describe("rivals: staying power", () => {
     // A glut of idle aircraft and little cash: sustained losses from the first week.
     for (let i = 0; i < 40; i++) gse.fleet.push({ id: `gse-glut-${i}`, typeId: "E175", ageDays: 365 * 8 });
     gse.cash = 12_000_000;
-    gse.initialCash = 12_000_000;
+    gse.initialCash = 90_000_000;
     return { ...s, rivals: r };
   }
 
