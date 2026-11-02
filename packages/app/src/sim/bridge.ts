@@ -1,8 +1,8 @@
 // UI <-> sim boundary. The UI only talks to a SimBridge; swap `createBridge` to plug in the real sim.
 import type { Command, Day, Id, Route, WorldState } from "@arg/contracts";
-import { newWorld, stepDay } from "@arg/sim";
+import { newWorld, stepDay, type CheckKind, type RouteReport } from "@arg/sim";
 import { routeName, validateRouteDraft, type CommandError } from "../routes/helpers";
-import { seedRoutes } from "../routes/seed";
+import type { DayRecord } from "./finance";
 
 export type Speed = 0 | 1 | 2 | 3 | 4 | 5;
 export type Severity = "info" | "good" | "warn" | "alert";
@@ -10,6 +10,43 @@ export type Severity = "info" | "good" | "warn" | "alert";
 export interface Notice { id: number; day: Day; severity: Severity; text: string }
 export interface DecisionOption { id: string; label: string; effect: string }
 export interface Decision { id: string; day: Day; title: string; context: string; options: DecisionOption[] }
+
+/** One aircraft as the Fleet view shows it. */
+export interface FleetItem {
+  id: Id;
+  tail: string;
+  typeId: Id;
+  typeName: string;
+  status: "active" | "maintenance" | "delivery" | "stored";
+  ageYears: number;
+  seats: number;
+  /** Names of the routes this aircraft flies today (empty when idle). */
+  routes: string[];
+  /** Heavy check in progress (status maintenance). */
+  check?: { kind: CheckKind; endDay: Day; daysRemaining: number };
+  /** Delivery date for aircraft on order. */
+  deliveryDay?: Day;
+  orderId?: Id;
+  /** Next heavy (B/C/D) check due, in days. */
+  nextCheck?: { kind: CheckKind; inDays: number };
+}
+
+/** An aircraft order as the Orders view shows it. */
+export interface OrderItem {
+  id: Id;
+  typeId: Id;
+  typeName: string;
+  count: number;
+  delivered: number;
+  orderDay: Day;
+  deliveryDays: Day[];
+  firstDelivery: Day;
+  lastDelivery: Day;
+  unitPriceUsd: number;
+  discount: number;
+  depositUsd: number;
+  seats: number;
+}
 
 /** Immutable snapshot; a new object is produced whenever anything changes. */
 export interface SimSnapshot {
@@ -25,10 +62,17 @@ export interface SimSnapshot {
   /** The player's current route network. */
   routes: Route[];
   airline: { name: string; hub: string };
+  /** Real-sim data. The mock bridge leaves these empty and the views fall back to their own projections. */
+  fleet: FleetItem[];
+  orders: OrderItem[];
+  /** Latest sim report per route id (weekly figures). */
+  reports: Record<Id, RouteReport>;
+  /** Every simulated day so far, oldest first. */
+  ledger: DayRecord[];
 }
 
 /** Outcome of a command. Bridges that cannot report an outcome return nothing, which the UI treats as accepted. */
-export type CommandResult = { ok: true; routeId?: Id } | { ok: false; error: CommandError };
+export type CommandResult = { ok: true; routeId?: Id; orderId?: Id; warnings?: string[] } | { ok: false; error: CommandError };
 export type { CommandError };
 
 export interface SimBridge {
@@ -38,6 +82,8 @@ export interface SimBridge {
   setSpeed(speed: Speed): void;
   /** Resolve a pending decision card by choosing one of its options. */
   decide(decisionId: string, optionId: string): void;
+  /** Bridges that slow or pause the clock themselves on notices implement this; the UI toggle feeds it. */
+  setAutoPause?(on: boolean): void;
 }
 
 export const DAYS_PER_SECOND: Record<Speed, number> = { 0: 0, 1: 1, 2: 3, 3: 7, 4: 14, 5: 30 };
@@ -207,18 +253,11 @@ export class MockSimBridge implements SimBridge {
       profit30: series.reduce((a, b) => a + b, 0), profitSeries: series,
       notices: this.notices, decisions: this.pending, routes: this.routes,
       airline: { name: "Skybridge Pacific", hub: "LAX" },
+      fleet: [], orders: [], reports: {}, ledger: [],
     };
   }
   private emit() {
     this.snap = this.build();
     for (const l of this.listeners) l();
   }
-}
-
-/** The one place to swap the mock for the real sim bridge. */
-export function createBridge(): SimBridge & { start?: () => void } {
-  const startPaused = typeof location !== "undefined" && new URLSearchParams(location.search).has("paused");
-  const b = new MockSimBridge({ startPaused, routes: seedRoutes() });
-  b.start();
-  return b;
 }
