@@ -9,9 +9,10 @@ export function seedRoutes(): Route[] {
   fixtureRoutes.forEach((fr, i) => {
     const a = dataWorld.airports.get(fr.origin), b = dataWorld.airports.get(fr.destination);
     if (!a || !b) return;
-    const t = bestType(a, b, 0, fr.weeklyFrequency);
-    if (!t) return;
     const km = distanceKm(a, b);
+    // Demo network: narrowbodies unless the pair needs a widebody (keeps the starting network plausible).
+    const t = bestType(a, b, 0, fr.weeklyFrequency, dataWorld, (x) => !x.widebody) ?? bestType(a, b, 0, fr.weeklyFrequency);
+    if (!t) return;
     const m = marketFares(km);
     const k = 0.92 + ((i * 7) % 9) / 40; // deterministic spread around the market fare
     const fares: Route["fares"] = { Y: Math.round(m.Y * k) };

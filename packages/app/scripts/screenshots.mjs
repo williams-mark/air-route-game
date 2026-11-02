@@ -67,26 +67,25 @@ async function routeShots(page, theme) {
   await page.keyboard.press("n");
   await shot(page, theme, "create-empty");
   const from = page.getByRole("combobox", { name: "From" });
-  await from.fill("lax");
+  await from.fill("sa");
   await shot(page, theme, "create-autocomplete");
   await page.keyboard.press("Enter");
-  await page.getByRole("combobox", { name: "To" }).fill("hon");
+  await page.getByRole("combobox", { name: "To" }).fill("lih");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(600);
   await shot(page, theme, "create-top");
   await scrollPanel(page, "end");
   await shot(page, theme, "create-projection");
   // Duplicate route -> typed error toast
+  await page.getByRole("combobox", { name: "From" }).fill("lax");
+  await page.keyboard.press("Enter");
   await page.getByRole("combobox", { name: "To" }).fill("sfo");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(600);
   await page.getByRole("button", { name: "Open route" }).click();
   await shot(page, theme, "create-error-toast");
   // Valid route -> success toast and inspector
-  await page.getByRole("combobox", { name: "To" }).fill("sjc");
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(500);
-  await page.getByRole("combobox", { name: "From" }).fill("hnl");
+  await page.getByRole("combobox", { name: "To" }).fill("bur");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(600);
   await page.getByRole("button", { name: "Open route" }).click();

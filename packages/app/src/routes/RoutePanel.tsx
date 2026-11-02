@@ -13,7 +13,8 @@ export function useInspectedRoute() {
 }
 export function usePanelOpen(): boolean {
   const creating = useCreation((s) => s.open);
-  return creating || !!useInspectedRoute();
+  const route = useInspectedRoute();
+  return creating || !!route;
 }
 
 /** Right-side panel hosting the route inspector or the route-creation sandbox. */

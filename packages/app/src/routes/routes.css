@@ -69,7 +69,7 @@
 .af-list li.sel { background: var(--accent); color: var(--bg); }
 .af-list li.sel em { color: inherit; opacity: .85; }
 .rp-pair { position: relative; }
-.rp-swap { position: absolute; right: 0; top: 5.2rem; z-index: 2; width: 1.9rem; height: 1.9rem; font-size: .95rem; background: var(--panel); }
+.rp-swap { position: absolute; right: 0; top: 4.3rem; z-index: 2; width: 1.9rem; height: 1.9rem; font-size: .95rem; background: var(--panel); }
 .rp-freq { display: grid; grid-template-columns: 2rem 4.2rem 2rem 1fr; gap: .4rem; align-items: center; }
 .rp-freq .icon-btn { width: 2rem; height: 2rem; }
 .rp-fares { border: 0; padding: 0; margin: .7rem 0 0; }
@@ -125,7 +125,7 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 .side-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 
 /* Toasts */
-.toasts { position: fixed; z-index: 120; left: 50%; bottom: 1.2rem; transform: translateX(-50%); display: flex; flex-direction: column; gap: .5rem; width: min(30rem, calc(100% - 2rem)); pointer-events: none; }
+.toasts { position: fixed; z-index: 120; left: 50%; top: 4.2rem; transform: translateX(-50%); display: flex; flex-direction: column; gap: .5rem; width: min(30rem, calc(100% - 2rem)); pointer-events: none; }
 .toast { pointer-events: auto; display: flex; align-items: flex-start; gap: .6rem; padding: .6rem .7rem .6rem .8rem; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--sev-info); border-radius: 10px; box-shadow: var(--shadow); font-size: .86rem; line-height: 1.35; }
 .toast-good { border-left-color: var(--sev-good); } .toast-good .toast-ico { color: var(--sev-good); }
 .toast-alert { border-left-color: var(--sev-alert); } .toast-alert .toast-ico { color: var(--sev-alert); }

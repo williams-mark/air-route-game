@@ -135,9 +135,9 @@ export function eligibleTypes(a: Airport, b: Airport, year: number, types: reado
 }
 
 /** The available eligible type with the best weekly profit at `freq`. Falls back to the first eligible. */
-export function bestType(a: Airport, b: Airport, day: Day, freq = 7, world: World = dataWorld): AircraftType | null {
+export function bestType(a: Airport, b: Airport, day: Day, freq = 7, world: World = dataWorld, accept: (t: AircraftType) => boolean = () => true): AircraftType | null {
   const year = dayToDate(day).year;
-  const opts = eligibleTypes(a, b, year, [...world.types.values()]);
+  const opts = eligibleTypes(a, b, year, [...world.types.values()].filter(accept));
   const usable = opts.filter((o) => o.available);
   const pool = usable.length > 0 ? usable : opts;
   let best: { t: AircraftType; p: number } | null = null;
