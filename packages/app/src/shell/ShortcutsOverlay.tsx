@@ -9,8 +9,9 @@ const ROWS: Array<[string, string]> = [
   ["Alt + 1 – 9", "Switch view"],
   ["Ctrl/Cmd + S", "Quick save"],
   ["N", "New route (pauses the game)"],
+  ["J", "Show / minimize notifications"],
   ["?", "This overlay"],
-  ["Esc", "Close dialog"],
+  ["Esc", "Close dialog; minimize notifications"],
   ["Arrow keys", "Pan map"],
   ["PgUp / PgDn", "Zoom map"],
 ];

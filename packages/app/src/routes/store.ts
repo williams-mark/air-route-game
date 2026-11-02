@@ -11,10 +11,19 @@ export const useToasts = create<ToastState>((set, get) => ({
   toasts: [],
   push: (kind, text) => {
     const id = nextToast++;
-    set((s) => ({ toasts: [...s.toasts.slice(-3), { id, kind, text }] }));
-    setTimeout(() => get().dismiss(id), kind === "alert" ? 9000 : 6000);
+    set((s) => ({ toasts: [...s.toasts.slice(-2), { id, kind, text }] }));
+    setTimeout(() => get().dismiss(id), kind === "alert" ? 7000 : 4000);
   },
   dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+}));
+
+// --- Aircraft swap requests (Routes table row action, command palette) -------
+interface SwapRequest { routeId: string | null; nonce: number; request: (routeId: string) => void; clear: () => void }
+/** Asks the route inspector for `routeId` to open its "Change aircraft type" box. */
+export const useSwapRequest = create<SwapRequest>((set) => ({
+  routeId: null, nonce: 0,
+  request: (routeId) => { useUi.getState().select({ kind: "route", id: routeId }); set((s) => ({ routeId, nonce: s.nonce + 1 })); },
+  clear: () => set({ routeId: null }),
 }));
 
 // --- Route creation sandbox ------------------------------------------------

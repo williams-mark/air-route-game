@@ -10,6 +10,7 @@ import { FareFields, FrequencyField, Stat, useDebounced } from "./editor";
 import { CABINS, CABIN_NAME, FREQ_MAX, faresToText, parseFares, profitTier, projectRoute, routeName, seasonalProfit } from "./helpers";
 import { pct, usd, usdSigned } from "./fmt";
 import { useToasts } from "./store";
+import { RouteAircraft } from "./RouteAircraft";
 import { CompetitionBlock } from "../rivals/CompetitionBlock";
 import type { LedgerLine } from "@arg/sim";
 
@@ -117,6 +118,8 @@ export function RouteInspector({ route }: { route: Route }) {
             {CABINS.slice().reverse().map((c) => cabinFare(c) !== undefined && (<Fragment key={c}><dt>{CABIN_NAME[c]}</dt><dd>{usd(cabinFare(c)!)}</dd></Fragment>))}
           </dl>
         </section>
+
+        <RouteAircraft route={route} />
 
         <CompetitionBlock route={route} yourWeeklySeats={ev.seatsPerWeek} />
 

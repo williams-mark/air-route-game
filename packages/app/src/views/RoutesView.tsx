@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { ProfitTier } from "../map/types";
 import { useUi } from "../store";
 import { formatMoney } from "../sim/format";
-import { useCreation } from "../routes/store";
+import { useCreation, useSwapRequest } from "../routes/store";
 import { useRouteSummaries, type RouteSummary } from "../routes/useRoutes";
 
 const TIER_LABEL: Record<ProfitTier, string> = { profit: "Profitable", marginal: "Marginal", loss: "Losing", planned: "Planned" };
@@ -43,6 +43,7 @@ export default function RoutesView() {
   const shown = useMemo(() => sortRoutes(tiers.size ? rows.filter((r) => tiers.has(r.tier)) : rows, sort.key, sort.dir), [rows, tiers, sort]);
   const total = shown.reduce((s, r) => s + r.weeklyProfit, 0);
   const toggle = (t: ProfitTier) => setTiers((s) => { const n = new Set(s); if (n.has(t)) n.delete(t); else n.add(t); return n; });
+  const swapAc = useSwapRequest((s) => s.request);
   const open = (id: string) => select({ kind: "route", id });
 
   return (
@@ -76,6 +77,7 @@ export default function RoutesView() {
                   </th>
                 );
               })}
+              <th scope="col"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
@@ -91,9 +93,10 @@ export default function RoutesView() {
                 <td className="num">{r.feasible ? `${Math.round(r.loadFactor * 100)}%` : "–"}</td>
                 <td className={`num ${r.margin < 0 ? "neg" : "pos"}`}>{r.feasible ? `${(r.margin * 100).toFixed(0)}%` : "–"}</td>
                 <td className={`num ${r.weeklyProfit < 0 ? "neg" : r.weeklyProfit > 0 ? "pos" : ""}`}>{formatMoney(r.weeklyProfit, { sign: true })}</td>
+                <td><button className="row-act" aria-label={`Change aircraft on ${r.name}`} onClick={(e) => { e.stopPropagation(); swapAc(r.route.id); }}>Change aircraft</button></td>
               </tr>
             ))}
-            {shown.length === 0 && <tr><td colSpan={COLS.length} className="empty-row">{rows.length === 0 ? "No routes yet. Press N to open your first." : "No routes match this filter."}</td></tr>}
+            {shown.length === 0 && <tr><td colSpan={COLS.length + 1} className="empty-row">{rows.length === 0 ? "No routes yet. Press N to open your first." : "No routes match this filter."}</td></tr>}
           </tbody>
         </table>
       </div>

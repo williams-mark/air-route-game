@@ -125,8 +125,8 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 .side-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 
 /* Toasts */
-.toasts { position: fixed; z-index: 120; left: 50%; top: 4.2rem; transform: translateX(-50%); display: flex; flex-direction: column; gap: .5rem; width: min(30rem, calc(100% - 2rem)); pointer-events: none; }
-.toast { pointer-events: auto; display: flex; align-items: flex-start; gap: .6rem; padding: .6rem .7rem .6rem .8rem; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--sev-info); border-radius: 10px; box-shadow: var(--shadow); font-size: .86rem; line-height: 1.35; }
+.toasts { position: fixed; z-index: 120; left: 50%; top: calc(var(--topbar-h) + .45rem); transform: translateX(-50%); display: flex; flex-direction: column; gap: .35rem; width: min(26rem, calc(100% - 2rem)); pointer-events: none; }
+.toast { pointer-events: auto; display: flex; align-items: center; gap: .5rem; padding: .35rem .5rem .35rem .65rem; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--sev-info); border-radius: 10px; box-shadow: var(--shadow); font-size: .8rem; line-height: 1.3; }
 .toast-good { border-left-color: var(--sev-good); } .toast-good .toast-ico { color: var(--sev-good); }
 .toast-alert { border-left-color: var(--sev-alert); } .toast-alert .toast-ico { color: var(--sev-alert); }
 .toast-info .toast-ico { color: var(--sev-info); }
@@ -143,3 +143,12 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 .comp-sum { margin: 0 0 .5rem; font-size: .82rem; color: var(--text-dim); }
 .comp-flag { font-size: .72rem; padding: .05rem .4rem; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
 .comp-flag.below { color: var(--sev-good); } .comp-flag.above { color: var(--sev-warn); }
+
+/* Aircraft section and swap */
+.rp-acswap { display: flex; flex-direction: column; gap: .6rem; margin-top: .4rem; }
+.rp-acswap-cmp { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: .25rem .6rem; font-size: .84rem; font-variant-numeric: tabular-nums; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .65rem; }
+.rp-acswap-cmp .k { color: var(--text-dim); font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; align-self: center; }
+.rp-acswap .rp-alert { flex-direction: row; border-color: var(--sev-warn); }
+.rp-acswap .rp-alert svg { color: var(--sev-warn); }
+.rp-acswap .link-btn { padding-left: 0; color: var(--accent); }
+.row-act { font-size: .74rem; padding: .15rem .5rem; }

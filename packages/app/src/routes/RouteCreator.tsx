@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CabinClass, Fares, Route } from "@arg/contracts";
-import { airportById } from "@arg/data";
+import { aircraftTypes, airportById } from "@arg/data";
+import { AircraftPicker } from "../aircraft/AircraftPicker";
+import { routeBlock } from "../aircraft/availability";
+import { usePickerMemory } from "../aircraft/memory";
 import { dayToDate } from "@arg/sim";
 import { useUi } from "../store";
 import { bridge, useSim } from "../sim/useSim";
@@ -70,7 +73,11 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const existing = routes.find((r) => (r.origin === originId && r.destination === destinationId) || (r.origin === destinationId && r.destination === originId));
   const mf = useMemo(() => marketFares(market.distanceKm), [market.distanceKm]);
 
-  const [typeId, setTypeId] = useState(() => bestType(a, b, wkDay)?.id ?? types.find((t) => t.available)?.type.id ?? types[0]?.type.id ?? "");
+  const [typeId, setTypeId] = useState(() => {
+    const last = usePickerMemory.getState().last.route;
+    const lastOk = last ? types.find((o) => o.type.id === last && o.available) : undefined;
+    return lastOk?.type.id ?? bestType(a, b, wkDay)?.id ?? types.find((t) => t.available)?.type.id ?? types[0]?.type.id ?? "";
+  });
   const [fareText, setFareText] = useState<Record<CabinClass, string>>(() => faresToText({ Y: mf.Y }));
   const [freq, setFreq] = useState<number>(() => {
     const t = bestType(a, b, wkDay)?.id;
@@ -127,15 +134,9 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
           <p className="rp-err" role="alert">No aircraft in the database can fly this pair (range, runway or overwater limit).</p>
         ) : (
           <div className="rp-field">
-            <label htmlFor="rp-type">Aircraft type</label>
-            <select id="rp-type" value={typeId} onChange={(e) => setTypeId(e.target.value)}>
-              {types.map(({ type, available }) => (
-                <option key={type.id} value={type.id} disabled={!available}>
-                  {type.id} {"·"} {Math.floor(type.maxSeats * (type.widebody ? 0.7 : 0.9))} seats {"·"} {type.rangeKm.toLocaleString()} km{available ? "" : ` (not built in ${year.year})`}
-                </option>
-              ))}
-            </select>
-            <div className="af-sub">{types.length} type{types.length === 1 ? "" : "s"} can fly this pair.</div>
+            <AircraftPicker label="Aircraft type" value={typeId} onChange={setTypeId} year={year.year} types={aircraftTypes}
+              block={(t) => routeBlock(t, a, b, year.year)} memoryKey="route" />
+            <div className="af-sub">{types.filter((t) => t.available).length} of {aircraftTypes.length} types can fly this pair now.</div>
           </div>
         )}
         <FrequencyField value={freq} onChange={setFreq} />

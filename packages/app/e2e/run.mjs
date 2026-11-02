@@ -65,6 +65,17 @@ async function newPage(theme, extra = "") {
   await page.waitForTimeout(800);
   return { page, problems };
 }
+
+/** Drive the AircraftPicker tile browser: manufacturer tile, family tile, variant tile. */
+async function pickType(scope, man, fam, variant) {
+  const tg = scope.locator(".ap-toggle");
+  if ((await tg.getAttribute("aria-expanded")) !== "true") await tg.click();
+  const all = scope.locator(".ap-nav button.ap-crumb", { hasText: "All" });
+  if (await all.count()) await all.click();
+  await scope.locator(".ap-tile", { hasText: man }).first().click();
+  await scope.locator(".ap-tile", { hasText: fam }).first().click();
+  await scope.locator(".ap-var", { hasText: variant }).first().click();
+}
 const shot = (page, theme, name) => page.screenshot({ path: path.join(outDir, `qa-${theme}-${name}.png`) });
 const nav = (page, label) => page.getByRole("button", { name: label, exact: true }).click();
 const heading = (page, text) => page.getByRole("heading", { level: 1, name: text }).waitFor({ timeout: 8000 });
@@ -95,7 +106,7 @@ for (const theme of themes) {
     await nav(page, "Routes"); assert(/LAX.SFO/.test(await page.locator("main.view").innerText()), "starting route LAX-SFO missing in Routes");
     await nav(page, "Fleet"); assert(/B737-800/.test(await page.locator("main.view").innerText()), "starting fleet missing in Fleet");
     await nav(page, "Map");
-    await page.locator(".overlay-left").waitFor();
+    await page.locator(".dock").waitFor();
   });
 
   await check(theme, "Orders: Offers tab opens", async () => {
@@ -202,7 +213,7 @@ for (const theme of themes) {
     await page.reload();
     await page.waitForFunction(() => window.__argMap && window.__argMap.loaded(), null, { timeout: 30000 });
     await nav(page, "Orders / Offers");
-    await page.locator("#ord-type").waitFor();
+    await page.locator(".order-form .ap-toggle").waitFor();
     await page.locator("#ord-qty").fill("2");
     await page.getByRole("button", { name: "Place order" }).click();
     await page.waitForTimeout(600);
@@ -210,12 +221,14 @@ for (const theme of themes) {
     assert(/0 of 2/.test(txt), `pending order row not shown: ${txt.slice(txt.indexOf("Pending orders"), txt.indexOf("Pending orders") + 200)}`);
     await shot(page, theme, "order-pending");
     await nav(page, "Fleet");
+    await heading(page, "Fleet");
+    await page.waitForTimeout(400);
     assert(/on order/i.test(await page.locator("main.view").innerText()), "Fleet does not show aircraft on order");
   });
 
   await check(theme, "cabin designer is interactive", async () => {
     await nav(page, "Cabin designer");
-    await page.locator("#cabin-type").selectOption("A350-900");
+    await pickType(page.locator(".cabin-picker"), "Airbus", "A350", "A350-900");
     await page.waitForTimeout(300);
     await shot(page, theme, "cabin");
   });

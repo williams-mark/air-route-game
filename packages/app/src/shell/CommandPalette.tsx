@@ -2,10 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { setSpeed, togglePause } from "../sim/useSim";
 import type { Speed } from "../sim/bridge";
 import { useUi } from "../store";
-import { useCreation } from "../routes/store";
+import { useCreation, useSwapRequest } from "../routes/store";
+import { bridge } from "../sim/useSim";
 import { PRESET_LABEL } from "../map/presets";
 import type { CameraPresetId } from "../map/types";
 import { VIEWS } from "./views";
+import { toggleDock } from "../notify/NotificationDock";
+import { useDock } from "../notify/dockStore";
 
 interface Cmd { id: string; label: string; group: string; hint?: string; run: () => void }
 
@@ -17,6 +20,10 @@ function useCommands(): Cmd[] {
       { id: "save", label: "Save game…", group: "Game", hint: "Ctrl+S", run: () => ui().setSaveDialog("save") },
       { id: "load", label: "Load game…", group: "Game", run: () => ui().setSaveDialog("load") },
     );
+    for (const r of bridge.getState().routes) {
+      const n = `${r.origin}–${r.destination}`;
+      list.push({ id: `swap-${r.id}`, label: `Change aircraft on ${n}`, group: "Routes", run: () => useSwapRequest.getState().request(r.id) });
+    }
     list.push({ id: "new-route", label: "New route", group: "Routes", hint: "N", run: () => useCreation.getState().begin() });
     list.push({ id: "pause", label: "Pause / resume", group: "Game", hint: "Space", run: togglePause });
     for (const s of [1, 2, 3, 4, 5] as Speed[]) list.push({ id: `speed-${s}`, label: `Set speed ${s}`, group: "Game", hint: String(s), run: () => setSpeed(s) });
@@ -26,8 +33,9 @@ function useCommands(): Cmd[] {
     list.push(
       { id: "competitors", label: "Toggle competitors on the map", group: "Map", run: () => { ui().setView("map"); ui().setShowCompetitors(!ui().showCompetitors); } },
       { id: "theme", label: "Toggle light / dark theme", group: "Interface", run: () => ui().setTheme(ui().theme === "dark" ? "light" : "dark") },
-      { id: "feed", label: "Toggle event feed", group: "Interface", run: () => ui().setFeedOpen(!ui().feedOpen) },
-      { id: "decisions", label: "Show pending decisions", group: "Interface", run: () => ui().unsnoozeAll() },
+      { id: "feed", label: "Show / minimize notifications", group: "Interface", hint: "J", run: () => toggleDock() },
+      { id: "decisions", label: "Show pending decisions", group: "Interface", run: () => { ui().unsnoozeAll(); toggleDock(true); } },
+      { id: "dock-reset", label: "Reset notification position", group: "Interface", run: () => useDock.getState().resetPosition() },
       { id: "help", label: "Keyboard shortcuts", group: "Interface", hint: "?", run: () => ui().setHelp(true) },
     );
     return list;
