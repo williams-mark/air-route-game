@@ -1,0 +1,187 @@
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import maplibregl, { type Map as MLMap } from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { MapboxOverlay } from "@deck.gl/mapbox";
+import type { Airport } from "@arg/contracts";
+import { readMapColors } from "./colors";
+import { applyStyleColors, buildStyle } from "./style";
+import { bandOf, buildAircraftLayer, buildStaticLayers, declutterLabels, type ZoomBand } from "./layers";
+import { buildModel, type AggEdge, type RouteGeo } from "./model";
+import { PRESET_BOUNDS } from "./presets";
+import type { CameraPresetId, MapRoute, Theme } from "./types";
+
+export interface AirMapHandle {
+  zoomBy(delta: number): void;
+  getMap(): MLMap | null;
+}
+
+export interface AirMapProps {
+  airports: Airport[];
+  routes: MapRoute[];
+  /** Sim-minutes. Aircraft positions are a pure function of this; hold it constant to pause. */
+  simTime: number;
+  theme: Theme;
+  preset: CameraPresetId;
+  /** Increment to (re)fly to `preset`. */
+  presetNonce: number;
+  selectedRouteId?: string | null;
+  selectedAirportId?: string | null;
+  /** Right-side screen padding (px) so presets centre in the free area. */
+  padding?: { top?: number; bottom?: number; left?: number; right?: number };
+  onSelectRoute?: (id: string) => void;
+  onSelectAirport?: (id: string) => void;
+}
+
+interface Tip { x: number; y: number; text: string }
+
+function fitCamera(map: MLMap, preset: CameraPresetId, padding: Required<NonNullable<AirMapProps["padding"]>>) {
+  const [w, s, e, n] = PRESET_BOUNDS[preset];
+  return map.cameraForBounds([[w, s], [e, n]], { padding })!;
+}
+
+const tierWord = { profit: "Profitable", marginal: "Marginal", loss: "Loss-making", planned: "Planned" } as const;
+
+export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(props, ref) {
+  const { airports, routes, simTime, theme, preset, presetNonce, selectedRouteId = null, selectedAirportId = null } = props;
+  const pad = useMemo(() => ({ top: 70, bottom: 60, left: 60, right: 60, ...props.padding }), [props.padding]);
+  const el = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MLMap | null>(null);
+  const overlayRef = useRef<MapboxOverlay | null>(null);
+  const cbRef = useRef(props);
+  cbRef.current = props;
+  const padRef = useRef(pad);
+  padRef.current = pad;
+  const [band, setBand] = useState<ZoomBand>("far");
+  const [ready, setReady] = useState(false);
+  const [labelIds, setLabelIds] = useState<Set<string> | null>(null);
+  const [tip, setTip] = useState<Tip | null>(null);
+
+  const model = useMemo(() => buildModel(airports, routes), [airports, routes]);
+  const colors = useMemo(() => readMapColors(), [theme]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useImperativeHandle(ref, () => ({
+    zoomBy: (d) => mapRef.current?.easeTo({ zoom: mapRef.current.getZoom() + d, duration: 220 }),
+    getMap: () => mapRef.current,
+  }));
+
+  // Map creation (once).
+  useEffect(() => {
+    const c = readMapColors();
+    const map = new maplibregl.Map({
+      container: el.current!, style: buildStyle(c), attributionControl: false, minZoom: 2.8, maxZoom: 13,
+      renderWorldCopies: false, dragRotate: false, pitchWithRotate: false, touchPitch: false, keyboard: false,
+      doubleClickZoom: true, bearing: 0, pitch: 0, center: [-138, 31], zoom: 3.6, fadeDuration: 0,
+    });
+    map.touchZoomRotate.disableRotation();
+    map.scrollZoom.setWheelZoomRate(1 / 300); // gentler, smooth for trackpads
+    map.scrollZoom.setZoomRate(1 / 90);
+    const overlay = new MapboxOverlay({
+      interleaved: false, layers: [], pickingRadius: 6,
+      getCursor: ({ isHovering }) => (isHovering ? "pointer" : "grab"),
+      onHover: (info) => {
+        const o = info.object as (RouteGeo | AggEdge | Airport | undefined);
+        if (!o || !info.layer) { setTip(null); return; }
+        const id = info.layer.id;
+        let text = "";
+        if (id === "routes") {
+          const g = o as RouteGeo;
+          text = `${g.o.id} → ${g.d.id} · ${g.route.weeklyFrequency}/wk · ${tierWord[g.route.tier]} · ${Math.round(g.km)} km`;
+        } else if (id === "agg-routes") {
+          const g = o as AggEdge;
+          text = `${g.a.id} ⇄ ${g.b.id} corridor · ${g.routes} route${g.routes > 1 ? "s" : ""} · ${g.freq}/wk`;
+        } else if (id === "airports" || id === "airport-glyph") {
+          const a = o as Airport;
+          text = `${a.id} · ${a.name}`;
+        } else { setTip(null); return; }
+        setTip({ x: info.x, y: info.y, text });
+      },
+      onClick: (info) => {
+        if (!info.object || !info.layer) return;
+        const id = info.layer.id;
+        if (id === "routes") cbRef.current.onSelectRoute?.((info.object as RouteGeo).route.id);
+        else if (id === "airports" || id === "airport-glyph") cbRef.current.onSelectAirport?.((info.object as Airport).id);
+        else if (id === "agg-routes") {
+          const e = info.object as AggEdge;
+          mapRef.current?.easeTo({ center: [(e.a.lon + e.b.lon) / 2, (e.a.lat + e.b.lat) / 2], zoom: Math.max(mapRef.current.getZoom(), 4.9), duration: 600 });
+        }
+      },
+    });
+    map.addControl(overlay as never);
+    mapRef.current = map;
+    overlayRef.current = overlay;
+    (window as unknown as { __argMap?: MLMap }).__argMap = map;
+
+    const updateBand = () => setBand((b) => { const n = bandOf(map.getZoom()); return n === b ? b : n; });
+    map.on("zoom", updateBand);
+    map.on("load", () => {
+      const cam = fitCamera(map, "both", padRef.current);
+      map.jumpTo(cam);
+      updateBand();
+      setReady(true);
+    });
+
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "+" || e.key === "=" || e.code === "NumpadAdd") { map.easeTo({ zoom: map.getZoom() + 0.7, duration: 200 }); e.preventDefault(); }
+      else if (e.key === "-" || e.key === "_" || e.code === "NumpadSubtract") { map.easeTo({ zoom: map.getZoom() - 0.7, duration: 200 }); e.preventDefault(); }
+      else if (e.key.startsWith("Arrow")) {
+        const k = 120;
+        map.panBy([e.key === "ArrowLeft" ? -k : e.key === "ArrowRight" ? k : 0, e.key === "ArrowUp" ? -k : e.key === "ArrowDown" ? k : 0], { duration: 200 });
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  // Label declutter after every camera move (cheap: O(n) greedy over airports).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const run = () => {
+      const b = bandOf(map.getZoom());
+      const pool = b === "far" ? model.airports.filter((a) => model.hubs.has(a.id)) : model.airports;
+      const c = map.getContainer();
+      setLabelIds(declutterLabels(pool, model.hubRank, b, (lon, lat) => map.project([lon, lat]), c.clientWidth, c.clientHeight));
+    };
+    run();
+    map.on("moveend", run);
+    return () => { map.off("moveend", run); };
+  }, [ready, model]);
+
+  // Camera presets.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || presetNonce === 0) return;
+    map.flyTo({ ...fitCamera(map, preset, pad), duration: 1800, essential: true });
+  }, [presetNonce, ready]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Theme restyle.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map && ready) applyStyleColors(map, colors);
+  }, [colors, ready]);
+
+  const staticLayers = useMemo(
+    () => buildStaticLayers({ model, colors, band, selectedRoute: selectedRouteId, selectedAirport: selectedAirportId, dark: theme === "dark", labelIds }),
+    [model, colors, band, selectedRouteId, selectedAirportId, theme, labelIds],
+  );
+
+  useEffect(() => {
+    if (!ready) return;
+    overlayRef.current?.setProps({ layers: [...staticLayers, buildAircraftLayer(model, colors, band, simTime)] });
+  }, [ready, staticLayers, model, colors, band, simTime]);
+
+  return (
+    <>
+      <div ref={el} className="map-root" />
+      {tip && <div className="tip" style={{ left: tip.x, top: tip.y }}>{tip.text}</div>}
+    </>
+  );
+});
