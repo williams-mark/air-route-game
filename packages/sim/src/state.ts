@@ -2,6 +2,7 @@ import type {
   AircraftType, Airport, CabinLayout, Day, FinanceSnapshot, Id, MarketSnapshot, SimEvent, WorldState,
 } from "@arg/contracts";
 import type { RouteEvaluation } from "./finance/ledger";
+import type { Offer } from "./offers/types";
 
 // ---------------------------------------------------------------------------
 // SimState: WorldState (from contracts) plus sim-internal state
@@ -95,6 +96,17 @@ export interface AircraftOrder {
   /** Aircraft created for the order (status 'delivery' until their delivery day). */
   aircraftIds: Id[];
   deliveryDays: Day[];
+  /** Offer this order came from (offers lane). */
+  offerId?: Id;
+  /** Age of the aircraft on arrival, days (used and distressed lots). Default 0. */
+  ageDays?: number;
+  /** Net price / list price; scales the ownership (lease-equivalent) cost of these aircraft. Offer orders only. */
+  ownershipFactor?: number;
+  /** Launch orders: chance of a delivery slip, its longest length, whether it has been rolled, and the slip applied. */
+  delayRisk?: number;
+  maxDelayMonths?: number;
+  delayResolved?: boolean;
+  delayDays?: Day;
 }
 
 export interface SimState {
@@ -117,6 +129,10 @@ export interface SimState {
   pendingEvents: SimEvent[];
   fleetMeta: Record<Id, AircraftMeta>;
   orders: AircraftOrder[];
+  /** Open manufacturer and market offers (offers lane). */
+  offers: Offer[];
+  /** Last day each `kind:typeId` was offered, for cooldowns. */
+  offerLog: Record<string, Day>;
   /** Monotonic counters for ids: route, aircraft, order. */
   counters: { route: number; aircraft: number; order: number };
 }

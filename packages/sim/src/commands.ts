@@ -7,6 +7,7 @@ import { typeCanServe } from "./fleet/scheduler";
 import { makeRng, mixSeed } from "./rng";
 import type { AircraftOrder, SimState } from "./state";
 import { dayToDate, START_YEAR, isLeapYear } from "./time/calendar";
+import { applyOfferCommand, type OfferCommand, type OfferResult } from "./offers";
 
 // ---------------------------------------------------------------------------
 // Parameters (documented in MODEL.md section 6)
@@ -50,7 +51,9 @@ export type CommandErrorCode =
   | "invalid_count"
   | "invalid_layout"
   | "type_unavailable"
-  | "insufficient_cash";
+  | "insufficient_cash"
+  | "unknown_offer"
+  | "offer_expired";
 
 export interface CommandError {
   ok: false;
@@ -75,8 +78,11 @@ export interface CommandResultMap {
   };
 }
 
-export type CommandResult<K extends Command["kind"] = Command["kind"]> = CommandResultMap[K] | CommandError;
-export type ResultOf<C extends Command> = CommandResult<C["kind"]>;
+export type AnyCommand = Command | OfferCommand;
+type OfferOk = Exclude<OfferResult, CommandError>;
+type FullResultMap = CommandResultMap & { acceptOffer: Extract<OfferOk, { kind: "acceptOffer" }>; dismissOffer: Extract<OfferOk, { kind: "dismissOffer" }> };
+export type CommandResult<K extends AnyCommand["kind"] = AnyCommand["kind"]> = FullResultMap[K] | CommandError;
+export type ResultOf<C extends AnyCommand> = CommandResult<C["kind"]>;
 
 const fail = (error: CommandErrorCode, message: string): CommandError => ({ ok: false, error, message });
 
@@ -274,13 +280,16 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
 // applyCommand
 // ---------------------------------------------------------------------------
 /** Apply a UI command. Pure: returns the new state and a typed result; the input state is not modified. */
-export function applyCommand<C extends Command>(state: SimState, cmd: C): { state: SimState; result: ResultOf<C> } {
+export function applyCommand<C extends AnyCommand>(state: SimState, cmd: C): { state: SimState; result: ResultOf<C> } {
   const out = apply(state, cmd);
   return out as { state: SimState; result: ResultOf<C> };
 }
 
-function apply(state: SimState, cmd: Command): { state: SimState; result: CommandResult } {
+function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: CommandResult } {
   switch (cmd.kind) {
+    case "acceptOffer":
+    case "dismissOffer":
+      return applyOfferCommand(state, cmd);
     case "setSpeed": {
       if (![0, 1, 2, 3, 4, 5].includes(cmd.speed)) return { state, result: fail("invalid_speed", "Speed must be 0 to 5.") };
       return { state: { ...state, speed: cmd.speed }, result: { ok: true, kind: "setSpeed", speed: cmd.speed } };

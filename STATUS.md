@@ -17,7 +17,7 @@ Last updated: Sun 1 Nov 2026 (night). `main` passes typecheck, test (data 12, si
 | T10 UI shell | done | top bar, toolbar, feed, decision cards, command palette |
 | T11 route inspector/creation | done | sandbox, inspector, why-ledger lines |
 | T12 fleet/order book/checks | mostly done | orders with delivery delays, A-D checks, scheduler, Fleet/Orders views. Cabin layout selector disabled |
-| T13 offers panel | not started | launch-customer, end-of-life, distressed-lot offers |
+| T13 offers panel | done (lane/offers) | launch, end-of-life, flash-sale and used offers; Offers tab, popup, badge. See MODEL.md "Offers" |
 | T14 basic rivals | not started | only synthetic rival carriers inside the market model |
 | T15 why ledger and hub board | partial | ledger in inspector; hub board not started |
 | T16 save/load, cabin sliders, light polish | not started | |
@@ -34,6 +34,11 @@ Last updated: Sun 1 Nov 2026 (night). `main` passes typecheck, test (data 12, si
 - Bundle about 2 MB (maplibre + deck.gl); split chunks.
 - Toasts overlap page headers on non-map views; Finance cash chart y-axis labels may clip.
 - Decision cards expire after 45 days.
+
+## Offers lane notes
+- Offer orders scale ownership cost by net price / list (`ownershipFactor`); ordinary orders still only change the deposit, so their volume discount is cash-neutral. Consider generalising.
+- Used/distressed aircraft arrive with age and hours but their check clocks start fresh.
+- Offer popup has no screenshot yet (screenshots.mjs captures the Offers tab only).
 
 ## Usage rules from the owner
 Mon afternoon/evening: keep about 30% free. Tue: unrestricted. Wed: none. Thu: after 3pm Pacific only. Fri-Sun: up to 80%. Finish early with cheaper models; quality can be revised later.

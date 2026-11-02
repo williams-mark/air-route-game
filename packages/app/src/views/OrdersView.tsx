@@ -4,6 +4,8 @@ import { COMMAND_PARAMS, dayToDate, orderDiscount } from "@arg/sim";
 import { bridge, useSim } from "../sim/useSim";
 import { formatDate, formatMoney, formatMonthYear } from "../sim/format";
 import { useToasts } from "../routes/store";
+import { OffersPanel } from "../offers/OffersPanel";
+import { useOffersUi } from "../offers/store";
 
 /** Types the sim will take an order for in `year` (not out of production, not more than three years before introduction). */
 export function orderableTypes(year: number) {
@@ -13,7 +15,9 @@ export function orderableTypes(year: number) {
 }
 
 export default function OrdersView() {
-  const { day, cash, orders, decisions } = useSim();
+  const { day, cash, orders, decisions, offers } = useSim();
+  const tab = useOffersUi((s) => s.tab);
+  const setTab = useOffersUi((s) => s.setTab);
   const push = useToasts((s) => s.push);
   const year = dayToDate(day).year;
   const types = useMemo(() => orderableTypes(year), [year]);
@@ -39,8 +43,15 @@ export default function OrdersView() {
   const done = orders.filter((o) => o.delivered >= o.count);
   return (
     <div className="page">
-      <header className="page-head"><h1>Orders / Offers</h1><p>Order new aircraft from the manufacturers. Delivery takes 6 to 30 months depending on size; you pay a 15% deposit now, credited back as each aircraft arrives.</p></header>
+      <header className="page-head"><h1>Orders / Offers</h1><p>Order new aircraft from the manufacturers. Delivery takes 6 to 30 months depending on size; you pay a 15% deposit now, credited back as each aircraft arrives. Check the Offers tab for launch deals, last production slots, flash sales and used aircraft.</p></header>
 
+      <div className="orders-tabs" role="tablist" aria-label="Orders and offers">
+        <button role="tab" id="tab-orders" aria-selected={tab === "orders"} aria-controls="panel-orders" onClick={() => setTab("orders")}>Orders</button>
+        <button role="tab" id="tab-offers" aria-selected={tab === "offers"} aria-controls="panel-offers" onClick={() => setTab("offers")}>
+          Offers {offers.length > 0 && <span className="n" aria-label={`${offers.length} open`}>{offers.length}</span>}
+        </button>
+      </div>
+      {tab === "offers" ? <div role="tabpanel" id="panel-offers" aria-labelledby="tab-offers"><OffersPanel /></div> : <div role="tabpanel" id="panel-orders" aria-labelledby="tab-orders">
       <section className="panel-box" aria-labelledby="order-h">
         <h2 id="order-h">New order</h2>
         <form className="order-form" onSubmit={submit}>
@@ -99,6 +110,7 @@ export default function OrdersView() {
         )}
         {done.length > 0 && <p className="foot-note">{done.length} earlier order{done.length > 1 ? "s" : ""} fully delivered.</p>}
       </section>
+      </div>}
     </div>
   );
 }

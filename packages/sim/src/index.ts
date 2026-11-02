@@ -7,6 +7,7 @@ import { makeRng, mixSeed } from "./rng";
 import { checkCostUsd, checkEndDay, dueCheck, initialMeta, MAINTENANCE_PARAMS, resetAfterCheck } from "./fleet/maintenance";
 import { assign } from "./fleet/scheduler";
 import { pushEvents } from "./commands";
+import { stepOffers } from "./offers";
 import { DEFAULT_SIM_PARAMS, type AircraftMeta, type CheckKind, type RouteReport, type SimParams, type SimState } from "./state";
 
 export { makeRng };
@@ -28,6 +29,7 @@ export type {
 export * from "./state";
 export * from "./commands";
 export * from "./scenario";
+export * from "./offers";
 export * from "./fleet/layout";
 export * from "./fleet/maintenance";
 export * from "./fleet/scheduler";
@@ -75,6 +77,8 @@ export function newSim(
     pendingEvents: [],
     fleetMeta,
     orders: [],
+    offers: [],
+    offerLog: {},
     counters: { route: world.routes.length, aircraft: world.fleet.length, order: 0 },
   };
 }
@@ -120,6 +124,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
       ac.status = "active";
       ac.ageDays = 0;
       const order = state.orders.find((o) => o.id === m.orderId);
+      ac.ageDays = order?.ageDays ?? 0;
       if (order) cashAdjust += order.depositUsd / order.count;
       m.deliveryDay = null;
       say(`Delivered ${ac.tailNumber} (${ac.typeId})${order ? ` from ${order.id}` : ""}.`);
@@ -235,10 +240,11 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
 
   // 6. Fleet-level costs: lease for every delivered aircraft whether or not it flies, plus overhead and checks.
   let fleetCost = params.corporateOverheadPerDay + checkCosts;
+  const priceFactor = new Map(state.orders.flatMap((o) => (o.ownershipFactor === undefined ? [] : o.aircraftIds.map((id) => [id, o.ownershipFactor!] as const))));
   for (const ac of fleet) {
     if (ac.status === "delivery") continue;
     const t = types.get(ac.typeId);
-    if (t) fleetCost += monthlyOwnershipUsd(t) / 30.4375 + params.overheadPerAircraftPerDay;
+    if (t) fleetCost += (monthlyOwnershipUsd(t) * (priceFactor.get(ac.id) ?? 1)) / 30.4375 + params.overheadPerAircraftPerDay;
   }
   const costs = routeCosts + fleetCost;
   const profit = revenue - costs;
@@ -258,7 +264,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     events,
     fleetMeta: meta,
   };
-  return pushEvents(next, [...events, ...notices]);
+  return stepOffers(pushEvents(next, [...events, ...notices]));
 }
 
 /** Total scheduled round trips with the fleet as given (used to test whether pulling an aircraft loses flights). */

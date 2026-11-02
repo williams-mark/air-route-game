@@ -6,6 +6,7 @@ import { TopBar } from "./shell/TopBar";
 import { Toolbar } from "./shell/Toolbar";
 import { EventFeed } from "./shell/EventFeed";
 import { Decisions } from "./shell/Decisions";
+import { OfferPopup } from "./offers/OfferPopup";
 import { CommandPalette } from "./shell/CommandPalette";
 import { ShortcutsOverlay } from "./shell/ShortcutsOverlay";
 import { VIEWS } from "./shell/views";
@@ -92,7 +93,7 @@ export function Shell() {
         <MapView />
         {page}
         {view === "map" && <div className="overlay-left"><EventFeed /></div>}
-        <div className="overlay-right"><Decisions /></div>
+        <div className="overlay-right"><OfferPopup /><Decisions /></div>
         <RoutePanel />
       </div>
       <Toasts />

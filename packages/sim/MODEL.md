@@ -216,3 +216,23 @@ the through market is `marketOnDay(origin, destination)` and the player's itiner
 connection logic applies (`connectionFrequencyFactor` 0.6 on min leg frequency, layover, misconnect, `connectPenaltyMin`). Through passengers appear in `legs[i].connectingPassengers` and in each leg's load factor.
 `networkContribution(conn)` prorates the through fare (default 92% of benchmark) to the legs by great-circle distance (`leg1ProrateShare = d1 / (d1 + d2)`), adds each leg's own ledger revenue, and recomputes leg costs
 with the extra passengers on board; `proratedTotal` equals `throughRevenue`. This is a hook: `stepDay` does not yet include hub passengers in the daily finances.
+
+## Offers (`offers/`, `OFFER_PARAMS`)
+`SimState.offers` holds open offers; `offerLog` maps `kind:typeId` to the last day offered (cooldown). `stepDay` calls `stepOffers` last: expire (notice) and warn 7 days before, roll launch-order delays, then draw at most one new offer.
+Generation is a pure function of (world seed, day): P(new offer today) = 2/30.4375 (about 2 a month, Poisson, so months of 0-5 happen), capped at 8 open. Kind weights launch .28, end-of-life .24, flash sale .20, used .28, restricted to kinds with
+an eligible type; a type is not re-offered the same kind within 365 / 270 / 120 / 90 days. Offer id is `offer-<day>`.
+
+| kind | eligible types | discount vs list | deposit | first delivery | quantity | expiry |
+|---|---|---|---|---|---|---|
+| launch | introYear 0.75-4 years ahead | 15-30% | 6-12% | later of intro and today+180d, plus 120-360d (later than a normal order); gap 25-40d narrow, 45-70d wide | 4-20 narrow, 2-8 wide | 60-120d |
+| endOfLife | endYear in [this year, this year+2] | 10-25% | 15% | today+90-240d narrow, +150-330d wide | 2-10 narrow, 1-4 wide | 30-75d |
+| distressed | in service, not ended > 4 years ago | 20-40% | 20% | today+7-45d, gap 5-14d | 1-6 narrow, 1-3 wide | 14-45d |
+| used | in service for at least 1 year | age-based, see below | 15% | today+14-60d | 1 (75%) or 2-3 | 20-60d |
+
+- Launch orders carry a delay risk (35-60%). One roll per order, seeded by (seed, order id), made when the first undelivered aircraft is within 120 days of delivery: on a slip all undelivered aircraft move 1-12 months and a
+  "Delivery delayed" notice is emitted; otherwise an "on schedule" notice.
+- Distressed lots are 0-2.5 years old; 40% carry an unusual cabin (single-class high-density, or premium-heavy), always validated against the type's seat limit. Seller names are fictional.
+- Used: age 2 to min(22, years since introYear + 1); price / list = clamp(0.85 exp(-0.075 age) x (1 +- 8%), 0.08, 0.8); flight hours = age x 3000 +- 15%. Aircraft arrive with that age and hours.
+- `acceptOffer(offerId, quantity)`: needs 1 <= quantity <= remaining and cash >= deposit; creates an `AircraftOrder` (with `offerId`) and aircraft in `delivery` status; partial acceptance leaves the rest open. `dismissOffer` removes it.
+  Deposit is credited back at delivery as for ordinary orders. Because that makes the price itself cash-neutral, offer orders set `ownershipFactor = net price / list`, which scales the lease-equivalent ownership cost of those aircraft in `stepDay` step 6.
+  (Ordinary orders do not do this yet; their volume discount only changes the deposit.)
