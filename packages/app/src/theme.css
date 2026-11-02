@@ -1,0 +1,4 @@
+:root[data-theme="dark"] { --bg: #0e1620; --panel: #16212e; --text: #e6edf5; --accent: #4cc2ff; }
+:root[data-theme="light"] { --bg: #f4f6f9; --panel: #ffffff; --text: #17212b; --accent: #0a6cb5; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; }
+.panel { background: var(--panel); padding: 16px; border-radius: 8px; }
