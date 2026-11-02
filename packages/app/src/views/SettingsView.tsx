@@ -23,6 +23,7 @@ export default function SettingsView() {
           </div>
         </div>
       </section>
+      <p className="build-stamp" style={{ fontSize: 11, opacity: 0.6 }}>Build {__BUILD_SHA__} &middot; {__BUILD_DATE__}</p>
     </div>
   );
 }

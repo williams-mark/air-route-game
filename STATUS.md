@@ -22,7 +22,7 @@ Last updated: Mon 2 Nov 2026 (early morning UTC). `main` passes typecheck, test 
 | T15 why ledger and hub board | partial | ledger in inspector; hub board not started |
 | T16 save/load, cabin sliders, light polish | partial | Cabin sliders done: designer view, order and refit editors (lane/cabin, see MODEL.md "Cabin"); save/load not started |
 | T17 QA and balance bots | partly done | bots + BALANCE.md (pnpm --filter @arg/sim bots); premium-fare exploit fixed; UI QA not started |
-| T18 deploy and hardening | not started | |
+| T18 deploy and hardening | partly done (lane/ship) | manualChunks vendor split, build:single, deploy.yml, netlify.toml, DEPLOY.md, build stamp in Settings. Nothing deployed yet; needs Mark's Cloudflare secrets |
 
 ## Known issues to fix next
 - Rivals UI not wired (market view of competitors, rival news cards); bankruptcies rare in normal play, so few distressed lots (see RIVALS.md).
@@ -31,7 +31,7 @@ Last updated: Mon 2 Nov 2026 (early morning UTC). `main` passes typecheck, test 
 - Balance lane (see packages/sim/BALANCE.md): rivals do not react to player fares; aircraft order discount has no economic effect; no bankruptcy rule in the sim; no pandemic shock.
 - Balance lane changed the starting fleet to 8 aircraft (3x 737-800, A320, 2x 757, 2x 777) and edited two app tests (realBridge.test.ts) that depended on the old LAX-SAN bug and the 13-aircraft fleet.
 - Sim runs on the main thread (about 0.9 ms/day); move to a Web Worker later.
-- Bundle about 2 MB (maplibre + deck.gl); split chunks.
+- Bundle split into react/maplibre/deckgl/app chunks (T18); initial load still fetches all since the map is the home view.
 - Toasts overlap page headers on non-map views; Finance cash chart y-axis labels may clip.
 - Decision cards expire after 45 days.
 
