@@ -15,25 +15,92 @@ Scope: California and Hawaii, campaign 2015-2025. Confidence legend: SOURCED = t
 | slotsPerHour | ESTIMATE | Judgement of practical movements per hour, loosely informed by FAA/airport noise or slot limits (e.g. SNA, LGB, SFO low relative to runway count). Not an official figure. |
 
 Inclusion (scheduled passenger service at any time 2015-2025), checked against Wikipedia airport articles:
-- Included CA (29): ACV BFL BIH BUR CCR CEC CLD FAT IPL LAX LGB MCE MMH MRY OAK ONT PSP RDD SAN SBA SBD SBP SCK SFO SJC SMF SMX SNA STS. HI (11): HNL OGG KOA LIH ITO MKK LNY JHM HNM LUP MUE.
+- Included CA (30): ACV BFL BIH BUR CCR CEC CLD FAT IPL LAX LGB MCE MMH MRY OAK ONT PSP RDD SAN SBA SBD SBP SCK SFO SJC SMF SMX SNA STS VIS. HI (12): HNL OGG KOA LIH ITO MKK LNY JHM HNM LUP MUE JRF.
 - Note the Carlsbad airport IATA code is CLD (ICAO KCRQ); "CRQ" is not its IATA code.
 - SBD: Breeze from Aug 2022. MCE: EAS carriers (Great Lakes, later Boutique/Contour). MUE: Mokulele EAS. JHM: Hawaiian 2017-2020, Mokulele. CCR: JSX (public charter sold as scheduled) from 2016. MMH/BIH: United Express/Alaska, and Advanced Air. CLD: intermittent (United Express to 2015, Cal Pacific 2018, American Eagle 2025, JSX).
-- Excluded after checking: CIC Chico (last service Dec 2014), MOD Modesto (last service June 2014), HHR Hawthorne and SQL San Carlos (on-demand/charter only), TKF Truckee, VIS/OXR/PMD/IYK/TVL (no verified 2015-2025 scheduled service; unchecked, may deserve a second look), JRF Kalaeloa.
+- Excluded after checking: CIC Chico (last service Dec 2014), MOD Modesto (last service June 2014), HHR Hawthorne and SQL San Carlos (Wikipedia gives no scheduled-airline service for SQL; HHR unclear, membership/on-demand operators only: unverified), TKF Truckee.
+
+### Data-verify pass (2026-11-02)
+Verified against Wikipedia airport articles (fetched this session):
+- ADDED VIS Visalia: SeaPort Airlines scheduled service 9 Feb 2015 to 15 Jan 2016 (Burbank, Sacramento). https://en.wikipedia.org/wiki/Visalia_Municipal_Airport
+- ADDED JRF Kalaeloa: Mokulele Airlines scheduled service to Kahului, 1 Jul 2014 to Sept 2016. https://en.wikipedia.org/wiki/Kalaeloa_Airport . OurAirports gives PHJR iata_code JRF. Oahu catchment shared with HNL; tourismIndex/slots are guesses.
+- Confirmed NO service 2015-2025, so correctly excluded: OXR (last service June 2010, https://en.wikipedia.org/wiki/Oxnard_Airport), PMD (last Dec 2008, https://en.wikipedia.org/wiki/Palmdale_Regional_Airport), IYK (SkyWest ended Nov 2013; Boutique Air contract awarded July 2017 and terminated Oct 2017, no verified flights, https://en.wikipedia.org/wiki/Inyokern_Airport), TVL (none since 2000, https://en.wikipedia.org/wiki/Lake_Tahoe_Airport).
+- Confirmed included: CLD/CRQ Carlsbad (BizAir 2015, Cal Jet 2017-18, California Pacific 2018-19, JSX 2023, American Eagle 2025; https://en.wikipedia.org/wiki/McClellan%E2%80%93Palomar_Airport); SMX, SCK, SBD, CEC (SkyWest to Apr 2015, PenAir 2017, Contour 2018, Advanced Air; https://en.wikipedia.org/wiki/Del_Norte_County_Airport) via the FAA-based table https://en.wikipedia.org/wiki/List_of_airports_in_California ; MMH (United Express to Dec 2021, Advanced Air; https://en.wikipedia.org/wiki/Mammoth_Yosemite_Airport); BIH (United Express from 19 Dec 2021; https://en.wikipedia.org/wiki/Eastern_Sierra_Regional_Airport); CCR (JSX from 19 Apr 2016; Wikipedia does not say scheduled vs public charter, kept; https://en.wikipedia.org/wiki/Buchanan_Field_Airport).
+- Hawaii: HNL OGG KOA LIH ITO MKK LNY MUE are FAA commercial-service airports; LUP, HNM, JHM show enplanements (https://en.wikipedia.org/wiki/List_of_airports_in_Hawaii). JHM: Hawaiian (ATR 42, 1 Mar 2017 to 25 Mar 2020) and Mokulele (https://en.wikipedia.org/wiki/Kapalua_Airport). MUE: Mokulele from 2013 (https://en.wikipedia.org/wiki/Waimea-Kohala_Airport). HNM: Mokulele (https://en.wikipedia.org/wiki/Hana_Airport). LUP: not independently confirmed beyond enplanements (4,174 in 2024); kept. PAK, UPP, HDH have zero enplanements: excluded.
+- Spot-check of metroPopulation / gdpPerCapita for the 12 largest (LAX SFO SAN OAK SJC SMF SNA BUR ONT LGB HNL OGG). 2015 MSA GDP from https://en.wikipedia.org/wiki/List_of_United_States_metropolitan_areas_by_GDP (BEA): LA 912.4bn (~$68k on 13.3M, we have $70k), SF-Oakland 446.3bn (~$96k vs $93k), San Jose 237.8bn (~$119k vs $116k), San Diego 211.8bn (~$64k vs $67k), Sacramento 101.2bn (~$44k vs $50k, 14% off, kept), Riverside-San Bernardino 160.8bn (~$36k vs $38k). Honolulu: FRED NGMP46520 2015 GDP $61.4bn and URHPOP 2015 population 991,755 (https://fred.stlouisfed.org/data/NGMP46520, https://fred.stlouisfed.org/data/URHPOP) so HNL changed to pop 992,000 and $62k (was 998,000 / $66k). Maui County 2015 population 164,637 (Census via https://mauinow.com/?p=190539) vs our 165,000: ok. Population for the CA MSAs was cross-checked only against 2020-population columns in the Wikipedia tables (all within 15%); the July-2015 Census files themselves were not fetched. No other value was off by more than 15%.
+- Not checked at all: tourismIndex, slotsPerHour (judgement values); BUR/LGB/CCR/SBD catchment populations remain guesses.
+
 
 ## Aircraft (src/aircraft.ts)
 
-Types: 29 (see file). All figures RECALLED from Boeing and Airbus airport planning documents / commercial-aircraft spec pages and Wikipedia spec tables (Boeing 737/747/757/767/777/787 Airport Planning docs: https://www.boeing.com/commercial/airports/plan_manuals; Airbus Airport Characteristics docs: https://www.airbus.com/en/airport-operations-and-technical-data/aircraft-characteristics; Embraer E175, Bombardier/Mitsubishi CRJ, ATR 72-600 product pages; Wikipedia type articles). None were re-fetched during this task, so verify before treating as authoritative.
+Verified 2026-11-02 against Wikipedia type articles unless a Boeing document is named. Wikipedia pages: Boeing_737_Next_Generation, Boeing_737_MAX, Airbus_A320_family, Airbus_A320neo_family, Airbus_A220, Embraer_E-Jet_family, Bombardier_CRJ700_series, ATR_72, Boeing_757, Boeing_767, Boeing_777, Boeing_787_Dreamliner, Airbus_A330, Airbus_A330neo, Airbus_A350, Boeing_747-400 (all at https://en.wikipedia.org/wiki/<name>). Boeing 787 Airport Compatibility doc D6-58333 Rev Q: https://www.boeing.com/content/dam/boeing/v2/airports/acaps/787_ACAP_Rev_Q.pdf . Where Wikipedia and a manufacturer marketing number differ, the Wikipedia (fetched) number was used. Blocked/unreachable: boeing.com/commercial/787 and airbus.com A350 page (permission not granted), so manufacturer pages were not read directly.
 
-| Field | Status | Notes |
-|---|---|---|
-| rangeKm | RECALLED | Published maximum range (nmi converted to km) for the standard variant, e.g. 787-9 7,635 nmi = 14,140 km. Not payload-matched; use `USABLE_RANGE_FRACTION` in geo.ts. A321neo uses the base-variant figure, not the LR (7,400 km). |
-| cruiseKmh | RECALLED / rounded | Typical cruise (Mach 0.78-0.85) rounded; ATR 72 ~510 km/h. |
-| maxSeats | RECALLED | Typical certified maximum (exit limit), not any airline's layout. A330-900 460 and 787-8 359 are least certain. |
-| fuelBurnKgPerKm | ESTIMATE | Cruise average = approximate cruise fuel flow (kg/h) divided by cruise speed. Not a manufacturer figure. |
-| runwayNeededM | APPROXIMATE | Takeoff field length at typical MTOW, sea level, ISA, as listed in Wikipedia/APM spec tables; rounded. Several (767-300ER, 777-200ER, A330-300/900) are ESTIMATE-grade. |
-| listPriceUsdM | RECALLED / ESTIMATE | Manufacturer 2018 list prices where published (Boeing/Airbus price pages as of 2018). Real prices are heavily discounted (often 40-50%). Out-of-production types (757-200, 777-200ER, 747-400, 767-300ER) are ESTIMATES of last list price. |
-| introYear | RECALLED | First revenue service of the variant. A220-100 and -300 both set to 2016 (CS100 July 2016; CS300 Dec 2016). |
-| endYear | RECALLED / ESTIMATE | End of production of the variant (not retirement from service; null = still in production). 737 NG and ceo-family years (2019/2020) approximate final passenger deliveries; 767-300ER (2014) is the passenger model only, the 767-300F continues. 747-400 uses 2009 (end of the 747-400 line). A330-200/300 2020 approximate. |
-| widebody | Derived | By fuselage. 757-200 (239 seats) and A321 are narrowbodies. |
+Status key: verified = matches the named fetched source; recalled = left as entered from memory, not confirmed this pass; estimate = judgement.
 
-typicalLayout (legacy-carrier standard cabin layouts) is intentionally omitted: no source was checked for airline-specific layouts, and inventing them would violate the data rule.
+### Values changed
+
+| Type | Field | Old | New | Source |
+|---|---|---|---|---|
+| B737-700 | rangeKm | 6230 | 5570 | verified: Boeing_737_Next_Generation (3,010 nmi). 6,230 km is Boeing's winglet marketing figure; not re-confirmed |
+| B737-700 | runwayNeededM | 1800 | 2042 | verified: same page (6,699 ft) |
+| B737-700 | introYear | 1998 | 1997 | verified: same page (Dec 1997, Southwest) |
+| B737-800 | runwayNeededM | 2300 | 2316 | verified: same page |
+| B737-900ER | rangeKm | 6045 | 5460 | verified: same page (2,950 nmi) |
+| B737-8 | rangeKm / maxSeats / fuelBurn | 6570 / 189 / 2.4 | 6500 / 210 / 2.5 | verified: Boeing_737_MAX (3,500 nmi; 210 high-density). 189 is one common single-class figure; fuel burn re-estimated |
+| B737-9 | rangeKm / fuelBurn | 6570 / 2.5 | 6100 / 2.6 | verified: Boeing_737_MAX (3,300 nmi) |
+| A319 | maxSeats | 156 | 160 | verified: Airbus_A320_family |
+| A320 | rangeKm / runwayNeededM | 6150 / 2090 | 6200 / 2100 | verified: Airbus_A320_family |
+| A321 | rangeKm / maxSeats / endYear | 5950 / 220 / 2020 | 5900 / 236 / 2021 | verified: Airbus_A320_family (last A321ceo delivered 16 Dec 2021) |
+| A320N | runwayNeededM / price | 2100 / 110 | 1951 / 111 | verified: Airbus_A320neo_family (6,400 ft; $110.6M 2018) |
+| A321N | maxSeats / runwayNeededM | 240 / 2300 | 244 / 1988 | verified: Airbus_A320neo_family (244 one-class; 6,522 ft) |
+| A220-100 | rangeKm / maxSeats | 6100 / 135 | 6300 / 133 | verified: Airbus_A220 (3,400 nmi after 2019 MTOW increase; 108-133 seats, 135 only "under study") |
+| A220-300 | rangeKm / maxSeats | 6300 / 160 | 6200 / 149 | verified: Airbus_A220 (3,350 nmi; 149 EASA-approved, 160 needs extra exit, expected 2028). Post-2021 MTOW gives 6,570 km; not adopted |
+| E175 | cruiseKmh / runwayNeededM / introYear | 830 / 2250 / 2004 | 800 / 2244 / 2005 | verified: Embraer_E-Jet_family (Mach 0.75, 797 km/h; 2,244 m; Air Canada July 2005) |
+| CRJ700 | rangeKm | 3045 | 3763 | verified: Bombardier_CRJ700_series (ER 2,032 nmi; base is 3,152 km) |
+| CRJ900 | rangeKm / runwayNeededM / price / endYear | 2876 / 2050 / 46 / 2020 | 2950 / 1770 / 48 / 2021 | verified: same page (ER 1,593 nmi; 1,770 m; $48M 2018 list; last delivery 28 Feb 2021) |
+| ATR72-600 | rangeKm / runwayNeededM / price | 1528 / 1370 / 26 | 1404 / 1279 / 26.8 | verified: ATR_72 (758 nmi at max pax; 1,279 m; $26.8M 2018 list). 1,528 km (825 nmi) is a lower-payload figure |
+| B757-200 | cruiseKmh / runwayNeededM / fuelBurn | 850 / 2000 / 4.2 | 858 / 2070 / 3.8 | verified: Boeing_757 (Mach 0.8, 858 km/h; 6,800 ft). Fuel burn: ~3,200 kg/h / 858 |
+| B767-300ER | runwayNeededM | 2750 | 2650 | verified: Boeing_767 (8,700 ft) |
+| B777-200ER | rangeKm / price | 13080 / 306 | 13084 / 306.6 | verified: Boeing_777 (7,065 nmi; $306.6M 2019) |
+| B777-300ER | price / endYear | 375 / 2023 | 375.5 / 2024 | verified: Boeing_777; final passenger 777-300ER delivered Dec 2024 (https://avioradar.net/en/boeing-ends-production-of-the-777-300er/) |
+| B787-8 | rangeKm / price | 13530 / 248 | 13529 / 248.3 | verified: Boeing_787_Dreamliner. maxSeats 359 verified: Boeing ACAP Rev Q (359 one-class; FAA exit limit 381) |
+| B787-9 | rangeKm / price | 14140 / 292 | 14010 / 292.5 | verified: same page (7,565 nmi); 406 seats verified: ACAP Rev Q |
+| B787-10 | rangeKm / price | 11910 / 338 | 11720 / 338.4 | verified: same page (6,330 nmi; Boeing's own page quotes 6,430 nmi = 11,910 km, unread); 440 seats verified: ACAP Rev Q |
+| A330-200 | price / endYear | 238 / 2020 | 238.5 / 2019 | verified: Airbus_A330 (last delivery 1 Oct 2019) |
+| A330-300 | price | 264 | 264.2 | verified: Airbus_A330 (last delivery 4 Mar 2020 so endYear 2020 ok) |
+| A330-900 | rangeKm / price | 12130 / 296 | 13334 / 296.4 | verified: Airbus_A330neo (7,200 nmi). maxSeats 460 CONFIRMED (440 exit limit, 460 with Type-A+ exits from Nov 2019); EIS 15 Dec 2018 confirmed |
+| A350-900 | rangeKm / price | 15000 / 317 | 15750 / 317.4 | verified: Airbus_A350 (8,500 nmi) |
+| A350-1000 | rangeKm / price | 16100 / 366 | 16700 / 366.5 | verified: Airbus_A350 (9,000 nmi) |
+| B747-400 | rangeKm / cruiseKmh / runwayNeededM / endYear | 13450 / 913 / 3000 / 2009 | 13490 / 910 / 2955 / 2007 | verified: Boeing_747-400 (7,285 nmi; M0.855; 9,700 ft; passenger production ceased Mar 2007) |
+
+### Verified, unchanged
+Range: B737-800 (5,436), A319 (6,940), A320N (6,300; the page also gives 6,500), A321N (6,500 base), E175 (4,074), B757-200 (7,250), B767-300ER (11,070), B777-300ER (13,650), A330-200 (13,450), A330-300 (11,750). maxSeats: B737-900ER 220, B737-9 220, A320 180, E175 88, CRJ700 78, CRJ900 90, ATR 78, B757-200 239, B767-300ER 351, A330-200 406, A330-300 440. Intro years: B737-800 1998, 900ER 2007, MAX 8 2017, MAX 9 2018, A319 1996, A320 1988, A321 1994, A320neo 2016, A321neo 2017, A220-100/300 2016, CRJ700 2001, CRJ900 2003, B757 1983, B767-300ER 1988, B777-200ER 1997, B777-300ER 2004, B787-8/9/10 2011/2014/2018, A330-200 1998, A330-300 1994, A330-900 2018, A350-900/1000 2015/2018, B747-400 1989. endYear: B737NG 2019, B757 2004, A330-200/300. Prices (manufacturer list or Wikipedia unit price): A319 92.3, A320 101, A321 118.3, B737-8 121.6, B767-300ER 217.9, B787 family, A330 family, A350 family, B777 pair. Runway: A319 1,850 m, A330 family 2,770 m, B737-900ER 3,000 m.
+
+### Still recalled / not verified
+- maxSeats: B737-700 149, B777-200ER 440, B777-300ER 550, A350-900 440, A350-1000 480, B747-400 660 (Wikipedia gives only typical seating for these; the figures match widely quoted exit limits but were not confirmed).
+- runwayNeededM: A220-100/300, A321 (ceo), CRJ700 (within the 1,516-1,605 m published range), B777-200ER/300ER, B787-8/9/10, A330-900, A350-900/1000 (no field-length figure found; Boeing ACAP graphs not readable here). 767-300ER and A330 are published but at specific weights.
+- listPriceUsdM: B737-700 89, B737-800 106, B737-900ER 112, B737-9 129, A321N 130, A220-100 81, A220-300 92, E175 42 (Wikipedia gives only a $27M 2018 market value, so 42 may be high), CRJ700 41, B757-200 80, B747-400 250 are recalled/estimates, never confirmed. Out-of-production prices are estimates.
+- endYear: A319 and A320 (2020 kept; only the last A321ceo, Dec 2021, is documented), CRJ700 2020, B767-300ER 2014 (Wikipedia says passenger deliveries ended "more than ten years ago", no year), B777-200ER 2009.
+- cruiseKmh: rounded Mach 0.78-0.85 values; only the A320 family (Mach 0.78 ~ 829 km/h), 737NG (837 km/h), 757 (858), 747-400 (910), CRJ900 (829), E175 (797), A350-1000 (912 test), and ATR (510) were seen.
+- introYear: ATR72-600 2011 (Wikipedia gave no -600 service date).
+
+### fuelBurnKgPerKm (ESTIMATE)
+Estimated as typical cruise fuel flow (kg/h, general industry knowledge, no source fetched) divided by cruiseKmh. Sanity check this pass: 737-800 ~2,500 kg/h / 840 = 3.0 (have 2.9); A320 ~2,400/840 = 2.9 (2.7); 767-300ER ~5,500/850 = 6.5 (6.2); 777-300ER ~7,800/905 = 8.6 (8.2); 747-400 ~10,700/910 = 11.8 (11.5); CRJ-family ~1,600-1,700/828 = 1.9-2.1 (1.6-1.8, probably 10-15% low); everything else within ~10%. Only the 757-200 (4.2 to 3.8) and MAX 8/9 (2.4/2.5 to 2.5/2.6) were changed. Relative ordering is sound; treat absolute values as +/-15%.
+
+### Other fields
+runwayNeededM is takeoff field length at MTOW, sea level, ISA, so conservative; geo.ts applies `RUNWAY_SECTOR_FRACTION = 0.85` (ESTIMATE) because real sectors are not flown at MTOW. `USABLE_RANGE_FRACTION = 0.85` (ESTIMATE) likewise. widebody is derived from fuselage. typicalLayout is intentionally omitted.
+
+## Overwater / ETOPS model (src/overwater.ts, `maxOverwaterKm`; src/geo.ts, `canFlyRoute`)
+
+`canFlyRoute(type, a, b)` = within usable range AND runway at both ends >= runwayNeededM x 0.85 AND, if the route is overwater, distance <= `maxOverwaterKm[type.id]`. A route is overwater if the endpoints are in different regions (CA/HI) or are Hawaii airports on different islands (island mapping hard-coded in geo.ts). It ignores introYear/endYear, payload and slots.
+
+`maxOverwaterKm` = 2 x (diversion minutes / 60) x 0.9 x cruiseKmh: the route midpoint may be at most one diversion radius from either end, assuming no usable alternate mid-ocean. The 0.9 one-engine-out speed fraction is an ESTIMATE. Diversion minutes by family:
+- 180: 737 NG and MAX, A319/A320/A321 ceo and neo, A220-100/300, 757-200, 767-300ER. Sourced: https://en.wikipedia.org/wiki/ETOPS (Aloha's 180-minute-approved 737-700s flew the Hawaii-West Coast routes incl. Honolulu-Burbank; the 757, 767 and A320 are ETOPS-approved but no rating is given). A220: ETOPS 180 from Transport Canada, Jan 2019 (https://en.wikipedia.org/wiki/Airbus_A220). The 180 figure for the MAX and A320 family is an ASSUMPTION (same class as NG and A220); it was not read from a certification document.
+- 330 for 777 (ETOPS-330 approved Dec 2011) and 787 (ETOPS-330, May 2014); 240 for A330 (first ETOPS-240, 2009); 370 for A350 (https://en.wikipedia.org/wiki/ETOPS). These make widebody twins effectively unlimited for CA-HI.
+- Unlimited: B747-400 (four engines).
+- 60: E175, CRJ700/900, ATR72-600. Basis: the US 60-minute rule for twins without ETOPS approval (ETOPS page). These types are not documented as ETOPS-approved in the sources read; this is an ASSUMPTION. The resulting 918-1,490 km limit lets them fly all inter-island hops (longest in the dataset, LIH-ITO, is 511 km) but not CA-HI.
+
+Resulting limits: 737/A320 family 4,536 km, A220 4,471 km, 757 4,633 km, 767 4,590 km. LAX-HNL is 4,108 km and SAN-HNL 4,201 km; the longest CA-HI pair in the dataset is IPL-LIH at 4,452 km, so all narrowbody twins with enough range can reach Hawaii from every CA airport. 
+
+A220 and LAX-HNL: the requested rule (A220-100 cannot do LAX-HNL) is NOT applied because the facts found point the other way: A220 has ETOPS 180 (Transport Canada, Jan 2019), a published range of 6,300 km (A220-100) against a 4,108 km sector, and Airbus's own announcement cited Honolulu-Los Angeles as an example route (https://economyclassandbeyond.boardingarea.com/2019/01/14/airbus-a220-gains-etops180-certification-opening-up-some-very-intresting-city-pairs ; Airbus press release itself not readable). I found no source for an operator-practice ban, and did not verify whether any airline ever flew an A220 to Hawaii. The test therefore asserts A220 CAN fly LAX-HNL and LAX-HNL stays range-feasible for A220 (if you want a gameplay restriction, set a lower `diversionMinutes` for A220 in overwater.ts and say so here).
+
