@@ -22,7 +22,7 @@ Fuzz (`fuzz.test.ts`): 4 seeds x 400 random commands (openRoute, updateRoute, cl
 ## Bugs and observations
 No failing invariant was found, and no game code was changed. Notes, by severity:
 
-1. Medium (design gap, already in STATUS.md): the sim has no bankruptcy rule for the player. Bot games end with cash down to -3.0 B (yolo seed 28) and nothing happens; 22 of 30 games finished with negative cash (all strategies except passive and some greedy runs). Repro: `pnpm --filter @arg/sim soak --games 6 --years 10` and read "final cash". This hides balance problems from the soak.
+1. Medium (design gap, already in STATUS.md): the sim has no bankruptcy rule for the player. Bot games end with cash down to -3.0 B (yolo seed 28) and nothing happens; 23 of 30 games finished with negative cash (every strategy except passive; some greedy runs stay positive). Repro: `pnpm --filter @arg/sim soak --games 6 --years 10` and read "final cash". This hides balance problems from the soak.
 2. Low (test gap): the e2e "duplicate route" check only verifies that the UI survives; it does not assert the error text, because the toast wording is not yet stable. Add a text assertion once the start-screen lane merges.
 3. Low (e2e fragility): speed 5 for 90 days depends on the auto-slow hook not pausing the game. The test re-presses 5 and dismisses decision cards; if a modal decision type is added it may need updating.
 4. Info: the e2e speed-rate check uses wall-clock time under SwiftShader; on a very slow CI runner raise the lower bound tolerance in `e2e/run.mjs`.
