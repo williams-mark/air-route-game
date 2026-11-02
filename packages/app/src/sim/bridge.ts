@@ -1,6 +1,6 @@
 // UI <-> sim boundary. The UI only talks to a SimBridge; swap `createBridge` to plug in the real sim.
 import type { CabinLayout, Command, Day, Id, Route, WorldState } from "@arg/contracts";
-import { newWorld, stepDay, type CheckKind, type Offer, type CabinCommand, type OfferCommand, type RouteReport } from "@arg/sim";
+import { newWorld, stepDay, type CheckKind, type Offer, type CabinCommand, type OfferCommand, type PlannerCommand, type RouteReport, type SimState } from "@arg/sim";
 import { routeName, validateRouteDraft, type CommandError } from "../routes/helpers";
 import type { DayRecord } from "./finance";
 import { EMPTY_RIVALS, type RivalsView } from "../rivals/helpers";
@@ -94,7 +94,9 @@ export type { CommandError };
 export interface SimBridge {
   getState(): SimSnapshot;
   subscribe(listener: () => void): () => void;
-  dispatch(cmd: Command | OfferCommand | CabinCommand): CommandResult | void;
+  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand): CommandResult | void;
+  /** Read-only sim state for the fleet planner (real bridge only). */
+  getSim?(): SimState | null;
   setSpeed(speed: Speed): void;
   /** Resolve a pending decision card by choosing one of its options. */
   decide(decisionId: string, optionId: string): void;
@@ -203,7 +205,7 @@ export class MockSimBridge implements SimBridge {
   getState = (): SimSnapshot => this.snap;
   subscribe = (l: () => void): (() => void) => { this.listeners.add(l); return () => { this.listeners.delete(l); }; };
 
-  dispatch(cmd: Command | OfferCommand | CabinCommand): CommandResult | void {
+  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand): CommandResult | void {
     switch (cmd.kind) {
       case "setSpeed": this.setSpeed(cmd.speed); return;
       case "openRoute": {

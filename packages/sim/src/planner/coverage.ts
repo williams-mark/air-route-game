@@ -10,9 +10,9 @@ import { forecastFleet, plannerPrefs, simContext, unavailableOn } from "./foreca
 import type { CoverageGap, CoverSuggestion, DowntimeWindow, FleetForecast } from "./types";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-export function shortDate(day: Day): string {
+export function shortDate(day: Day, withYear = false): string {
   const d = dayToDate(day);
-  return `${d.dayOfMonth} ${MONTHS[d.month]}`;
+  return `${d.dayOfMonth} ${MONTHS[d.month]}${withYear ? ` ${d.year}` : ""}`;
 }
 
 /** Fleet with statuses as the forecast says they will be on `day`. `reference` keeps aircraft in checks flying. */
@@ -52,7 +52,7 @@ function breakpoints(fc: FleetForecast, from: Day, to: Day): Day[] {
  * as it will stand on each day something changes, so the answer includes pins, preferred types and reserved spares.
  * Gaps the player ignored (`planner.ignoredGaps`) are omitted. Sorted by start date, then severity.
  */
-export function coverageGaps(state: SimState, horizonDays: number, forecast?: FleetForecast): CoverageGap[] {
+export function coverageGaps(state: SimState, horizonDays: number, forecast?: FleetForecast, minDays = 1): CoverageGap[] {
   const fc = forecast ?? forecastFleet(state, horizonDays);
   const from = fc.fromDay, to = fc.toDay;
   if (to <= from || state.world.routes.length === 0) return [];
@@ -96,7 +96,7 @@ export function coverageGaps(state: SimState, horizonDays: number, forecast?: Fl
   for (const g of done) {
     const route = routeById.get(g.routeId)!;
     g.id = `${g.routeId}:${g.fromDay}:${g.toDay}`;
-    if (ignored.has(g.id)) continue;
+    if (ignored.has(g.id) || (g.toDay - g.fromDay + 1 < minDays && !g.structural)) continue;
     const missing = g.requestedPerWeek - g.scheduledPerWeek;
     const days = g.toDay - g.fromDay + 1;
     g.severity = Math.round((missing / Math.max(1, g.requestedPerWeek)) * (0.5 + 0.5 * Math.min(1, days / 30)) * 1000) / 1000;
@@ -125,7 +125,8 @@ function describeGap(g: CoverageGap, route: Route, state: SimState, _types: Map<
   const why = g.causes.length
     ? g.causes.map((c) => { const a = tails.get(c.aircraftId); return `${a?.typeId ?? ""} ${a?.tailNumber ?? c.aircraftId} ${c.kind === "refit" ? "in refit" : c.kind === "delivery" ? "not yet delivered" : `in ${c.kind}-check`}`.trim(); }).join(", ")
     : g.structural ? "not enough suitable aircraft" : "aircraft in maintenance";
-  const span = g.fromDay === g.toDay ? shortDate(g.fromDay) : `${shortDate(g.fromDay)}-${shortDate(g.toDay)}`;
+  const yr = dayToDate(g.fromDay).year !== dayToDate(g.toDay).year;
+  const span = g.fromDay === g.toDay ? shortDate(g.fromDay) : `${shortDate(g.fromDay, yr)}-${shortDate(g.toDay, yr)}`;
   return `${name} ${g.structural ? "is short" : "loses"} ${missing}/${g.requestedPerWeek} weekly rotations ${span}: ${why}`;
 }
 

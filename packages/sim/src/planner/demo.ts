@@ -8,12 +8,12 @@ import type { SimState } from "../state";
 
 /** Extra aircraft added by the demo fleet: type id and count. */
 const EXTRA_FLEET: ReadonlyArray<readonly [string, number]> = [
-  ["B737-800", 9], ["B737-900ER", 3], ["A320", 3], ["A321", 2], ["A220-300", 2], ["E175", 2], ["B757-200", 1], ["A330-200", 2], ["B787-9", 2], ["B777-200ER", 1],
+  ["B737-800", 9], ["B737-900ER", 3], ["A320", 3], ["A321", 2], ["A220-300", 2], ["E175", 2], ["B757-200", 2], ["A330-200", 2], ["B787-9", 2], ["B777-200ER", 1],
 ];
 const EXTRA_ROUTES: ReadonlyArray<readonly [string, string, number, string]> = [
-  ["LAX", "SJC", 28, "B737-800"], ["LAX", "SMF", 21, "A320"], ["SFO", "SAN", 21, "B737-900ER"], ["LAX", "OAK", 14, "A220-300"],
-  ["SFO", "HNL", 14, "A330-200"], ["LAX", "KOA", 7, "B757-200"], ["SAN", "SFO", 14, "A321"], ["LAX", "SBA", 14, "E175"],
-  ["SFO", "OGG", 7, "B787-9"], ["LAX", "LIH", 7, "B757-200"],
+  ["LAX", "SJC", 56, "B737-800"], ["LAX", "SMF", 42, "A320"], ["SFO", "SAN", 42, "B737-900ER"], ["LAX", "OAK", 28, "A220-300"],
+  ["SFO", "HNL", 21, "A330-200"], ["LAX", "KOA", 14, "B757-200"], ["SAN", "SFO", 28, "A321"], ["LAX", "SBA", 28, "E175"],
+  ["SFO", "OGG", 14, "B787-9"],
 ];
 
 /**
@@ -38,7 +38,10 @@ export function plannerDemoFleet(airports: Airport[], types: AircraftType[], see
         ageDays: Math.round((1 + rng() * 10) * 365), hoursSinceCheck: { A: Math.round(rng() * 450), B: 0, C: 0, D: 0 },
       };
       fleet.push(ac);
-      meta[ac.id] = initialMeta(ac, rng);
+      const m = initialMeta(ac, rng);
+      // Every fourth aircraft is heading for a C check within a couple of months, so the planner has windows to show.
+      if (n % 4 === 0) m.daysSince = { ...m.daysSince, C: Math.max(0, m.intervals.C - 25 - ((n * 13) % 70)) };
+      meta[ac.id] = m;
     }
   }
   let r = base.world.routes.length;
@@ -48,7 +51,7 @@ export function plannerDemoFleet(airports: Airport[], types: AircraftType[], see
     if (!a || !b || !type || !typeCanServe(a, b, type)) continue;
     r++;
     const y = startingFare(a, b);
-    routes.push({ id: `route-${r}`, origin: o, destination: d, weeklyFrequency: freq, fares: type.widebody ? { Y: y, J: Math.round(y * 3.2) } : { Y: y }, typeId });
+    routes.push({ id: `route-${r}`, origin: o, destination: d, weeklyFrequency: type.widebody ? freq : Math.min(140, Math.round(freq * 2.6)), fares: type.widebody ? { Y: y, J: Math.round(y * 3.2) } : { Y: y }, typeId });
   }
   return { ...base, world: { ...base.world, fleet, routes }, fleetMeta: meta, counters: { ...base.counters, aircraft: n, route: r } };
 }

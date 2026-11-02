@@ -41,3 +41,4 @@ Open the game (`pnpm dev`), try both themes at each stage.
 7. Rivals (1 min): there is no rivals UI yet; just check news cards or toasts mentioning competitors do not look broken.
 8. Finance (1 min): after a few months the charts show revenue, costs and profit; check y-axis labels are not clipped.
 9. Light/dark and zoom (1 min): toggle the theme from the top bar and Settings; zoom the map from far to near (labels, airports, aircraft glyphs); try UI scale in Settings and a 1280x720 window (check toasts do not hide page headers, a known issue).
+10. Fleet planner (2 min): open Planner (Alt+4) on `?fleetdemo&ff=120`; switch horizons and light/dark, hover bars for tooltips, open an issue's Suggested cover and Apply it (a pin icon bar appears, the issue shrinks), pin an aircraft from its panel, reserve a spare, reorder a route's fallback types; arrow keys move between aircraft rows.
