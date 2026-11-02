@@ -242,3 +242,14 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
     breakEvenLoadFactor: revenue > 0 && lf > 0 ? Math.min(2, (costs / revenue) * lf) : null,
   };
 }
+
+/** Aircraft (fractional) needed to fly `weeklyFrequency` round trips on a pair. */
+export function aircraftEquivalentFor(distKm: number, aircraft: AircraftType, weeklyFrequency: number): number {
+  const kind = aircraft.widebody ? "wide" : "narrow";
+  return (2 * weeklyFrequency * blockHours(distKm, aircraft)) / (P.utilizationBlockHoursPerDay[kind] * 7);
+}
+
+/** Monthly lease-equivalent ownership cost of one aircraft of this type, USD. */
+export function monthlyOwnershipUsd(aircraft: AircraftType): number {
+  return aircraft.listPriceUsdM * 1e6 * P.streetPriceOfList * P.leaseRatePerMonth;
+}

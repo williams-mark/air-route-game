@@ -21,8 +21,8 @@ describe("choice: frequency (worked example b)", () => {
       outside: laxHnlCtx,
       // rival is fixed at 14/wk, big enough that nothing spills
       itineraries: [
-        directItinerary("P", LAX, HNL, f, BIG, 330),
-        directItinerary("R", LAX, HNL, 14, BIG, 330),
+        directItinerary("P", LAX, HNL, f, BIG, 270),
+        directItinerary("R", LAX, HNL, 14, BIG, 270),
       ],
     });
     return r.itineraries[0]!.passengers;
@@ -50,26 +50,26 @@ describe("choice: frequency (worked example b)", () => {
 
 describe("choice: connecting vs direct (worked example c)", () => {
   const run = (viaFare: number) => {
-    const direct = directItinerary("D", LAX, HNL, 14, BIG, 330);
+    const direct = directItinerary("D", LAX, HNL, 14, BIG, 270);
     const via = viaItinerary("V", LAX, SFO, HNL, 14, BIG, viaFare);
     const r = runChoice({ demand: laxHnl.bySegment, outside: laxHnlCtx, itineraries: [direct, via] });
     return { d: r.itineraries[0]!.passengers, v: r.itineraries[1]!.passengers };
   };
   it("loses to a direct flight at equal fare", () => {
-    const r = run(330);
+    const r = run(270);
     console.log("equal fare direct vs via", r);
     expect(r.v).toBeLessThan(r.d * 0.25);
   });
   it("captures share when materially cheaper", () => {
-    const r = run(330 * 0.55);
+    const r = run(270 * 0.55);
     console.log("cheap via", r);
     expect(r.v).toBeGreaterThan(r.d);
   });
   it("benchmark fares are plausible", () => {
-    expect(benchmarkFare(distanceKm(LAX, SFO))).toBeGreaterThan(105);
-    expect(benchmarkFare(distanceKm(LAX, SFO))).toBeLessThan(135);
-    expect(benchmarkFare(distanceKm(LAX, HNL))).toBeGreaterThan(300);
-    expect(benchmarkFare(distanceKm(LAX, HNL))).toBeLessThan(360);
+    expect(benchmarkFare(distanceKm(LAX, SFO))).toBeGreaterThan(90);
+    expect(benchmarkFare(distanceKm(LAX, SFO))).toBeLessThan(125);
+    expect(benchmarkFare(distanceKm(LAX, HNL))).toBeGreaterThan(250);
+    expect(benchmarkFare(distanceKm(LAX, HNL))).toBeLessThan(300);
   });
 });
 
@@ -105,7 +105,7 @@ describe("choice: spill and recapture (worked example d)", () => {
     const r = runChoice({
       demand: laxHnl.bySegment,
       outside: laxHnlCtx,
-      itineraries: [directItinerary("A", LAX, HNL, 70, BIG, 330)],
+      itineraries: [directItinerary("A", LAX, HNL, 70, BIG, 270)],
     });
     expect(r.itineraries[0]!.spilled).toBe(0);
     expect(r.totals.unservedSpill).toBe(0);
@@ -114,12 +114,12 @@ describe("choice: spill and recapture (worked example d)", () => {
     const base = runChoice({
       demand: laxHnl.bySegment,
       outside: laxHnlCtx,
-      itineraries: [directItinerary("A", LAX, HNL, 7, 100, 330), directItinerary("B", LAX, HNL, 14, BIG, 330)],
+      itineraries: [directItinerary("A", LAX, HNL, 7, 100, 270), directItinerary("B", LAX, HNL, 14, BIG, 270)],
     });
     const squeezed = runChoice({
       demand: laxHnl.bySegment,
       outside: laxHnlCtx,
-      itineraries: [directItinerary("A", LAX, HNL, 7, 100, 330), directItinerary("B", LAX, HNL, 14, 20, 330)],
+      itineraries: [directItinerary("A", LAX, HNL, 7, 100, 270), directItinerary("B", LAX, HNL, 14, 20, 270)],
     });
     expect(squeezed.itineraries[0]!.passengers).toBeGreaterThanOrEqual(base.itineraries[0]!.passengers);
     expect(squeezed.itineraries[0]!.passengers).toBeLessThanOrEqual(700 + 1e-6);
@@ -149,8 +149,8 @@ describe("choice: outside option", () => {
         outside: laxHnlCtx,
         itineraries: [directItinerary("A", LAX, HNL, 70, BIG, fare)],
       }).totals.captured;
-    expect(at(600)).toBeLessThan(at(330));
-    expect(at(330)).toBeLessThan(at(200));
+    expect(at(500)).toBeLessThan(at(270));
+    expect(at(270)).toBeLessThan(at(160));
   });
   it("short inter-island pair works with fixtures", () => {
     const m = marketOnDay(HNL, OGG, DAY);

@@ -110,9 +110,9 @@ export const DEFAULT_CHOICE_PARAMS: ChoiceParams = {
   recapturePasses: 3,
 };
 
-/** Benchmark average one-way fare for a distance (USD): 68 + 0.3365 d^0.8. LAX-SFO ~ 120, LAX-HNL ~ 330. */
+/** Benchmark economy-equivalent one-way fare for a distance (USD): 64 + 0.265 d^0.8. LAX-SFO ~ 105, LAX-HNL ~ 270. */
 export function benchmarkFare(distanceKm: number): number {
-  return 68 + 0.3365 * Math.max(distanceKm, 0) ** 0.8;
+  return 64 + 0.265 * Math.max(distanceKm, 0) ** 0.8;
 }
 
 // ---------------------------------------------------------------------------

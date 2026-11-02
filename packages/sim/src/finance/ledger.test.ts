@@ -6,9 +6,9 @@ import { B738, B789, CRJ9, HNL, LAX, OGG, SFO } from "../testing/fixtures";
 
 const DAY_2024 = 9 * 365 + 3 + 180; // mid-2024
 const widebody787: CabinInput[] = [
-  { cls: "J", seats: 28, fare: 1100 },
-  { cls: "W", seats: 21, fare: 520 },
-  { cls: "Y", seats: 241, fare: 330 },
+  { cls: "J", seats: 28, fare: 900 },
+  { cls: "W", seats: 21, fare: 460 },
+  { cls: "Y", seats: 241, fare: 270 },
 ];
 
 describe("fuel price series", () => {
@@ -61,7 +61,7 @@ describe("evaluateRoute worked example (a)", () => {
   it("a 90-seat regional jet cannot reach Hawaii: infeasible with negative margin", () => {
     const r = evaluateRoute({
       origin: LAX, destination: HNL, aircraft: CRJ9, day: DAY_2024,
-      weeklyFrequency: 7, cabins: [{ cls: "Y", seats: 90, fare: 330 }], weeklyPassengers: 1000,
+      weeklyFrequency: 7, cabins: [{ cls: "Y", seats: 90, fare: 270 }], weeklyPassengers: 1000,
     });
     expect(r.feasible).toBe(false);
     expect(r.infeasibleReasons.join(" ")).toMatch(/range/);
