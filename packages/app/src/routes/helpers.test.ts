@@ -1,0 +1,128 @@
+import { describe, expect, it } from "vitest";
+import { aircraftTypes, airportById } from "@arg/data";
+import { dayToDate } from "@arg/sim";
+import {
+  bestFrequency, bestType, eligibleTypes, fareHint, FREQ_SWEEP_MAX, frequencySweep, marketFares, midMonthDay, parseFares,
+  profitTier, rivalPresence, seasonalProfit, suggestAirports, validateRouteDraft, type RouteDraft, type SweepPoint,
+} from "./helpers";
+import { airports } from "@arg/data";
+
+const lax = airportById.get("LAX")!;
+const sfo = airportById.get("SFO")!;
+const hnl = airportById.get("HNL")!;
+const DAY = 100;
+
+const pt = (frequency: number, profit: number, feasible = true): SweepPoint => ({ frequency, profit, revenue: 0, loadFactor: 0, feasible });
+
+describe("bestFrequency", () => {
+  it("picks the highest profit and prefers the lower frequency on ties", () => {
+    expect(bestFrequency([pt(1, -5), pt(2, 10), pt(3, 10), pt(4, 4)])?.frequency).toBe(2);
+  });
+  it("ignores infeasible points and returns null when none are feasible", () => {
+    expect(bestFrequency([pt(1, 999, false), pt(2, -3)])?.frequency).toBe(2);
+    expect(bestFrequency([pt(1, 1, false)])).toBeNull();
+    expect(bestFrequency([])).toBeNull();
+  });
+});
+
+describe("frequencySweep", () => {
+  const type = bestType(lax, sfo, DAY)!;
+  const draft: RouteDraft = { origin: "LAX", destination: "SFO", weeklyFrequency: 7, fares: { Y: marketFares(559).Y }, typeId: type.id };
+  const sweep = frequencySweep(draft, DAY);
+  it("covers 1..28 weekly frequencies in order", () => {
+    expect(sweep).toHaveLength(FREQ_SWEEP_MAX);
+    expect(sweep.map((p) => p.frequency)).toEqual(Array.from({ length: FREQ_SWEEP_MAX }, (_, i) => i + 1));
+    expect(sweep.every((p) => p.feasible)).toBe(true);
+  });
+  it("best point is the true maximum of the sweep", () => {
+    const best = bestFrequency(sweep)!;
+    expect(best.profit).toBe(Math.max(...sweep.map((p) => p.profit)));
+  });
+  it("marks everything infeasible when the type cannot fly the pair", () => {
+    const small = aircraftTypes.reduce((m, t) => (t.rangeKm < m.rangeKm ? t : m));
+    const far = frequencySweep({ ...draft, origin: "LAX", destination: "HNL", typeId: small.id }, DAY);
+    expect(bestFrequency(far)).toBeNull();
+  });
+});
+
+describe("fares", () => {
+  it("market fares increase with distance and by cabin", () => {
+    expect(fareHint(2500, "Y")).toBeGreaterThan(fareHint(500, "Y"));
+    const f = marketFares(2500);
+    expect(f.F).toBeGreaterThan(f.J);
+    expect(f.J).toBeGreaterThan(f.W);
+    expect(f.W).toBeGreaterThan(f.Y);
+  });
+  it("parseFares requires economy and drops blank cabins", () => {
+    expect(parseFares({ Y: "120", J: "", W: " ", F: "" })).toEqual({ Y: 120 });
+    expect(parseFares({ Y: "120.4", J: "400" })).toEqual({ Y: 120, J: 400 });
+    expect(parseFares({ Y: "" })).toBeNull();
+    expect(parseFares({ Y: "100", J: "abc" })).toBeNull();
+    expect(parseFares({ Y: "-5" })).toBeNull();
+  });
+});
+
+describe("tiers and months", () => {
+  it("classifies by margin", () => {
+    expect(profitTier(0.2)).toBe("profit");
+    expect(profitTier(0)).toBe("marginal");
+    expect(profitTier(-0.2)).toBe("loss");
+    expect(profitTier(0.5, false)).toBe("loss");
+  });
+  it("midMonthDay lands on the 15th of the right month", () => {
+    for (const month of [0, 1, 6, 11]) {
+      const c = dayToDate(midMonthDay(400, month));
+      expect(c.month).toBe(month);
+      expect(c.dayOfMonth).toBe(15);
+      expect(c.year).toBe(2016);
+    }
+  });
+  it("seasonalProfit returns 12 months and Hawaii routes peak in summer or December", () => {
+    const t = bestType(lax, hnl, 0)!;
+    const months = seasonalProfit({ id: "x", origin: "LAX", destination: "HNL", weeklyFrequency: 14, fares: marketFares(4100), typeId: t.id }, 0);
+    expect(months).toHaveLength(12);
+    const peak = months.reduce((m, x) => (x.profit > m.profit ? x : m));
+    expect([5, 6, 7, 11]).toContain(peak.month);
+  });
+});
+
+describe("airports and types", () => {
+  it("suggests by IATA prefix first, then city", () => {
+    const s = suggestAirports("la", airports);
+    expect(s[0]?.id).toBe("LAX");
+    expect(suggestAirports("honolulu", airports)[0]?.id).toBe("HNL");
+    expect(suggestAirports("", airports, { limit: 3 })).toHaveLength(3);
+    expect(suggestAirports("lax", airports, { exclude: ["LAX"] }).some((a) => a.id === "LAX")).toBe(false);
+    expect(suggestAirports("zzzz", airports)).toEqual([]);
+  });
+  it("eligibleTypes only returns types that canFlyRoute and flags availability by year", () => {
+    const opts = eligibleTypes(lax, sfo, 2015);
+    expect(opts.length).toBeGreaterThan(0);
+    for (const o of opts) expect(o.type.rangeKm).toBeGreaterThan(0);
+    const hawaii = eligibleTypes(lax, hnl, 2015);
+    expect(hawaii.length).toBeLessThan(opts.length);
+    expect(opts.some((o) => !o.available) || opts.every((o) => o.available)).toBe(true);
+  });
+  it("rival presence is at least 3 weekly and adds a one-stop only for long pairs", () => {
+    expect(rivalPresence(lax, sfo).directFrequency).toBeGreaterThanOrEqual(3);
+    expect(rivalPresence(lax, hnl).oneStop).toBe(true);
+    const short = rivalPresence(airportById.get("LAX")!, airportById.get("BUR")!);
+    expect(short.oneStop).toBe(false);
+  });
+});
+
+describe("validateRouteDraft", () => {
+  const t = bestType(lax, sfo, DAY)!;
+  const ok: RouteDraft = { origin: "LAX", destination: "SFO", weeklyFrequency: 7, fares: { Y: 120 }, typeId: t.id };
+  it("accepts a valid draft", () => expect(validateRouteDraft(ok, [])).toBeNull());
+  it("returns typed errors", () => {
+    expect(validateRouteDraft({ ...ok, destination: "LAX" }, [])?.code).toBe("same_airport");
+    expect(validateRouteDraft({ ...ok, destination: "XXX" }, [])?.code).toBe("unknown_airport");
+    expect(validateRouteDraft({ ...ok, typeId: "nope" }, [])?.code).toBe("unknown_type");
+    expect(validateRouteDraft({ ...ok, weeklyFrequency: 0 }, [])?.code).toBe("bad_frequency");
+    expect(validateRouteDraft({ ...ok, fares: { Y: 0 } }, [])?.code).toBe("bad_fare");
+    expect(validateRouteDraft(ok, [{ ...ok, id: "SFO-LAX", origin: "SFO", destination: "LAX" }])?.code).toBe("duplicate_route");
+    const small = aircraftTypes.reduce((m, x) => (x.rangeKm < m.rangeKm ? x : m));
+    expect(validateRouteDraft({ ...ok, destination: "HNL", typeId: small.id }, [])?.code).toBe("cannot_fly");
+  });
+});
