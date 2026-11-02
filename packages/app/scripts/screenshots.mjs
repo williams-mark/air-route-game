@@ -16,8 +16,9 @@ mkdirSync(outDir, { recursive: true });
 const argv = process.argv.slice(2);
 const onlyCabin = argv.includes("--cabin");
 const onlySaveUi = argv.includes("--saveui");
-const doMock = !onlyCabin && !onlySaveUi && (argv.includes("--mock") || !argv.includes("--real"));
-const doReal = !onlyCabin && !onlySaveUi && (argv.includes("--real") || !argv.includes("--mock"));
+const onlyUifix = argv.includes("--uifix");
+const doMock = !onlyCabin && !onlySaveUi && !onlyUifix && (argv.includes("--mock") || !argv.includes("--real"));
+const doReal = !onlyCabin && !onlySaveUi && !onlyUifix && (argv.includes("--real") || !argv.includes("--mock"));
 const PORT = 5199;
 const url = `http://localhost:${PORT}/`;
 
@@ -51,6 +52,17 @@ const shot = async (page, theme, name) => {
   await page.screenshot({ path: path.join(outDir, `ui-${theme}-1440-${name}.png`) });
   console.log("saved ui", theme, name);
 };
+
+/** Drive the AircraftPicker tile browser: manufacturer tile, family tile, variant tile. */
+async function pickType(scope, man, fam, variant) {
+  const tg = scope.locator(".ap-toggle");
+  if ((await tg.getAttribute("aria-expanded")) !== "true") await tg.click();
+  const all = scope.locator(".ap-nav button.ap-crumb", { hasText: "All" });
+  if (await all.count()) await all.click();
+  await scope.locator(".ap-tile", { hasText: man }).first().click();
+  await scope.locator(".ap-tile", { hasText: fam }).first().click();
+  await scope.locator(".ap-var", { hasText: variant }).first().click();
+}
 const scrollPanel = (page, y) => page.locator(".rp-scroll").evaluate((el, top) => { el.scrollTop = top === "end" ? el.scrollHeight : top; }, y);
 
 /** Route inspector and creation flow (1440x900). */
@@ -109,14 +121,14 @@ async function cabinShots(theme) {
   await page.waitForFunction(() => window.__argMap && window.__argMap.loaded(), null, { timeout: 20000 });
   await page.getByRole("button", { name: "Cabin designer" }).click();
   const snap = async (name) => { await page.waitForTimeout(400); await page.screenshot({ path: path.join(outDir, `cabin-${theme}-${name}.png`), fullPage: true }); console.log("saved cabin", theme, name); };
-  await page.locator("#cabin-type").selectOption("A320N");
+  await pickType(page.locator(".cabin-picker"), "Airbus", "A320 family", "A320neo");
   await page.getByRole("button", { name: "Standard" }).click();
   await snap("narrowbody");
-  await page.locator("#cabin-type").selectOption("A350-900");
+  await pickType(page.locator(".cabin-picker"), "Airbus", "A350", "A350-900");
   await page.getByRole("button", { name: "Premium" }).click();
   await snap("widebody");
   await page.getByRole("button", { name: "Orders / Offers" }).click();
-  await page.locator("#ord-type").selectOption("A350-900");
+  await pickType(page.locator(".order-form .ap"), "Airbus", "A350", "A350-900");
   await page.getByRole("button", { name: /Design cabin/ }).click();
   await snap("order-dialog");
   await page.keyboard.press("Escape");
@@ -153,7 +165,7 @@ async function realShots(theme) {
   await page.getByRole("tab", { name: /Offers/ }).click();
   await snap("offers");
   await page.getByRole("tab", { name: "Orders" }).click();
-  await page.locator("#ord-type").selectOption("A320N");
+  await pickType(page.locator(".order-form .ap"), "Airbus", "A320 family", "A320neo");
   await page.locator("#ord-qty").fill("4");
   await snap("orders-form");
   await page.getByRole("button", { name: "Place order" }).click();
@@ -221,7 +233,79 @@ async function saveUiShots(theme) {
   await ctx.close();
 }
 
+/** Aircraft picker levels, route aircraft swap, notification dock and time pill. Run with --uifix. */
+async function uifixShots(theme) {
+  const snap = async (page, name, opts = {}) => { await page.waitForTimeout(450); await page.screenshot({ path: path.join(outDir, `uifix-${theme}-${name}.png`), ...opts }); console.log("saved uifix", theme, name); };
+  const problems = [];
+  let page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  page.on("console", (m) => { if (m.type() === "error") problems.push(m.text()); });
+  page.on("pageerror", (e) => problems.push(e.message));
+  await page.addInitScript(() => { try { localStorage.clear(); } catch {} });
+  await page.goto(`${url}?theme=${theme}&t=420&paused=1&ff=30&nostart=1`);
+  await page.waitForFunction(() => window.__argMap && window.__argMap.loaded(), null, { timeout: 20000 });
+  await page.waitForTimeout(1200);
+  await snap(page, "time-pill-map");
+  // Picker levels in the order form
+  await page.getByRole("button", { name: "Orders / Offers" }).click();
+  const box = page.locator(".order-form .ap");
+  await snap(page, "picker-0-closed");
+  await box.locator(".ap-toggle").click();
+  await box.locator(".ap-nav button.ap-crumb", { hasText: "All" }).click();
+  await snap(page, "picker-1-manufacturers");
+  await box.locator(".ap-tile", { hasText: "Boeing" }).first().click();
+  await snap(page, "picker-2-families");
+  await box.locator(".ap-tile", { hasText: "737 MAX" }).first().click();
+  await snap(page, "picker-3-variants");
+  await box.locator(".ap-tile", { hasText: "787" }).first().click().catch(() => {});
+  // Route swap
+  await page.getByRole("button", { name: "Routes" }).click();
+  await snap(page, "routes-table");
+  await page.getByRole("button", { name: /Change aircraft on LAX.SFO/ }).click();
+  await page.waitForTimeout(600);
+  await snap(page, "swap-open");
+  const rp = page.locator(".route-panel");
+  await rp.locator(".ap-tile", { hasText: "Airbus" }).first().click();
+  await rp.locator(".ap-tile", { hasText: "A330" }).first().click();
+  await rp.locator(".ap-var", { hasText: "A330-300" }).first().click();
+  await page.waitForTimeout(700);
+  await rp.locator("#rp-aircraft").scrollIntoViewIfNeeded();
+  await snap(page, "swap-projection");
+  await page.keyboard.press("Escape").catch(() => {});
+  await page.getByRole("button", { name: "Map", exact: true }).click();
+  await page.close();
+
+  // Notification dock on the mock (scripted decisions)
+  page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  page.on("console", (m) => { if (m.type() === "error") problems.push(m.text()); });
+  page.on("pageerror", (e) => problems.push(e.message));
+  await page.addInitScript(() => { try { localStorage.clear(); } catch {} });
+  await page.goto(`${url}?mock=1&theme=${theme}&t=420&paused=1`);
+  await page.waitForFunction(() => window.__argMap && window.__argMap.loaded(), null, { timeout: 20000 });
+  await page.waitForTimeout(1500);
+  await snap(page, "dock-expanded");
+  await page.getByRole("button", { name: "Open route inspector" }).count();
+  const grip = page.getByRole("button", { name: /Move notifications/ });
+  const gb = await grip.boundingBox();
+  if (gb) {
+    await page.mouse.move(gb.x + 8, gb.y + 8); await page.mouse.down(); await page.mouse.move(gb.x + 500, gb.y - 250, { steps: 8 }); await page.mouse.up();
+    await snap(page, "dock-moved");
+  }
+  await page.keyboard.press("Escape");
+  await snap(page, "dock-minimized");
+  await page.keyboard.press("j");
+  await page.getByRole("button", { name: "Routes" }).click();
+  await snap(page, "dock-offmap-pill");
+  await page.getByRole("button", { name: /Notifications, .* unresolved/ }).click();
+  await snap(page, "dock-offmap-open");
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.keyboard.press("Escape");
+  await snap(page, "settings-dock");
+  await page.close();
+  if (problems.length) console.log("[uifix problems]", theme, problems.slice(0, 6));
+}
+
 try {
+  if (onlyUifix) for (const theme of ["dark", "light"]) await uifixShots(theme);
   if (onlySaveUi) for (const theme of ["dark", "light"]) await saveUiShots(theme);
   if (doReal) for (const theme of ["dark", "light"]) await realShots(theme);
   if (doReal || argv.includes("--cabin")) for (const theme of ["dark", "light"]) await cabinShots(theme);

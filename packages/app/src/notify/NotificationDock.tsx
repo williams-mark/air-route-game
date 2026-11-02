@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as RKeyboardEvent, type PointerEvent as RPointerEvent } from "react";
-import { bridge, useSim } from "../sim/useSim";
+import { bridge, useSimSelector } from "../sim/useSim";
 import { formatDay, formatMoney } from "../sim/format";
 import type { Severity } from "../sim/bridge";
 import { useUi } from "../store";
@@ -46,8 +46,17 @@ export function minimizeDock() {
   if (useUi.getState().view === "map") d.setMinimized(true); else d.setPeek(false);
 }
 
+function OfferClose({ offer }: { offer: Parameters<typeof closesIn>[0] }) {
+  const day = useSimSelector((x) => x.day);
+  return <>{closesIn(offer, day)}</>;
+}
+
 export function NotificationDock() {
-  const sim = useSim();
+  const sim = {
+    decisions: useSimSelector((x) => x.decisions),
+    offers: useSimSelector((x) => x.offers),
+    notices: useSimSelector((x) => x.notices),
+  };
   const view = useUi((s) => s.view);
   const snoozed = useUi((s) => s.snoozed);
   const snooze = useUi((s) => s.snooze);
@@ -189,7 +198,7 @@ export function NotificationDock() {
               </button>
               {isOpen && (
                 <div className="dock-row-body">
-                  <p>{formatMoney(o.unitPriceUsd)} each, {Math.round(o.discount * 100)}% {o.kind === "used" ? "below new" : "off list"}. {closesIn(o, sim.day)}.</p>
+                  <p>{formatMoney(o.unitPriceUsd)} each, {Math.round(o.discount * 100)}% {o.kind === "used" ? "below new" : "off list"}. <OfferClose offer={o} />.</p>
                   <div className="offer-popup-actions">
                     <button type="button" className="primary" onClick={() => { markSeen(unseenOffers.map((f) => f.id)); setTab("offers"); setView("orders"); }}>View offer</button>
                     <button type="button" onClick={() => { markSeen([o.id]); setOpen(null); }}>Decide later</button>
