@@ -7,7 +7,7 @@ import path from "node:path";
 
 const require = createRequire(import.meta.url);
 let chromium;
-try { ({ chromium } = require("playwright")); } catch { ({ chromium } = require(require.resolve("playwright", { paths: [process.cwd(), "/usr/lib/node_modules", "/usr/local/lib/node_modules"] }))); }
+try { ({ chromium } = require("playwright")); } catch { ({ chromium } = require(require.resolve("playwright", { paths: [process.cwd(), "/usr/lib/node_modules", "/usr/local/lib/node_modules", process.env.NODE_PATH ?? "", `${process.env.HOME}/.npm-global/lib/node_modules`, "/home/claude/.npm-global/lib/node_modules"] }))); }
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = path.join(root, "screenshots");
@@ -31,14 +31,40 @@ const views = [
   { name: "3-near-la", jump: { center: [-118.15, 33.95], zoom: 9.4 } },
   { name: "4-mid-hawaii", preset: "Hawaii" },
 ];
+const shellShots = [
+  { name: "map", run: async () => {} },
+  { name: "finance", run: async (page) => { await page.getByRole("button", { name: "Finance" }).click(); } },
+  { name: "routes", run: async (page) => { await page.getByRole("button", { name: "Routes" }).click(); } },
+  { name: "fleet", run: async (page) => { await page.getByRole("button", { name: "Fleet" }).click(); } },
+  { name: "settings", run: async (page) => { await page.getByRole("button", { name: "Settings" }).click(); } },
+  { name: "palette", run: async (page) => { await page.getByRole("button", { name: "Map", exact: true }).click(); await page.keyboard.press("Control+k"); await page.keyboard.type("go"); } },
+  { name: "shortcuts", run: async (page) => { await page.keyboard.press("Escape"); await page.keyboard.press("?"); } },
+];
 try {
+  for (const theme of ["dark", "light"]) {
+    for (const [w, h] of [[1440, 900], [1280, 720]]) {
+      const page = await browser.newPage({ viewport: { width: w, height: h } });
+      page.on("console", (m) => { if (m.type() === "error") console.log("[console]", m.text()); });
+      page.on("pageerror", (e) => console.log("[pageerror]", e.message));
+      await page.goto(`${url}?theme=${theme}&t=420&paused=1`);
+      await page.waitForFunction(() => window.__argMap && window.__argMap.loaded(), null, { timeout: 20000 });
+      await page.waitForTimeout(1500);
+      for (const s of shellShots) {
+        await s.run(page);
+        await page.waitForTimeout(500);
+        await page.screenshot({ path: path.join(outDir, `ui-${theme}-${w}-${s.name}.png`) });
+        console.log("saved ui", theme, w, s.name);
+        if (s.name === "palette" || s.name === "shortcuts") await page.keyboard.press("Escape");
+      }
+      await page.close();
+    }
+  }
   for (const theme of ["dark", "light"]) {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     page.on("console", (m) => { if (m.type() === "error") console.log("[console]", m.text()); });
     page.on("pageerror", (e) => console.log("[pageerror]", e.message));
-    await page.goto(`${url}?theme=${theme}&t=420`);
+    await page.goto(`${url}?theme=${theme}&t=420&paused=1`);
     await page.waitForFunction(() => window.__argMap && window.__argMap.loaded(), null, { timeout: 20000 });
-    await page.getByRole("button", { name: "Pause" }).click(); // freeze aircraft for stable shots
     await page.waitForTimeout(1200);
     for (const v of views) {
       if (v.preset) {
