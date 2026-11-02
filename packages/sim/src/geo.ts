@@ -1,4 +1,5 @@
-import type { Airport } from "@arg/contracts";
+import type { Airport, AircraftType } from "@arg/contracts";
+import { runwayRequiredM } from "@arg/data";
 
 const EARTH_RADIUS_KM = 6371;
 
@@ -14,4 +15,12 @@ export function haversineKm(lat1: number, lon1: number, lat2: number, lon2: numb
 
 export function distanceKm(a: Airport, b: Airport): number {
   return haversineKm(a.lat, a.lon, b.lat, b.lon);
+}
+
+/**
+ * Runway the sim requires for a sector. Narrowbodies keep the full runwayNeededM (calibrated behaviour); widebodies use the
+ * data package's stage-length rule so A330/787 class aircraft can serve OGG from the mainland.
+ */
+export function simRunwayM(type: AircraftType, km: number): number {
+  return type.widebody ? runwayRequiredM(type, km) : type.runwayNeededM;
 }

@@ -73,7 +73,7 @@ describe("evaluateRoute worked example (a)", () => {
 
   it("flags runway and seat-count violations", () => {
     const r = evaluateRoute({
-      origin: LAX, destination: OGG, aircraft: B789, day: DAY_2024, weeklyFrequency: 7,
+      origin: LAX, destination: OGG, aircraft: { ...B789, runwayNeededM: 4000 }, day: DAY_2024, weeklyFrequency: 7,
       cabins: [{ cls: "Y", seats: 300, fare: 300 }], weeklyPassengers: 3000,
     });
     expect(r.feasible).toBe(false);

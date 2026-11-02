@@ -92,3 +92,12 @@ describe("overwater / canFlyRoute", () => {
     expect(can("B787-9", "SFO", "HNL")).toBe(true);
   });
 });
+
+describe("runwayRequiredM (stage-length rule)", () => {
+  const can = (t: string, a: string, b: string) => canFlyRoute(ac(t), ap(a), ap(b));
+  it("lets A330-200 and 787-9 reach Maui from LAX but not a 777-200ER", () => {
+    expect(can("A330-200", "LAX", "OGG")).toBe(true);
+    expect(can("B787-9", "LAX", "OGG")).toBe(true);
+    expect(can("B777-200ER", "LAX", "OGG")).toBe(false);
+  });
+});

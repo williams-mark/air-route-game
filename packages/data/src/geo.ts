@@ -35,6 +35,17 @@ const HI_ISLAND: Readonly<Record<string, string>> = {
  */
 export const RUNWAY_SECTOR_FRACTION = 0.85;
 
+/**
+ * Runway length the type needs for a sector of `km`. Narrowbodies and turboprops use a flat RUNWAY_SECTOR_FRACTION. For widebodies
+ * takeoff weight grows with fuel carried, so short sectors need less runway than the MTOW field length: 60% of runwayNeededM at zero distance, rising linearly to RUNWAY_SECTOR_FRACTION
+ * (cap) at 75% of range. Planning assumption, not a sourced figure; lets A330/787 class aircraft use OGG from California.
+ */
+export function runwayRequiredM(type: AircraftType, km: number): number {
+  if (!type.widebody) return type.runwayNeededM * RUNWAY_SECTOR_FRACTION;
+  const ramp = 0.6 + 0.4 * Math.min(1, km / (0.75 * type.rangeKm));
+  return type.runwayNeededM * Math.min(RUNWAY_SECTOR_FRACTION, ramp);
+}
+
 /** True if the route crosses open water: CA<->HI, or HI<->HI on different islands. */
 export function isOverwaterRoute(a: Airport, b: Airport): boolean {
   if (a.region !== b.region) return true;
@@ -49,7 +60,7 @@ export function isOverwaterRoute(a: Airport, b: Airport): boolean {
 export function canFlyRoute(type: AircraftType, a: Airport, b: Airport): boolean {
   const km = distanceKm(a, b);
   if (!canFlyDistance(type, km)) return false;
-  const need = type.runwayNeededM * RUNWAY_SECTOR_FRACTION;
+  const need = runwayRequiredM(type, km);
   if (a.runwayM < need || b.runwayM < need) return false;
   if (isOverwaterRoute(a, b)) {
     const limit = maxOverwaterKm[type.id];

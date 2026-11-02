@@ -11,7 +11,11 @@ export type Severity = "info" | "good" | "warn" | "alert";
 
 export interface Notice { id: number; day: Day; severity: Severity; text: string }
 export interface DecisionOption { id: string; label: string; effect: string }
-export interface Decision { id: string; day: Day; title: string; context: string; options: DecisionOption[] }
+export interface Decision {
+  id: string; day: Day; title: string; context: string; options: DecisionOption[];
+  /** Set on heavy-check cards: the aircraft concerned, so the card can link to the fleet planner. */
+  aircraftId?: Id;
+}
 
 /** One aircraft as the Fleet view shows it. */
 export interface FleetItem {

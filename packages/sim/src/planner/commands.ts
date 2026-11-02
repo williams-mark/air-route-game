@@ -1,5 +1,5 @@
 import type { AircraftType, Airport, Day, Id } from "@arg/contracts";
-import { distanceKm } from "../geo";
+import { distanceKm, simRunwayM } from "../geo";
 import { notice, pushEvents, type CommandError } from "../commands";
 import { typeCanServe } from "../fleet/scheduler";
 import type { SimState } from "../state";
@@ -111,8 +111,9 @@ export function applyPlannerCommand(state: SimState, cmd: PlannerCommand): { sta
 
 /** Plain-language reason a type cannot fly a pair (range with reserves, or a runway that is too short). */
 export function infeasibleReason(a: Airport, b: Airport, type: AircraftType): string {
-  const short = a.runwayM < type.runwayNeededM ? a : b.runwayM < type.runwayNeededM ? b : null;
-  if (short) return `${type.name} needs a ${type.runwayNeededM} m runway; ${short.id} has ${short.runwayM} m.`;
+  const need = simRunwayM(type, distanceKm(a, b));
+  const short = a.runwayM < need ? a : b.runwayM < need ? b : null;
+  if (short) return `${type.name} needs a ${Math.round(need)} m runway on this sector; ${short.id} has ${short.runwayM} m.`;
   return `${a.id}-${b.id} is ${Math.round(distanceKm(a, b))} km; the ${type.name} (range ${type.rangeKm} km) cannot fly it with reserves.`;
 }
 
@@ -128,7 +129,7 @@ function pinProblem(state: SimState, aircraftId: Id, routeId: Id): CommandError 
   if (!type || !a || !b) return fail("unknown_type", "Unknown aircraft type or airport.");
   if (ac.status === "stored") return fail("aircraft_unavailable", `${ac.tailNumber} is in storage.`);
   if (!typeCanServe(a, b, type)) {
-    return fail(a.runwayM < type.runwayNeededM || b.runwayM < type.runwayNeededM ? "runway_too_short" : "out_of_range",
+    return fail(Math.min(a.runwayM, b.runwayM) < simRunwayM(type, distanceKm(a, b)) ? "runway_too_short" : "out_of_range",
       infeasibleReason(a, b, type));
   }
   return null;

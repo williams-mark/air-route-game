@@ -66,3 +66,9 @@ Mon afternoon/evening: keep about 30% free. Tue: unrestricted. Wed: none. Thu: a
 - Notification dock (`packages/app/src/notify/`) replaces EventFeed, Decisions and OfferPopup: draggable, minimizable, J toggles, Esc minimizes, corner and reset in Settings; auto-collapses to a pill on non-map views. Toasts are compact at top-center.
 - Time controls are a floating pill at the bottom-right of the main area (class `time-pill`); date/cash/profit stay in the top bar.
 - Screenshots: `node scripts/screenshots.mjs --uifix` (uifix-* files). Known: on non-map views an opened dock can cover the lower-left of page content; e2e speed-rate checks are timing-sensitive.
+
+## Session note (post-playtest 1)
+- Merged lane/uifix (aircraft picker tiles, route aircraft swap, notification dock, bottom-right time pill) and lane/planner.
+- Runway rule: widebodies now use a stage-length requirement (`runwayRequiredM` in data, `simRunwayM` in sim) so A330/787 can serve OGG from the mainland; narrowbodies unchanged. 777s still cannot.
+- Heavy-check decision cards link to the planner ("Plan cover in the planner").
+- Open: hub board (T15), player bankruptcy rule, substituted-flight pricing uses requested type, dock may overlap planner's lower-right panel.

@@ -1,5 +1,5 @@
 import type { AircraftType, Airport, CabinClass, Day } from "@arg/contracts";
-import { distanceKm } from "../geo";
+import { distanceKm, simRunwayM } from "../geo";
 import { jetAPriceUsdPerGallon, KG_PER_GALLON } from "./fuel";
 
 // ---------------------------------------------------------------------------
@@ -150,8 +150,9 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
     );
   }
   for (const ap of [origin, destination]) {
-    if (ap.runwayM < aircraft.runwayNeededM) {
-      reasons.push(`runway: ${ap.id} has ${ap.runwayM} m, ${aircraft.id} needs ${aircraft.runwayNeededM} m`);
+    const need = simRunwayM(aircraft, dist);
+    if (ap.runwayM < need) {
+      reasons.push(`runway: ${ap.id} has ${ap.runwayM} m, ${aircraft.id} needs ${Math.round(need)} m`);
     }
   }
   if (seatsPerFlight > aircraft.maxSeats) reasons.push(`seats: ${seatsPerFlight} exceeds max ${aircraft.maxSeats}`);

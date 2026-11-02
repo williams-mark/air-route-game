@@ -1,5 +1,5 @@
 import type { Aircraft, AircraftType, Airport, Command, Day, Fares, Id, Route, SimEvent } from "@arg/contracts";
-import { distanceKm } from "./geo";
+import { distanceKm, simRunwayM } from "./geo";
 import { isRangeFeasible } from "./finance/ledger";
 import { defaultLayout, validateLayout } from "./fleet/layout";
 import { initialMeta } from "./fleet/maintenance";
@@ -156,9 +156,10 @@ function validateRoute(state: SimState, spec: RouteSpec, selfId: Id | null, chec
   if (!isRangeFeasible(dist, type)) {
     return fail("out_of_range", `${a.id}-${b.id} is ${Math.round(dist)} km; the ${type.name} (range ${type.rangeKm} km) cannot fly it with reserves.`);
   }
-  const short = a.runwayM < type.runwayNeededM ? a : b.runwayM < type.runwayNeededM ? b : null;
+  const need = simRunwayM(type, dist);
+  const short = a.runwayM < need ? a : b.runwayM < need ? b : null;
   if (short) {
-    return fail("runway_too_short", `${short.id} runway is ${short.runwayM} m; the ${type.name} needs ${type.runwayNeededM} m.`);
+    return fail("runway_too_short", `${short.id} runway is ${short.runwayM} m; the ${type.name} needs ${Math.round(need)} m on this sector.`);
   }
 
   const warnings: string[] = [];

@@ -7,6 +7,7 @@ import { useOffersUi } from "../offers/store";
 import { closesIn, KIND_BADGE } from "../offers/format";
 import { IconAlert, IconBell, IconChevron, IconGood, IconInfo, IconTag, IconWarn } from "../shell/icons";
 import { clampPos, cornerPos, unresolvedCount, visibleNotices, type Corner, type Pt, type Rect, type Size } from "./dockLogic";
+import { usePlanner } from "../planner/store";
 import { useDock } from "./dockStore";
 import "./dock.css";
 import "../offers/offers.css";
@@ -179,6 +180,9 @@ export function NotificationDock() {
                       </button>
                     ))}
                   </div>
+                  {d.aircraftId && (
+                    <button type="button" className="link-btn" onClick={() => { usePlanner.getState().focus(d.aircraftId!); setView("planner"); }}>Plan cover in the planner</button>
+                  )}
                   <button type="button" className="link-btn" onClick={() => { snooze(d.id); setOpen(null); }}>Decide later</button>
                 </div>
               )}

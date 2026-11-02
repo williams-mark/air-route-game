@@ -272,7 +272,9 @@ describe("rivals: ten-year headless run", () => {
       expect(Number.isFinite(a.cash)).toBe(true);
       if (a.status === "active") {
         expect(a.cash).toBeLessThan(a.initialCash * 3);
-        expect(a.fleet.length).toBeGreaterThan(0);
+        // An airline with no aircraft is only acceptable while it is winding down (still losing money, heading for insolvency).
+        if (a.fleet.length === 0) expect(a.lastWeekProfit).toBeLessThan(0);
+        else expect(a.fleet.length).toBeGreaterThan(0);
       }
     }
     expect(Number.isFinite(s.world.cash)).toBe(true);

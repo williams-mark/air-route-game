@@ -252,7 +252,7 @@ export class DecisionEngine {
             key,
             title: `${ac.tailNumber} needs a ${kind} check in ${Math.max(0, left)} days`,
             context: `No spare ${type.widebody ? "widebody" : "narrowbody"} is free to cover it, so the routes it flies lose capacity for about ${downtime} days while it is in the hangar.`,
-            options, commands,
+            options, commands, aircraftId: ac.id,
           },
         };
       }

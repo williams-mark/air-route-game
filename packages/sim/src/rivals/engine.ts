@@ -4,7 +4,7 @@ import { benchmarkFare, runChoice, type Itinerary } from "../demand/choice";
 import { baseWeeklyDemand, marketOnDay, segmentMap } from "../demand/market";
 import { aircraftEquivalentFor, evaluateRoute, isRangeFeasible, monthlyOwnershipUsd, type CabinInput } from "../finance/ledger";
 import { defaultLayout } from "../fleet/layout";
-import { distanceKm } from "../geo";
+import { distanceKm, simRunwayM } from "../geo";
 import { makeRng, mixSeed } from "../rng";
 import { buildRivals, DEFAULT_ROUTE_MODEL_CONFIG, ROUTE_CHOICE_PARAMS } from "../route/routeModel";
 import { carriedShare } from "../route/rivalSizing";
@@ -53,7 +53,7 @@ export interface RivalCtx {
 
 /** Stricter of the data package's feasibility (`canFlyRoute`) and the ledger's own range/runway test. */
 export function canServe(t: AircraftType, a: Airport, b: Airport): boolean {
-  return canFlyRoute(t, a, b) && isRangeFeasible(distanceKm(a, b), t) && a.runwayM >= t.runwayNeededM && b.runwayM >= t.runwayNeededM;
+  return canFlyRoute(t, a, b) && isRangeFeasible(distanceKm(a, b), t) && a.runwayM >= simRunwayM(t, distanceKm(a, b)) && b.runwayM >= simRunwayM(t, distanceKm(a, b));
 }
 
 const seatsFor = (spec: ArchetypeSpec, t: AircraftType) => Math.max(1, Math.floor(t.maxSeats * spec.seatDensity));
