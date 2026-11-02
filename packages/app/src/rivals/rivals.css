@@ -1,0 +1,12 @@
+.rivals-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; align-items: start; }
+.rivals-grid.with-detail { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+@media (max-width: 1000px) { .rivals-grid.with-detail { grid-template-columns: 1fr; } }
+.rivals-grid .table-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: auto; }
+.rivals-grid th[scope="row"] { font-weight: 600; text-align: left; }
+.row-link { background: transparent; border: 0; padding: 0; font: inherit; font-weight: 650; color: var(--text); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.row-link:hover, .row-link[aria-pressed="true"] { color: var(--accent); }
+.rival-detail { margin: 0; }
+.rival-head { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+.rival-head h2 { text-transform: none; letter-spacing: 0; font-size: 1.1rem; color: var(--text); margin: 0 0 .15rem; }
+.rival-head p { margin: 0 0 .7rem; }
+.rival-detail .side-actions { margin-top: .8rem; display: flex; gap: .5rem; }

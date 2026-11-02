@@ -3,6 +3,8 @@ import type { CabinLayout, Command, Day, Id, Route, WorldState } from "@arg/cont
 import { newWorld, stepDay, type CheckKind, type Offer, type CabinCommand, type OfferCommand, type RouteReport } from "@arg/sim";
 import { routeName, validateRouteDraft, type CommandError } from "../routes/helpers";
 import type { DayRecord } from "./finance";
+import { EMPTY_RIVALS, type RivalsView } from "../rivals/helpers";
+import type { SaveFile } from "@arg/sim";
 
 export type Speed = 0 | 1 | 2 | 3 | 4 | 5;
 export type Severity = "info" | "good" | "warn" | "alert";
@@ -77,6 +79,8 @@ export interface SimSnapshot {
   orders: OrderItem[];
   /** Open manufacturer and market offers (empty from the mock bridge). */
   offers: OfferItem[];
+  /** Fogged view of the competitors (no finances). Empty from the mock bridge. */
+  rivals: RivalsView;
   /** Latest sim report per route id (weekly figures). */
   reports: Record<Id, RouteReport>;
   /** Every simulated day so far, oldest first. */
@@ -96,6 +100,10 @@ export interface SimBridge {
   decide(decisionId: string, optionId: string): void;
   /** Bridges that slow or pause the clock themselves on notices implement this; the UI toggle feeds it. */
   setAutoPause?(on: boolean): void;
+  /** Save/load support (real bridge only). */
+  serialize?(): SaveFile;
+  loadGame?(save: SaveFile): void;
+  newGame?(seed: number): void;
 }
 
 export const DAYS_PER_SECOND: Record<Speed, number> = { 0: 0, 1: 1, 2: 3, 3: 7, 4: 14, 5: 30 };
@@ -265,7 +273,7 @@ export class MockSimBridge implements SimBridge {
       profit30: series.reduce((a, b) => a + b, 0), profitSeries: series,
       notices: this.notices, decisions: this.pending, routes: this.routes,
       airline: { name: "Skybridge Pacific", hub: "LAX" },
-      fleet: [], orders: [], offers: [], reports: {}, ledger: [],
+      fleet: [], orders: [], offers: [], rivals: EMPTY_RIVALS, reports: {}, ledger: [],
     };
   }
   private emit() {

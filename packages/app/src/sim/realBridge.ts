@@ -4,13 +4,14 @@
 import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as dataAirports } from "@arg/data";
 import {
-  applyCommand, createClock, defaultLayout, drainEvents, layoutSeats, type CabinCommand, type OfferCommand, startingScenario, stepDay,
+  applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, type CabinCommand, type OfferCommand, startingScenario, stepDay,
   type AutoSlowHook, type Clock, type SimState,
 } from "@arg/sim";
 import type {
   CommandResult, Decision, FleetItem, Notice, OfferItem, OrderItem, Severity, SimBridge, SimSnapshot, Speed,
 } from "./bridge";
-import { DecisionEngine, type PendingDecision } from "./decisions";
+import { DecisionEngine, type EngineState, type PendingDecision } from "./decisions";
+import { buildRivalsView, type RivalsView } from "../rivals/helpers";
 import { dayRecord, type DayRecord } from "./finance";
 
 export interface RealBridgeOptions {
@@ -24,12 +25,24 @@ export interface RealBridgeOptions {
 }
 
 export const NOTICE_LIMIT = 60;
+export const APP_VERSION = "0.1.0";
+
+/** Bridge-side state stored beside the SimState in a save file. */
+export interface BridgeExtras {
+  notices: Notice[];
+  nextNotice: number;
+  ledger: DayRecord[];
+  pending: PendingDecision[];
+  engine: EngineState;
+  lowCash: boolean;
+}
 /** Cash at which a bankruptcy warning is raised (once, until cash recovers). */
 export const LOW_CASH_USD = 15_000_000;
 
 /** Severity from the text of a sim notice. Sim notices are plain strings; keep this list in step with the sim wording. */
 export function classifyNotice(text: string): Severity {
   if (/under-supplied|forced|no spare aircraft can cover|deferring|Delivery delayed|Offer expiring soon/i.test(text)) return "warn";
+  if (/cut .* fares|bankrupt|collapsed|ceased/i.test(text)) return "warn";
   if (/Delivered|back in service|back to its full|Opened|Ordered|is on schedule/i.test(text)) return "good";
   if (/enters [A-D] check|Closed/i.test(text)) return "warn";
   return "info";
@@ -39,8 +52,8 @@ export function classifyNotice(text: string): Severity {
 const QUIET = /A check done overnight/;
 
 export class RealSimBridge implements SimBridge {
-  private sim: SimState;
-  private clock: Clock;
+  private sim!: SimState;
+  private clock!: Clock;
   private listeners = new Set<() => void>();
   private snap!: SimSnapshot;
   private notices: Notice[] = [];
@@ -48,16 +61,25 @@ export class RealSimBridge implements SimBridge {
   private ledger: DayRecord[] = [];
   private pending: PendingDecision[] = [];
   private engine = new DecisionEngine();
-  private autoPause: boolean;
+  private autoPause!: boolean;
   private deliveryDays = new Set<Day>();
   private lowCash = false;
   private reportedSlow: object | null = null;
   private raf: number | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
 
+  private opts: RealBridgeOptions;
+
   constructor(opts: RealBridgeOptions = {}) {
-    this.sim = opts.initial ?? startingScenario(dataAirports, dataTypes, opts.seed ?? 2015);
-    this.autoPause = opts.autoPause ?? true;
+    this.opts = opts;
+    this.reset(opts.initial ?? startingScenario(dataAirports, dataTypes, opts.seed ?? 2015), opts.startPaused ? 0 : 1, true);
+  }
+
+  /** (Re)initialise all bridge state around `sim`. Used by the constructor, newGame and loadGame. */
+  private reset(sim: SimState, speed: Speed, welcome: boolean, extras?: BridgeExtras): void {
+    this.sim = sim;
+    this.notices = []; this.nextNotice = 1; this.ledger = []; this.pending = []; this.engine = new DecisionEngine();
+    this.lowCash = false; this.reportedSlow = null; this.offersOf = null; this.viewOf = null; this.rivalsOf = null;
     const hook: AutoSlowHook = {
       check: (day) => {
         // `day` is the day number after the step the clock is granting, so the sim day being run is day - 1.
@@ -65,11 +87,41 @@ export class RealSimBridge implements SimBridge {
         return null;
       },
     };
-    this.clock = createClock({ startDay: this.sim.world.day, speed: opts.startPaused ? 0 : 1, hook, maxDtMs: opts.maxDtMs ?? 250 });
+    this.autoPause = this.autoPause ?? this.opts.autoPause ?? true;
+    this.clock = createClock({ startDay: this.sim.world.day, speed, hook, maxDtMs: this.opts.maxDtMs ?? 250 });
     this.sim = { ...this.sim, speed: this.clock.speed };
     this.refreshDeliveryDays();
-    this.say(0, "info", `Welcome to ${this.sim.airlineName}. Your fleet is waiting at ${this.sim.baseAirport ?? "your base"}.`);
+    if (extras) {
+      this.notices = extras.notices; this.nextNotice = extras.nextNotice; this.ledger = extras.ledger; this.pending = extras.pending;
+      this.engine = DecisionEngine.fromJSON(extras.engine); this.lowCash = extras.lowCash;
+    }
+    if (welcome) this.say(0, "info", `Welcome to ${this.sim.airlineName}. Your fleet is waiting at ${this.sim.baseAirport ?? "your base"}.`);
     this.snap = this.build();
+    if (this.listeners.size) for (const l of this.listeners) l();
+  }
+
+  // --- Save / load ---------------------------------------------------------
+
+  /** Snapshot of the whole game for a save file. */
+  serialize(): SaveFile<BridgeExtras> {
+    const { state } = drainEvents(this.sim); // keep queued events out of the file; they are already shown in the feed
+    return makeSave<BridgeExtras>({ ...state, pendingEvents: [], events: [] }, {
+      appVersion: APP_VERSION,
+      extras: { notices: this.notices, nextNotice: this.nextNotice, ledger: this.ledger, pending: this.pending, engine: this.engine.toJSON(), lowCash: this.lowCash },
+    });
+  }
+
+  /** Replace the running game with a loaded one (paused). */
+  loadGame(save: SaveFile): void {
+    const extras = save.extras as BridgeExtras | undefined;
+    this.reset(save.state, 0, false, extras && extras.engine ? extras : undefined);
+    this.say(this.sim.world.day, "info", "Game loaded. Press Space to resume.");
+    this.emit();
+  }
+
+  /** Start a fresh game with `seed`. */
+  newGame(seed: number): void {
+    this.reset(startingScenario(dataAirports, dataTypes, seed), 1, true);
   }
 
   // --- Driver --------------------------------------------------------------
@@ -254,6 +306,7 @@ export class RealSimBridge implements SimBridge {
       fleet: buildFleet(sim),
       orders: buildOrders(sim),
       offers: this.offersView(),
+      rivals: this.rivalsView(),
       reports: sim.routeReports,
       ledger: this.ledger.slice(),
     };
@@ -269,6 +322,19 @@ export class RealSimBridge implements SimBridge {
     }
     return this.offersCache;
   }
+
+  private rivalsOf: object | null = null;
+  private rivalsCache!: RivalsView;
+  /** Fogged rival view; recomputed when the rival state or the player's route list changes. */
+  private rivalsView(): RivalsView {
+    const key = this.sim.rivals ?? this.sim.world.routes;
+    if (this.rivalsOf !== key || this.rivalsRoutes !== this.sim.world.routes) {
+      this.rivalsOf = key; this.rivalsRoutes = this.sim.world.routes;
+      this.rivalsCache = buildRivalsView(this.sim);
+    }
+    return this.rivalsCache;
+  }
+  private rivalsRoutes: object | null = null;
 
   private viewOf: PendingDecision[] | null = null;
   private view: Decision[] = [];

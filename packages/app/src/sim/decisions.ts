@@ -1,7 +1,8 @@
 // Rule-based, deterministic decision cards generated from sim state. Pure apart from the engine's own counters,
 // which are a function of the sequence of states it has seen.
 import type { AircraftType, Command, Day, Route } from "@arg/contracts";
-import { COMMAND_PARAMS, dayToDate, orderDiscount, typeCanServe, type SimState } from "@arg/sim";
+import { COMMAND_PARAMS, dayToDate, orderDiscount, rivalNews, typeCanServe, type RivalNewsItem, type SimState } from "@arg/sim";
+import { scaleFares } from "../rivals/helpers";
 import { bestFrequency, frequencySweep, projectRoute, routeName, dataWorld } from "../routes/helpers";
 import type { Decision } from "./bridge";
 import { formatMoney } from "./format";
@@ -46,12 +47,35 @@ export function orderableSubstitute(t: AircraftType, types: readonly AircraftTyp
   return best;
 }
 
+export interface EngineState {
+  lfSum: Record<string, { sum: number; n: number }>;
+  lowWeeks: Record<string, number>;
+  cooldown: Array<[string, Day]>;
+  status: Array<[string, string]>;
+  primed: boolean;
+  newsSeen: number;
+}
+
 export class DecisionEngine {
   private lfSum: Record<string, { sum: number; n: number }> = {};
   private lowWeeks: Record<string, number> = {};
   private cooldown = new Map<string, Day>();
   private status = new Map<string, string>();
   private primed = false;
+  /** First rival-news day not yet turned into cards. */
+  private newsSeen = 0;
+
+  /** Plain-JSON state for save files. */
+  toJSON(): EngineState {
+    return {
+      lfSum: this.lfSum, lowWeeks: this.lowWeeks, cooldown: [...this.cooldown], status: [...this.status], primed: this.primed, newsSeen: this.newsSeen,
+    };
+  }
+  static fromJSON(j: EngineState): DecisionEngine {
+    const e = new DecisionEngine();
+    e.lfSum = j.lfSum; e.lowWeeks = j.lowWeeks; e.cooldown = new Map(j.cooldown); e.status = new Map(j.status); e.primed = j.primed; e.newsSeen = j.newsSeen;
+    return e;
+  }
 
   /** Call after every simulated day with the new state. Returns cards raised by this day. */
   onDay(sim: SimState, pending: readonly PendingDecision[]): PendingDecision[] {
@@ -75,7 +99,18 @@ export class DecisionEngine {
     }
     const delivered = sim.world.fleet.filter((ac) => ac.status === "active" && this.status.get(ac.id) === "delivery");
     for (const ac of sim.world.fleet) this.status.set(ac.id, ac.status);
-    if (!this.primed) { this.primed = true; return out; }
+    const news = rivalNews(sim, { playerOnly: true });
+    const newsEnd = news.reduce((m, n) => Math.max(m, n.day + 1), this.newsSeen);
+    if (!this.primed) { this.primed = true; this.newsSeen = newsEnd; return out; }
+    const fresh = news.filter((n) => n.day >= this.newsSeen);
+    this.newsSeen = newsEnd;
+    for (const n of fresh) {
+      // At most one rival card at a time, and always leave a slot for the player's own problems.
+      const rivalCards = pending.filter((p) => p.id.startsWith("rivalcut-")).length + out.filter((p) => p.id.startsWith("rivalcut-")).length;
+      if (n.kind !== "fareCut" || rivalCards > 0 || DECISION_PARAMS.maxPending - pending.length - out.length < 2) continue;
+      const c = this.rivalCutCard(sim, n);
+      if (c && free(c.key)) raise(c.key, c.card);
+    }
 
     if (delivered.length > 0 && room()) {
       const d = this.deliveryCard(sim, delivered.map((a) => a.id));
@@ -145,6 +180,39 @@ export class DecisionEngine {
         key,
         title: `${name} is running mostly empty`,
         context: `Load factor has averaged ${Math.round(lf * 100)}% for ${DECISION_PARAMS.lowWeeksNeeded} weeks on ${route.weeklyFrequency} weekly round trips with ${route.typeId}.`,
+        options, commands,
+      },
+    };
+  }
+
+  /** A rival cut fares in a market the player flies: match, partly match and add a frequency, or hold. */
+  private rivalCutCard(sim: SimState, n: RivalNewsItem): Raised | null {
+    if (!n.origin || !n.destination) return null;
+    const route = sim.world.routes.find((r) => (r.origin === n.origin && r.destination === n.destination) || (r.origin === n.destination && r.destination === n.origin));
+    if (!route) return null;
+    const pct = Math.max(1, Math.round(n.pct ?? 8));
+    const name = routeName(route);
+    const key = `rivalcut-${route.id}`;
+    const matchFares = scaleFares(route.fares, 1 - pct / 100);
+    const halfFares = scaleFares(route.fares, 1 - pct / 200);
+    const canAdd = route.weeklyFrequency + 1 <= COMMAND_PARAMS.maxWeeklyFrequency;
+    const options: Decision["options"] = [];
+    const commands: PendingDecision["commands"] = {};
+    options.push({ id: "match", label: `Match the cut (${pct}%)`, effect: `Economy $${route.fares.Y} to $${matchFares.Y}; keeps share, lowers yield` });
+    commands.match = { kind: "updateRoute", id: route.id, patch: { fares: matchFares } };
+    options.push({
+      id: "partial", label: canAdd ? `Cut ${Math.round(pct / 2)}% and add a frequency` : `Cut ${Math.round(pct / 2)}%`,
+      effect: `Economy $${route.fares.Y} to $${halfFares.Y}${canAdd ? `, ${route.weeklyFrequency} to ${route.weeklyFrequency + 1} a week` : ""}`,
+    });
+    commands.partial = { kind: "updateRoute", id: route.id, patch: canAdd ? { fares: halfFares, weeklyFrequency: route.weeklyFrequency + 1 } : { fares: halfFares } };
+    options.push({ id: "hold", label: "Hold fares", effect: "Keeps yield; may lose some passengers to them" });
+    commands.hold = null;
+    return {
+      key,
+      card: {
+        key,
+        title: `${n.rivalName} cut ${name} fares ${pct}%`,
+        context: `A competitor undercut you in a market you fly. Your economy fare is $${route.fares.Y} on ${route.weeklyFrequency} weekly round trips. Rivals may keep cutting if you ignore it.`,
         options, commands,
       },
     };

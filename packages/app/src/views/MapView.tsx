@@ -24,6 +24,7 @@ export function MapView() {
 
   const airports = dataAirports.length >= DEV_MIN_AIRPORTS ? dataAirports : fixtureAirports;
   const summaries = useRouteSummaries();
+  const rivalMarkets = useSimSelector((st) => st.rivals.markets);
   const creation = useCreation();
   const routes: MapRoute[] = useMemo(() => {
     const stress = Number(new URLSearchParams(location.search).get("stress"));
@@ -62,6 +63,7 @@ export function MapView() {
         ref={mapRef} airports={airports} routes={routes} simTime={simTime} theme={ui.theme}
         preset={ui.preset} presetNonce={ui.presetNonce} padding={padding}
         selectedRouteId={selRoute?.id ?? null} selectedAirportId={selAirport?.id ?? null}
+        rivalMarkets={ui.showCompetitors ? rivalMarkets : undefined}
         ghost={ghost} showAllAirports={creation.open}
         onSelectRoute={(id) => { if (!creation.open) ui.select({ kind: "route", id }); }}
         onSelectAirport={(id) => { if (creation.open) creation.assign(id); else ui.select({ kind: "airport", id }); }}
@@ -74,6 +76,9 @@ export function MapView() {
           ))}
         </div>
         <button className="hud-btn" onClick={() => creation.begin()} title="New route (N)" aria-keyshortcuts="N">+ New route</button>
+        <button className="hud-btn" aria-pressed={ui.showCompetitors} onClick={() => ui.setShowCompetitors(!ui.showCompetitors)} title="Draw competitor routes on the map">
+          <i className="rival-swatch" aria-hidden="true" />Show competitors
+        </button>
         <div className="hud legend">
           {(["profit", "marginal", "loss", "planned"] as const).map((t) => (
             <span key={t}><i style={dot(t)} />{t === "profit" ? "Profit" : t === "marginal" ? "Marginal" : t === "loss" ? "Loss" : "Planned"}</span>

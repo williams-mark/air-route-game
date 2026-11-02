@@ -10,6 +10,7 @@ import { FareFields, FrequencyField, Stat, useDebounced } from "./editor";
 import { CABINS, CABIN_NAME, FREQ_MAX, faresToText, parseFares, profitTier, projectRoute, routeName, seasonalProfit } from "./helpers";
 import { pct, usd, usdSigned } from "./fmt";
 import { useToasts } from "./store";
+import { CompetitionBlock } from "../rivals/CompetitionBlock";
 import type { LedgerLine } from "@arg/sim";
 
 const MONTHS_LONG = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -116,6 +117,8 @@ export function RouteInspector({ route }: { route: Route }) {
             {CABINS.slice().reverse().map((c) => cabinFare(c) !== undefined && (<Fragment key={c}><dt>{CABIN_NAME[c]}</dt><dd>{usd(cabinFare(c)!)}</dd></Fragment>))}
           </dl>
         </section>
+
+        <CompetitionBlock route={route} yourWeeklySeats={ev.seatsPerWeek} />
 
         <section aria-labelledby="rp-why" className="rp-sec">
           <h3 id="rp-why">Why this profit <span className="hint">(per week; hover or focus a line for the formula)</span></h3>

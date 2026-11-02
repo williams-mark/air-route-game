@@ -22,6 +22,13 @@ export default function SettingsView() {
             {UI_SCALES.map((s) => (<button key={s} aria-pressed={ui.uiScale === s} onClick={() => ui.setUiScale(s)}>{s}%</button>))}
           </div>
         </div>
+        <div className="setting">
+          <div><strong>Saved games</strong><p>Five slots plus an autosave, stored in this browser. Export a file to keep a backup.</p></div>
+          <div className="seg">
+            <button onClick={() => ui.setSaveDialog("save")}>Save…</button>
+            <button onClick={() => ui.setSaveDialog("load")}>Load…</button>
+          </div>
+        </div>
       </section>
     </div>
   );

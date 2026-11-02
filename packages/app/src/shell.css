@@ -5,7 +5,7 @@
 .main { grid-column: 2; grid-row: 2; position: relative; overflow: hidden; --right-inset: 14px; }
 .main.on-map { --right-inset: var(--side-w); }
 .map-view { position: absolute; inset: 0; }
-.map-tools { position: absolute; top: 14px; left: 14px; z-index: 5; display: flex; gap: 10px; align-items: stretch; }
+.map-tools { position: absolute; top: 14px; left: 14px; max-width: calc(100% - 90px); z-index: 5; display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
 .map-tools > .hud { position: static; }
 
 /* Focus rings */

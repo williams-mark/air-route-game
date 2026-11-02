@@ -1,8 +1,9 @@
 import { create } from "zustand";
 import type { CameraPresetId, Theme } from "./map/types";
+import { startScreenWanted } from "./save/saves";
 
 export type Selection = { kind: "route" | "airport"; id: string } | null;
-export type ViewId = "map" | "routes" | "fleet" | "orders" | "cabin" | "finance" | "settings";
+export type ViewId = "map" | "routes" | "fleet" | "orders" | "cabin" | "finance" | "rivals" | "settings";
 export const UI_SCALES = [90, 100, 110, 125] as const;
 
 interface UiState {
@@ -14,6 +15,11 @@ interface UiState {
   autoPause: boolean;
   uiScale: number;
   paletteOpen: boolean;
+  /** Save/load dialog (null = closed). */
+  saveDialog: "save" | "load" | null;
+  startOpen: boolean;
+  showCompetitors: boolean;
+  selectedRival: string | null;
   helpOpen: boolean;
   feedOpen: boolean;
   /** Decision ids the player chose to decide later (hidden until reopened). */
@@ -25,6 +31,10 @@ interface UiState {
   setAutoPause: (v: boolean) => void;
   setUiScale: (v: number) => void;
   setPalette: (v: boolean) => void;
+  setSaveDialog: (v: "save" | "load" | null) => void;
+  setStartOpen: (v: boolean) => void;
+  setShowCompetitors: (v: boolean) => void;
+  selectRival: (id: string | null) => void;
   setHelp: (v: boolean) => void;
   setFeedOpen: (v: boolean) => void;
   snooze: (id: string) => void;
@@ -67,6 +77,10 @@ export const useUi = create<UiState>((set) => ({
   autoPause: initialAutoPause,
   uiScale: initialScale,
   paletteOpen: false,
+  saveDialog: null,
+  startOpen: (() => { try { return startScreenWanted(location.search); } catch { return false; } })(),
+  showCompetitors: read("arg-competitors") === "1",
+  selectedRival: null,
   helpOpen: false,
   feedOpen: true,
   snoozed: [],
@@ -77,6 +91,10 @@ export const useUi = create<UiState>((set) => ({
   setAutoPause: (autoPause) => { write("arg-autopause", autoPause ? "1" : "0"); set({ autoPause }); },
   setUiScale: (uiScale) => { applyScale(uiScale); write("arg-scale", String(uiScale)); set({ uiScale }); },
   setPalette: (paletteOpen) => set({ paletteOpen }),
+  setSaveDialog: (saveDialog) => set({ saveDialog }),
+  setStartOpen: (startOpen) => set({ startOpen }),
+  setShowCompetitors: (showCompetitors) => { write("arg-competitors", showCompetitors ? "1" : "0"); set({ showCompetitors }); },
+  selectRival: (selectedRival) => set({ selectedRival }),
   setHelp: (helpOpen) => set({ helpOpen }),
   setFeedOpen: (feedOpen) => set({ feedOpen }),
   snooze: (id) => set((s) => (s.snoozed.includes(id) ? s : { snoozed: [...s.snoozed, id] })),

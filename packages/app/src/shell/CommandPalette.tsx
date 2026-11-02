@@ -13,6 +13,10 @@ function useCommands(): Cmd[] {
   const ui = useUi.getState;
   return useMemo(() => {
     const list: Cmd[] = VIEWS.map((v, i) => ({ id: `view-${v.id}`, label: `Go to ${v.label}`, group: "View", hint: `Alt+${i + 1}`, run: () => ui().setView(v.id) }));
+    list.push(
+      { id: "save", label: "Save game…", group: "Game", hint: "Ctrl+S", run: () => ui().setSaveDialog("save") },
+      { id: "load", label: "Load game…", group: "Game", run: () => ui().setSaveDialog("load") },
+    );
     list.push({ id: "new-route", label: "New route", group: "Routes", hint: "N", run: () => useCreation.getState().begin() });
     list.push({ id: "pause", label: "Pause / resume", group: "Game", hint: "Space", run: togglePause });
     for (const s of [1, 2, 3, 4, 5] as Speed[]) list.push({ id: `speed-${s}`, label: `Set speed ${s}`, group: "Game", hint: String(s), run: () => setSpeed(s) });
@@ -20,6 +24,7 @@ function useCommands(): Cmd[] {
       list.push({ id: `fly-${p}`, label: `Map: show ${PRESET_LABEL[p]}`, group: "Map", run: () => { ui().setView("map"); ui().flyTo(p); } });
     }
     list.push(
+      { id: "competitors", label: "Toggle competitors on the map", group: "Map", run: () => { ui().setView("map"); ui().setShowCompetitors(!ui().showCompetitors); } },
       { id: "theme", label: "Toggle light / dark theme", group: "Interface", run: () => ui().setTheme(ui().theme === "dark" ? "light" : "dark") },
       { id: "feed", label: "Toggle event feed", group: "Interface", run: () => ui().setFeedOpen(!ui().feedOpen) },
       { id: "decisions", label: "Show pending decisions", group: "Interface", run: () => ui().unsnoozeAll() },
