@@ -37,10 +37,11 @@ T = {
  "MMH": ("Mammoth Lakes","CA","Mammoth Yosemite",14_000,55000,0.75,8),
  "BIH": ("Bishop","CA","Eastern Sierra Regional",18_000,50000,0.50,6),
  "CCR": ("Concord","CA","Buchanan Field",1_120_000,80000,0.20,8),
+ "VIS": ("Visalia","CA","Visalia Municipal",459_000,42000,0.10,6),
  "CLD": ("Carlsbad","CA","McClellan-Palomar",1_000_000,67000,0.45,10),
  "SBD": ("San Bernardino","CA","San Bernardino Intl",2_140_000,38000,0.20,15),
  # Hawaii
- "HNL": ("Honolulu","HI","Daniel K. Inouye Intl",998_000,66000,1.00,70),
+ "HNL": ("Honolulu","HI","Daniel K. Inouye Intl",992_000,62000,1.00,70),
  "OGG": ("Kahului","HI","Kahului",165_000,55000,0.95,35),
  "KOA": ("Kailua-Kona","HI","Ellison Onizuka Kona Intl",110_000,40000,0.85,20),
  "LIH": ("Lihue","HI","Lihue",71_000,50000,0.90,20),
@@ -50,6 +51,7 @@ T = {
  "JHM": ("Lahaina","HI","Kapalua",22_000,55000,0.70,8),
  "HNM": ("Hana","HI","Hana",1_200,35000,0.50,4),
  "LUP": ("Kalaupapa","HI","Kalaupapa",90,30000,0.20,4),
+ "JRF": ("Kapolei","HI","Kalaeloa (John Rodgers Field)",992_000,61000,0.20,6),
  "MUE": ("Waimea","HI","Waimea-Kohala",10_000,40000,0.30,4),
 }
 

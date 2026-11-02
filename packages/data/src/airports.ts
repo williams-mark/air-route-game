@@ -30,9 +30,10 @@ export const airports: Airport[] = [
   { id: "MMH", name: "Mammoth Yosemite", city: "Mammoth Lakes", lat: 37.6254, lon: -118.8431, region: "CA", runwayM: 2134, metroPopulation: 14000, gdpPerCapita: 55000, tourismIndex: 0.75, slotsPerHour: 8 },
   { id: "BIH", name: "Eastern Sierra Regional", city: "Bishop", lat: 37.3731, lon: -118.3640, region: "CA", runwayM: 2285, metroPopulation: 18000, gdpPerCapita: 50000, tourismIndex: 0.5, slotsPerHour: 6 },
   { id: "CCR", name: "Buchanan Field", city: "Concord", lat: 37.9897, lon: -122.0570, region: "CA", runwayM: 1524, metroPopulation: 1120000, gdpPerCapita: 80000, tourismIndex: 0.2, slotsPerHour: 8 },
+  { id: "VIS", name: "Visalia Municipal", city: "Visalia", lat: 36.3187, lon: -119.3930, region: "CA", runwayM: 2000, metroPopulation: 459000, gdpPerCapita: 42000, tourismIndex: 0.1, slotsPerHour: 6 },
   { id: "CLD", name: "McClellan-Palomar", city: "Carlsbad", lat: 33.1283, lon: -117.2800, region: "CA", runwayM: 1493, metroPopulation: 1000000, gdpPerCapita: 67000, tourismIndex: 0.45, slotsPerHour: 10 },
   { id: "SBD", name: "San Bernardino Intl", city: "San Bernardino", lat: 34.0967, lon: -117.2366, region: "CA", runwayM: 3048, metroPopulation: 2140000, gdpPerCapita: 38000, tourismIndex: 0.2, slotsPerHour: 15 },
-  { id: "HNL", name: "Daniel K. Inouye Intl", city: "Honolulu", lat: 21.3184, lon: -157.9257, region: "HI", runwayM: 3767, metroPopulation: 998000, gdpPerCapita: 66000, tourismIndex: 1.0, slotsPerHour: 70 },
+  { id: "HNL", name: "Daniel K. Inouye Intl", city: "Honolulu", lat: 21.3184, lon: -157.9257, region: "HI", runwayM: 3767, metroPopulation: 992000, gdpPerCapita: 62000, tourismIndex: 1.0, slotsPerHour: 70 },
   { id: "OGG", name: "Kahului", city: "Kahului", lat: 20.8963, lon: -156.4318, region: "HI", runwayM: 2133, metroPopulation: 165000, gdpPerCapita: 55000, tourismIndex: 0.95, slotsPerHour: 35 },
   { id: "KOA", name: "Ellison Onizuka Kona Intl", city: "Kailua-Kona", lat: 19.7388, lon: -156.0456, region: "HI", runwayM: 3353, metroPopulation: 110000, gdpPerCapita: 40000, tourismIndex: 0.85, slotsPerHour: 20 },
   { id: "LIH", name: "Lihue", city: "Lihue", lat: 21.9744, lon: -159.3371, region: "HI", runwayM: 1981, metroPopulation: 71000, gdpPerCapita: 50000, tourismIndex: 0.9, slotsPerHour: 20 },
@@ -42,5 +43,6 @@ export const airports: Airport[] = [
   { id: "JHM", name: "Kapalua", city: "Lahaina", lat: 20.9629, lon: -156.6730, region: "HI", runwayM: 914, metroPopulation: 22000, gdpPerCapita: 55000, tourismIndex: 0.7, slotsPerHour: 8 },
   { id: "HNM", name: "Hana", city: "Hana", lat: 20.7956, lon: -156.0140, region: "HI", runwayM: 1099, metroPopulation: 1200, gdpPerCapita: 35000, tourismIndex: 0.5, slotsPerHour: 4 },
   { id: "LUP", name: "Kalaupapa", city: "Kalaupapa", lat: 21.2110, lon: -156.9740, region: "HI", runwayM: 823, metroPopulation: 90, gdpPerCapita: 30000, tourismIndex: 0.2, slotsPerHour: 4 },
+  { id: "JRF", name: "Kalaeloa (John Rodgers Field)", city: "Kapolei", lat: 21.3074, lon: -158.0700, region: "HI", runwayM: 2550, metroPopulation: 992000, gdpPerCapita: 61000, tourismIndex: 0.2, slotsPerHour: 6 },
   { id: "MUE", name: "Waimea-Kohala", city: "Waimea", lat: 20.0013, lon: -155.6680, region: "HI", runwayM: 1584, metroPopulation: 10000, gdpPerCapita: 40000, tourismIndex: 0.3, slotsPerHour: 4 },
 ];
