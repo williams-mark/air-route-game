@@ -62,8 +62,10 @@ function useGlobalKeys() {
 /** Pause automatically when a new decision or alert arrives (if enabled in Settings). */
 function useAutoPause() {
   const sim = useSim();
+  // The real bridge slows and pauses its own clock (AutoSlowHook); this UI-side fallback serves the mock.
   const seen = useRef({ decisions: new Set(sim.decisions.map((d) => d.id)), notice: sim.notices[0]?.id ?? 0 });
   useEffect(() => {
+    if (bridge.setAutoPause) return;
     let trigger = false;
     for (const d of sim.decisions) if (!seen.current.decisions.has(d.id)) { seen.current.decisions.add(d.id); trigger = true; useUi.getState().unsnoozeAll(); }
     for (const n of sim.notices) if (n.id > seen.current.notice) { if (n.severity === "alert") trigger = true; }
@@ -89,7 +91,7 @@ export function Shell() {
       <div className={`main ${view === "map" ? "on-map" : ""} ${panel ? "has-panel" : ""}`}>
         <MapView />
         {page}
-        <div className="overlay-left"><EventFeed /></div>
+        {view === "map" && <div className="overlay-left"><EventFeed /></div>}
         <div className="overlay-right"><Decisions /></div>
         <RoutePanel />
       </div>

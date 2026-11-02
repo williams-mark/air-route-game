@@ -26,7 +26,7 @@ function LedgerRow({ line, sign }: { line: LedgerLine; sign: 1 | -1 }) {
 }
 
 export function RouteInspector({ route }: { route: Route }) {
-  const { day } = useSim();
+  const { day, reports } = useSim();
   const select = useUi((s) => s.select);
   const push = useToasts((s) => s.push);
   const [freq, setFreq] = useState(route.weeklyFrequency);
@@ -44,7 +44,11 @@ export function RouteInspector({ route }: { route: Route }) {
   const wkDay = Math.floor(day / 7) * 7;
   const a = airportById.get(route.origin), b = airportById.get(route.destination);
   const type = aircraftTypes.find((t) => t.id === route.typeId);
-  const week = useMemo(() => projectRoute(route, wkDay), [route, wkDay]);
+  // The sim's own report when there is one (real bridge); otherwise a projection from the route model.
+  const report = reports[route.id];
+  const projected = useMemo(() => (report ? null : projectRoute(route, wkDay)), [report, route, wkDay]);
+  const week = report ? { evaluation: report.evaluation, snapshot: report.market } : projected;
+  const sched = report?.scheduling ?? null;
   const ev = week?.evaluation;
   const months = useMemo(() => seasonalProfit(route, wkDay), [route, wkDay]);
 
@@ -99,12 +103,16 @@ export function RouteInspector({ route }: { route: Route }) {
           <Stat label="Break-even load" value={ev.breakEvenLoadFactor === null ? "n/a" : pct(ev.breakEvenLoadFactor)} sub={ev.breakEvenLoadFactor !== null && ev.loadFactor > ev.breakEvenLoadFactor ? "Above break-even" : "Below break-even"} />
           <Stat label="Market share" value={pct(week.snapshot.playerShare)} sub={`of ${Math.round(week.snapshot.weeklyDemand).toLocaleString()} potential pax/wk`} />
         </section>
+        {sched && sched.underSupplied > 0 && (
+          <div className="rp-alert" role="status"><IconAlert size={16} /><div><b>Under-supplied: {sched.scheduledFrequency} of {route.weeklyFrequency} round trips a week can be flown</b>
+            <ul><li>Not enough free aircraft of this type. Order more, or lower the frequency.</li></ul></div></div>
+        )}
 
         <section aria-labelledby="rp-sched" className="rp-sec">
           <h3 id="rp-sched">Schedule and fares</h3>
           <dl className="mini rp-dl">
             <dt>Frequency</dt><dd>{route.weeklyFrequency} per week each way ({ev.flightsPerWeek} flights)</dd>
-            <dt>Aircraft</dt><dd>{route.typeId}, {ev.seatsPerFlight} seats, {ev.aircraftEquivalent.toFixed(1)} aircraft</dd>
+            <dt>Aircraft</dt><dd>{route.typeId}, {ev.seatsPerFlight} seats, {sched ? `${sched.aircraftIds.length} assigned` : `${ev.aircraftEquivalent.toFixed(1)} needed`}</dd>
             {CABINS.slice().reverse().map((c) => cabinFare(c) !== undefined && (<Fragment key={c}><dt>{CABIN_NAME[c]}</dt><dd>{usd(cabinFare(c)!)}</dd></Fragment>))}
           </dl>
         </section>
@@ -163,7 +171,7 @@ export function RouteInspector({ route }: { route: Route }) {
             </div>
           )}
         </section>
-        <p className="rp-foot">Figures use the sim's route model for {MONTHS_LONG[year.month]} {year.year}; actual results vary with fleet and events.</p>
+        <p className="rp-foot">{report ? `Latest sim week, ${MONTHS_LONG[dayToDate(report.day).month]} ${dayToDate(report.day).year}. Route profit is before aircraft lease and corporate overhead, which the airline pays whether or not the aircraft fly.` : `Figures use the sim's route model for ${MONTHS_LONG[year.month]} ${year.year}; actual results vary with fleet and events.`}</p>
       </div>
     </>
   );

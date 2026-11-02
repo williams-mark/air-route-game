@@ -1,4 +1,4 @@
-import { useSim } from "../sim/useSim";
+import { useSimSelector } from "../sim/useSim";
 import { formatDay } from "../sim/format";
 import type { Severity } from "../sim/bridge";
 import { useUi } from "../store";
@@ -12,7 +12,7 @@ const SEV: Record<Severity, { Icon: typeof IconInfo; label: string }> = {
 };
 
 export function EventFeed() {
-  const { notices } = useSim();
+  const notices = useSimSelector((s) => s.notices);
   const open = useUi((s) => s.feedOpen);
   const setOpen = useUi((s) => s.setFeedOpen);
   return (

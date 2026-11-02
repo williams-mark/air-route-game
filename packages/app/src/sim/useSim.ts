@@ -1,7 +1,18 @@
 import { useSyncExternalStore } from "react";
-import { createBridge, type SimBridge, type SimSnapshot, type Speed } from "./bridge";
+import type { SimBridge, SimSnapshot, Speed } from "./bridge";
+import { createBridge } from "./create";
+import { useUi } from "../store";
 
 export const bridge: SimBridge = createBridge();
+
+// Settings toggle feeds the bridge's auto-slow rules.
+bridge.setAutoPause?.(useUi.getState().autoPause);
+useUi.subscribe((s, prev) => { if (s.autoPause !== prev.autoPause) bridge.setAutoPause?.(s.autoPause); });
+
+/** Subscribe to a slice of the snapshot; re-renders only when the selected value changes (compare with ===). */
+export function useSimSelector<T>(select: (s: SimSnapshot) => T): T {
+  return useSyncExternalStore(bridge.subscribe, () => select(bridge.getState()), () => select(bridge.getState()));
+}
 
 export function useSim(): SimSnapshot {
   return useSyncExternalStore(bridge.subscribe, bridge.getState, bridge.getState);

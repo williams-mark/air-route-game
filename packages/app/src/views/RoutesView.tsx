@@ -50,7 +50,7 @@ export default function RoutesView() {
       <header className="page-head routes-head">
         <div>
           <h1>Routes</h1>
-          <p>{rows.length} routes{tiers.size ? `, ${shown.length} shown` : ""}. Weekly profit {formatMoney(total, { sign: true })}. Select a route to inspect and adjust it.</p>
+          <p>{rows.length} routes{tiers.size ? `, ${shown.length} shown` : ""}. Weekly profit {formatMoney(total, { sign: true })}{rows.some((r) => r.fromSim) ? " before aircraft lease and overhead" : ""}. Select a route to inspect and adjust it.</p>
         </div>
         <button className="primary" onClick={() => begin()} aria-keyshortcuts="N" title="New route (N)">+ New route <kbd>N</kbd></button>
       </header>
@@ -87,7 +87,7 @@ export default function RoutesView() {
                   </button>
                 </th>
                 <td>{r.route.typeId}</td>
-                <td className="num">{r.route.weeklyFrequency}</td>
+                <td className="num">{r.scheduled !== undefined && r.scheduled < r.route.weeklyFrequency ? <span className="neg" title="Round trips actually flown with the aircraft you have">{r.scheduled} of {r.route.weeklyFrequency}</span> : r.route.weeklyFrequency}</td>
                 <td className="num">{r.feasible ? `${Math.round(r.loadFactor * 100)}%` : "–"}</td>
                 <td className={`num ${r.margin < 0 ? "neg" : "pos"}`}>{r.feasible ? `${(r.margin * 100).toFixed(0)}%` : "–"}</td>
                 <td className={`num ${r.weeklyProfit < 0 ? "neg" : r.weeklyProfit > 0 ? "pos" : ""}`}>{formatMoney(r.weeklyProfit, { sign: true })}</td>
