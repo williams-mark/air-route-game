@@ -23,23 +23,29 @@ export interface MarketParams {
   /** Income elasticity applied to geometric-mean GDP per capita relative to incomeRef. */
   /** Short-haul damping: factor d^2/(d^2+g^2); ground travel makes very short air pairs small. */
   groundSubstitutionKm: number;
+  /** Steepness of the short-haul damping d^n/(d^n+g^n). */
+  groundPower: number;
   incomeExponent: number;
   incomeRefUsd: number;
   /** tourism factor = 1 + tourismBoost * max(tourismA,tourismB)^tourismPower */
   tourismBoost: number;
   tourismPower: number;
+  /** Multiplier for pairs inside Hawaii (no road alternative, dense business/VFR flows between islands). */
+  interislandBoost: number;
 }
 
 export const DEFAULT_MARKET_PARAMS: MarketParams = {
-  scale: 1790,
-  popExponent: 0.6,
-  distExponent: 0.4,
+  scale: 3700,
+  popExponent: 0.45,
+  distExponent: 0.5,
   minDistanceKm: 150,
-  groundSubstitutionKm: 250,
-  incomeExponent: 0.6,
+  groundSubstitutionKm: 400,
+  groundPower: 3,
+  incomeExponent: 1.0,
   incomeRefUsd: 75_000,
-  tourismBoost: 6,
-  tourismPower: 2,
+  tourismBoost: 1.0,
+  tourismPower: 1.1,
+  interislandBoost: 5,
 };
 
 export interface PairMarket {
@@ -63,16 +69,25 @@ export function pairTourism(a: Airport, b: Airport): number {
   return Math.max(a.tourismIndex, b.tourismIndex);
 }
 
+/**
+ * True when a road (or rail) trip between the two airports is a practical alternative to flying.
+ * Anything crossing water (HI-HI, HI-CA) has none, so short-haul ground damping must not apply.
+ */
+export function hasSurfaceAlternative(a: Airport, b: Airport): boolean {
+  return a.region === b.region && a.region === "CA";
+}
+
 /** Annual-average potential one-way weekly passengers for the pair (symmetric). */
 export function baseWeeklyDemand(a: Airport, b: Airport, p: MarketParams = DEFAULT_MARKET_PARAMS): number {
   const dTrue = distanceKm(a, b);
   const d = Math.max(dTrue, p.minDistanceKm);
-  const ground = dTrue ** 2 / (dTrue ** 2 + p.groundSubstitutionKm ** 2);
+  const ground = hasSurfaceAlternative(a, b) ? dTrue ** p.groundPower / (dTrue ** p.groundPower + p.groundSubstitutionKm ** p.groundPower) : 1;
+  const island = a.region === "HI" && b.region === "HI" ? p.interislandBoost : 1;
   const pop = ((a.metroPopulation / 1e6) * (b.metroPopulation / 1e6)) ** p.popExponent;
   const income = (Math.sqrt(a.gdpPerCapita * b.gdpPerCapita) / p.incomeRefUsd) ** p.incomeExponent;
   const tourism = 1 + p.tourismBoost * pairTourism(a, b) ** p.tourismPower;
   const dist = (d / 1000) ** -p.distExponent;
-  return p.scale * pop * income * tourism * dist * ground;
+  return p.scale * pop * income * tourism * dist * ground * island;
 }
 
 /**

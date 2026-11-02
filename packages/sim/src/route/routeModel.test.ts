@@ -22,7 +22,7 @@ describe("route model", () => {
           100 * w.snapshot.connectingShare
         ).toFixed(1)}%, margin ${w.evaluation.margin.toFixed(2)}`,
       );
-      expect(w.snapshot.weeklyDemand).toBeGreaterThan(20000);
+      expect(w.snapshot.weeklyDemand).toBeGreaterThan(8000);
     }
   });
 

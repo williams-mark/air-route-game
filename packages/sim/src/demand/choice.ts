@@ -26,6 +26,8 @@ export interface Itinerary {
   fare: number;
   /** Brand / service quality, 0..1 where 0.5 is neutral. */
   quality: number;
+  /** Great-circle distance of the O&D market (for fare scaling); defaults to the sum of leg distances. */
+  marketDistanceKm?: number;
 }
 
 export interface OutsideContext {
@@ -82,6 +84,23 @@ export interface ChoiceParams {
   benchmarkOverheadH: number;
   /** Number of recapture rounds after the unconstrained choice. */
   recapturePasses: number;
+  /**
+   * Coefficient of variation of per-flight demand around its mean. 0 = hard capacity cap (a leg fills
+   * to exactly 100%); > 0 = Gaussian spill, so load factor approaches 100% only gradually.
+   */
+  spillCv: number;
+  /**
+   * Fare sensitivity scales with the market: theta_eff = theta x (benchmarkFare(d) / fareScaleRefUsd)^fareScaleExponent.
+   * 0 = absolute dollars (a long-haul fare change is far more punishing); 1 = constant percentage elasticity.
+   */
+  fareScaleExponent: number;
+  fareScaleRefUsd: number;
+  /**
+   * Weight on ln(seat share): itineraries are favoured in proportion to the share of total seats they
+   * offer (a carrier with 10% of the seats gets about 10% of the passengers at equal fare/quality).
+   * 0 disables it (pure frequency S-curve, where every saturated carrier looks the same).
+   */
+  capacityShareExponent: number;
 }
 
 export const DEFAULT_CHOICE_PARAMS: ChoiceParams = {
@@ -108,6 +127,10 @@ export const DEFAULT_CHOICE_PARAMS: ChoiceParams = {
   benchmarkSpeedKmh: 800,
   benchmarkOverheadH: 0.6,
   recapturePasses: 3,
+  spillCv: 0,
+  fareScaleExponent: 0,
+  fareScaleRefUsd: 105,
+  capacityShareExponent: 0,
 };
 
 /** Benchmark economy-equivalent one-way fare for a distance (USD): 64 + 0.265 d^0.8. LAX-SFO ~ 105, LAX-HNL ~ 270. */
@@ -172,7 +195,9 @@ export function itineraryUtility(
   p: ChoiceParams = DEFAULT_CHOICE_PARAMS,
 ): UtilityBreakdown {
   const sp = p.segments[seg];
-  const fare = -it.fare / sp.theta;
+  const dist = it.marketDistanceKm ?? it.legs.reduce((a, l) => a + l.distanceKm, 0);
+  const thetaFare = sp.theta * (benchmarkFare(dist) / p.fareScaleRefUsd) ** p.fareScaleExponent;
+  const fare = -it.fare / thetaFare;
   const time = -(sp.vot * (elapsedMin(it, p) / 60)) / sp.theta;
   const connection = isConnecting(it)
     ? -(sp.vot * ((p.connectPenaltyMin + misconnectProbability(it, p) * p.misconnectDelayMin) / 60)) / sp.theta
@@ -195,6 +220,34 @@ export function outsideUtility(seg: Segment, ctx: OutsideContext, p: ChoiceParam
     drive = Math.exp(-gc / sp.theta);
   }
   return Math.log(noTravel + drive);
+}
+
+// ---------------------------------------------------------------------------
+// Capacity spill
+// ---------------------------------------------------------------------------
+
+/** Standard normal CDF (Abramowitz & Stegun 7.1.26 erf approximation, error < 1.5e-7). */
+export function normalCdf(z: number): number {
+  const x = Math.abs(z) / Math.SQRT2;
+  const t = 1 / (1 + 0.3275911 * x);
+  const poly = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
+  const erf = 1 - poly * Math.exp(-x * x);
+  return z >= 0 ? 0.5 * (1 + erf) : 0.5 * (1 - erf);
+}
+
+/**
+ * Fraction of mean requests `request` that a leg with `capacity` seats carries when per-flight demand is
+ * normal with coefficient of variation `cv`: E[min(D, C)] / E[D]. cv = 0 gives min(1, C / D).
+ */
+export function carriedFraction(request: number, capacity: number, cv: number): number {
+  if (request <= 0) return 1;
+  if (capacity <= 0) return 0;
+  if (cv <= 0) return Math.min(1, capacity / request);
+  const sigma = cv * request;
+  const z = (capacity - request) / sigma;
+  const pdf = Math.exp(-0.5 * z * z) / Math.sqrt(2 * Math.PI);
+  const expectedSpill = sigma * (pdf - z * (1 - normalCdf(z)));
+  return Math.max(0, Math.min(1, Math.min(capacity / request, (request - expectedSpill) / request)));
 }
 
 // ---------------------------------------------------------------------------
@@ -252,7 +305,16 @@ export function runChoice(input: ChoiceInput): ChoiceResult {
   const remaining = new Map(legCap);
   const EPS = 1e-9;
 
-  const util: SegmentMap<number[]> = segmentMap((s) => its.map((it) => itineraryUtility(it, s, p).total));
+  const itSeats = its.map((it) => {
+    const minSeats = Math.min(...it.legs.map((l) => l.weeklySeats));
+    return isConnecting(it) ? minSeats * p.connectionFrequencyFactor : minSeats;
+  });
+  const totalSeats = itSeats.reduce((a, b) => a + b, 0);
+  const capTerm = its.map((_, i) =>
+    p.capacityShareExponent > 0 && totalSeats > 0
+      ? itSeats[i]! > 0 ? p.capacityShareExponent * Math.log(itSeats[i]! / totalSeats) : -Infinity
+      : 0);
+  const util: SegmentMap<number[]> = segmentMap((s) => its.map((it, i) => itineraryUtility(it, s, p).total + capTerm[i]!));
   const outU: SegmentMap<number> = segmentMap((s) => outsideUtility(s, input.outside, p));
 
   const open = its.map((it) => it.legs.every((l) => (remaining.get(l.id) ?? 0) > EPS));
@@ -273,7 +335,7 @@ export function runChoice(input: ChoiceInput): ChoiceResult {
       for (const l of its[i]!.legs) legReq.set(l.id, (legReq.get(l.id) ?? 0) + total);
     }
     const legFactor = new Map<string, number>();
-    for (const [id, r] of legReq) legFactor.set(id, r <= 0 ? 1 : Math.min(1, (remaining.get(id) ?? 0) / r));
+    for (const [id, r] of legReq) legFactor.set(id, r <= 0 ? 1 : carriedFraction(r, remaining.get(id) ?? 0, p.spillCv));
     const spill = segmentMap(() => new Array<number>(n).fill(0));
     const used = new Map<string, number>();
     for (let i = 0; i < n; i++) {

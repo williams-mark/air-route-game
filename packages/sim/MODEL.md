@@ -5,7 +5,8 @@ the formulas, every constant and the calibration targets. Units: km, USD, weekly
 "One-way weekly" means passengers travelling A to B per week (the model is symmetric, B to A is equal).
 
 Code map: `src/demand/market.ts`, `src/demand/choice.ts`, `src/finance/{ledger,fuel}.ts`,
-`src/time/{clock,calendar}.ts`, `src/route/routeModel.ts` (glue), `src/index.ts` (`stepDay`).
+`src/time/{clock,calendar}.ts`, `src/route/routeModel.ts` (glue, rivals, hub connections), `src/state.ts` (SimState),
+`src/commands.ts` (`applyCommand`, `drainEvents`), `src/fleet/{layout,maintenance,scheduler}.ts`, `src/scenario.ts`, `src/index.ts` (`stepDay`).
 Test fixtures (`src/testing/fixtures.ts`) are approximate and for tests only; the real data comes from `packages/data`.
 
 ## 1. Market size (`demand/market.ts`, `DEFAULT_MARKET_PARAMS`)
@@ -18,20 +19,40 @@ P = metro population in millions, G = GDP per capita, T = tourismIndex, d = grea
 
 | constant | value | meaning |
 |---|---|---|
-| K `scale` | 1790 | overall scale |
-| alpha `popExponent` | 0.6 | sub-linear population effect |
-| gamma `distExponent` | 0.4 | distance decay (distance in thousands of km) |
+| K `scale` | 3700 | overall scale (was 1790) |
+| alpha `popExponent` | 0.45 | sub-linear population effect (was 0.6) |
+| gamma `distExponent` | 0.5 | distance decay (distance in thousands of km; was 0.4) |
 | dmin `minDistanceKm` | 150 | floor on distance in the decay term |
-| g `groundSubstitutionKm` | 250 | short-haul damping (car/rail substitute) |
-| eta `incomeExponent` / Gref `incomeRefUsd` | 0.6 / 75,000 | income elasticity |
-| tau `tourismBoost` / rho `tourismPower` | 6 / 2 | tourism pulls the pair up convexly |
+| g `groundSubstitutionKm` / n `groundPower` | 400 / 3 | short-haul damping d^n/(d^n+g^n) (was 250 / 2) |
+| eta `incomeExponent` / Gref `incomeRefUsd` | 1.0 / 75,000 | income elasticity (was 0.6) |
+| tau `tourismBoost` / rho `tourismPower` | 1.0 / 1.1 | tourism pulls the pair up (was 6 / 2) |
+| `interislandBoost` | 5 | multiplier for HI-HI pairs (no road, frequent business/VFR trips) |
 
-Calibration targets (fixtures: LAX 13.2M, SFO 6.5M, HNL 1.0M, tourism 0.45/0.5/1.0):
-LAX-SFO 60-90k (got 74.7k), LAX-HNL 25-40k (got 33.1k), LAX-OGG 10.7k, SAN-OGG 4.5k, HNL-OGG 2.4k.
-Note the targets are *potential* demand. After the outside option the carried volume is lower
-(LAX-SFO about 77% carried, LAX-HNL about 85%, see `routeModel.test.ts` output). Real-world O&D is below the
-potential figure, so the targets in the brief run high versus DOT data; scale K down for a realistic feel.
-Re-tune: change K first (linear), then gamma/tau to shift the long-haul / Hawaii balance.
+**Water-crossing exemption.** `hasSurfaceAlternative(a, b)` is true only for CA-CA pairs. The ground-damping factor applies only
+there; HI-HI and HI-CA pairs get factor 1 (no practical surface alternative). The itinerary-choice driving option already
+required CA-CA. The interisland boost then lifts HI-HI pairs because a plain gravity model on island populations is far
+below the real interisland market.
+
+Calibration targets are all-carrier *potential* one-way weekly passengers (DOT-scale). Real @arg/data airports, before and after
+this lane (printed by `src/integration.test.ts`):
+
+| pair | target | before | after |
+|---|---|---|---|
+| LAX-SFO | 35-50k | 113.3k | 44.0k |
+| LAX-HNL | 8-14k | 31.6k | 10.6k |
+| LAX-OGG | 4-7k | 9.4k | 4.2k |
+| HNL-OGG | 25-40k | 2.3k | 32.8k |
+| SAN-SFO | plausible (about 15k) | 46.8k | 23.9k |
+| SMF-LAX | plausible (about 8k) | 55.0k | 23.3k |
+| SFO-HNL | 5-12k | 18.7k | 7.9k |
+| HNL-KOA / HNL-LIH | 10-25k | 2.4k / 1.3k | 18.3k / 21.3k |
+| LAX-SAN | small (ground damped) | 47.5k | 6.0k |
+
+Fixture airports (unit tests only): LAX-SFO 45.5k, LAX-HNL 11.5k. The parameters came from a coarse random/local search on the four
+headline pairs, then hand rounding; they are not an estimate from data. Known misses: pairs between large metros that share a
+region with several airports (SMF-LAX, SJC/OAK-LAX at 23-31k, SAN-SFO 24k) run about 2x real DOT because the model treats each
+airport as the whole metro (no multi-airport catchment split). LAX-OGG sits at the low end of its band.
+Re-tune: K first (linear), then alpha (LAX-OGG vs LAX-HNL ratio) and gamma (short vs long haul); `interislandBoost` only moves HI-HI.
 
 ### Segments (`segmentShares`)
 With t = max(Ta,Tb)^1.5 and dd = 1 / (1 + (d/4000)^1.5), raw weights, then normalised:
@@ -84,9 +105,20 @@ Shares are multinomial logit over all open itineraries plus the outside option `
   `noTravelMultiplier x GC`. Driving (only CA-CA) costs 0.14 USD/km x (1.25 d) + 0.8 x VOT x (1.25 d / 95 km/h).
 - `benchmarkFare(d) = 64 + 0.265 d^0.8` (LAX-SFO about 105, LAX-HNL about 270): economy-equivalent yield curve; also the rival's fare.
 
+### Fare scaling, seat share and soft spill (route model switches)
+`ROUTE_CHOICE_PARAMS` = `DEFAULT_CHOICE_PARAMS` plus three switches (all off in the plain defaults so the choice unit tests stay exact):
+- `fareScaleExponent` = 1: the fare term uses `theta_eff = theta x (benchmarkFare(d) / 105)^1`, i.e. constant *percentage* elasticity across
+  distances. At the benchmark fare the logit elasticity is `-fare / theta`: business -1.75, leisure -2.3, VFR -2.6, budget -4.2 (times
+  `1 - share`). Without it a long-haul fare change of 20% (USD 54) was punished like USD 54 on a short hop.
+- `capacityShareExponent` = 1: adds `ln(seat share)` to each itinerary's utility, so an itinerary with 10% of the seats gets about 10% of the
+  passengers at equal fare and quality. Previously every carrier with a saturated schedule fit looked identical, so a 35/wk player
+  took the same share as a rival with 400/wk and sold out at any fare.
+- `spillCv` = 0.2: Gaussian spill. A leg with mean requests `r` and capacity `C` carries `E[min(D, C)]` with `D ~ N(r, (0.2 r)^2)`
+  (`carriedFraction`). Load factor approaches 100% gradually; with `spillCv = 0` the old hard cap applies.
+
 ### Spill and recapture
 1. Pass 0: unconstrained logit (including outside option) gives requests per itinerary and segment.
-2. Capacity is per leg id (itineraries share legs). For each leg, factor = min(1, remainingSeats / requested).
+2. Capacity is per leg id (itineraries share legs). For each leg, factor = `carriedFraction(requested, remainingSeats, spillCv)` (= min(1, remaining / requested) when `spillCv = 0`).
    An itinerary is accepted at min(leg factors); its remainder is spill. Remaining seats are reduced; full itineraries close.
 3. Recapture passes (`recapturePasses` = 3): each segment re-chooses `recapture` x spill among remaining open
    itineraries (logit without the outside option); the rest is lost. Spill from the last pass is `unservedSpill`.
@@ -121,9 +153,66 @@ Days per real second: `[0, 0.5, 1, 3, 7, 30]` for speeds 0-5. `advance(dtMs)` cl
 day; a non-null result lowers speed to `maxSpeed`, clears the accumulator and ends the batch on that day.
 
 ## 5. Daily roll-up (`index.ts` `stepDay(SimState)`)
-For each route: `simulateRouteWeek` (market on that day with seasonality, +/-1.5% seeded demand noise, player vs a synthetic rival
-direct itinerary sized to annual demand at 80% LF, plus a rival one-stop for pairs >= 800 km at 0.85x fare) then `evaluateRoute`.
-Daily revenue and cost = weekly / 7. Fleet: aircraft of the route type limit frequency (`operatedFraction = min(1, fleet/need)`
+For each route: `simulateRouteWeek` (market on that day with seasonality, +/-1.5% seeded demand noise, player vs 1-3 synthetic rival carriers
+(`buildRivals`, below) plus a rival one-stop for pairs >= 800 km at 0.85x fare) then `evaluateRoute`.
+Daily revenue and cost = weekly / 7. (Fleet handling is superseded by section 7.) Fleet: aircraft of the route type limit frequency (`operatedFraction = min(1, fleet/need)`
 shared across routes of that type); owned aircraft are charged lease daily whether or not they fly. If the player owns no
 aircraft of a type, the ledger charges notional fractional ownership (`notionalFleet: true` in `RouteReport`).
 Corporate overhead 8,000/day + 600/aircraft/day (`DEFAULT_SIM_PARAMS`).
+
+### Synthetic rivals (`buildRivals`, `RouteModelConfig`)
+Rival count by annual potential one-way demand: up to 1,500/wk 1 rival, up to 6,000/wk 2, above 3 (`rivalCountBands`). Combined rival seats =
+`baseWeekly x rivalMarketCoverage (0.6) / rivalTargetLoadFactor (0.8)`, split 45/33/22% (profiles: fare x1.00/0.96/1.05, quality 0.55/0.5/0.45),
+aircraft of 90-250 seats by distance and market size, minimum 2 departures a week each. The one-stop rival is sized at a quarter of the
+rival direct frequency. Coverage 0.6 (not 1.0) because only about 75-80% of potential demand is carried after the outside option, so
+rivals alone run about 80% LF and a new player takes a share by diluting them.
+
+Calibration printouts (LAX-SFO 35/wk B737-800, day 100; `integration.test.ts`): load factor at fare multiples of market (USD 105)
+0.9x 93%, 1.0x 80%, 1.1x 64%, 1.2x 52%, 1.35x 37%, 1.5x 27%, 1.75x 16%, 2.0x 9%. At the market fare: LAX-SFO 80%, LAX-HNL (14/wk 767-300ER) 93%,
+LAX-OGG (7/wk 757-200) 66%, HNL-OGG (56/wk A319) 75%. Before this change LAX-SFO was 100% sold out at every fare from 0.6x to 1.5x.
+
+## 6. Commands (`commands.ts`)
+`applyCommand(state, cmd) -> { state, result }` is pure. `result` is `{ ok: true, kind, ... }` or `{ ok: false, error, message }` with a
+typed `CommandErrorCode` (`unknown_airport`, `same_airport`, `unknown_type`, `invalid_frequency`, `invalid_fare`, `out_of_range`,
+`runway_too_short`, `no_suitable_aircraft`, `duplicate_route`, `unknown_route`, `invalid_count`, `invalid_layout`, `type_unavailable`,
+`insufficient_cash`, `invalid_speed`). Successful commands queue a `notice` SimEvent. `drainEvents(state) -> { state, events }` takes the
+queue (ticks, finance snapshots and notices from `stepDay`, oldest first; capped at `eventQueueLimit` 2000). `state.events` still holds only the last step's tick+finance.
+- `setSpeed`: stored in `state.speed` (0..5).
+- `openRoute`: airports exist and differ; type exists; frequency whole 1..140; Y fare > 0 (other cabins positive if given); no duplicate pair (either
+  direction); range (`1.04 d + 370 km <= range`) and both runways; at least one non-stored aircraft that can fly it exists (the requested type, else a
+  same-size-class substitute with a warning). Ids are `route-N`.
+- `updateRoute`: merges the patch, revalidates (fleet check only if pair or type changed). `closeRoute`: removes the route and its report.
+- `orderAircraft`: count whole 1..200; type not out of production (`endYear >= year`) and `introYear <= year + 3`; layout legal (<= maxSeats; empty layout = default).
+  Discount off list `min(40%, 8% + 6% x ln(count))` (1 aircraft 8%, 10 22%, 100 36%). Deposit 15% of the net order value is paid from cash at order and credited back on each
+  aircraft's delivery, because the financed price is already charged through the lease-equivalent ownership cost (`monthlyOwnershipUsd`). Delivery lead time is
+  drawn per order from a seeded RNG: narrowbodies 6-18 months, widebodies 12-30 months, aircraft in one order staggered by 0.5 (narrow) / 1 (wide) month and
+  never later than the maximum; a type not yet in service is delivered no earlier than 1 January of its `introYear` (so a 2015 order for a 2017 type waits longer than 18 months).
+  Aircraft are created at once with status `delivery` (no lease, not scheduled), and become `active` with age 0 on the delivery day.
+
+## 7. Fleet, scheduler and maintenance
+Daily order in `stepDay`: deliveries, finished checks, checks falling due, scheduling, route economics, utilisation counters, costs.
+- **Scheduler** `assign(routes, fleet, {airports, types})`: only `active` aircraft. Routes are served widebody-first, then by weekly block-hour need. Per route, whole round
+  trips are taken from aircraft of the requested type first (smallest aircraft with room for all of it, else the one with the most room), then from other feasible types
+  of the same size class (`substitutedFrequency`). Capacity per aircraft = 9.5 (narrow) / 12.5 (wide) block hours a day. Range and both runways must allow the type
+  (`typeCanServe`). Output per route: `scheduledFrequency`, `underSupplied` (requested minus scheduled), `aircraftIds`, `blockHoursPerWeek`; per aircraft: hours and assignments.
+  `RouteReport.scheduling` carries it and `operatedFraction = scheduled / requested`. Economics are evaluated with the requested type even when substitutes fly (approximation);
+  the first flying aircraft supplies the cabin layout. Notices fire when a route becomes under-supplied and when it recovers.
+- **Notional fleet**: with `params.notionalFleet` true (default; sandbox and old tests) a route whose type the player owns none of is flown by a notionally leased fleet. `startingScenario` sets it false.
+- **Flight hours / cycles**: each day an aircraft adds `blockHoursPerWeek / 7` to `hoursSinceCheck` (A..D) and to `fleetMeta.flightHours`, and `2 x round trips / 7` cycles.
+- **Checks** (`MAINTENANCE_PARAMS`): A every 500 flight hours (overnight: cost, no downtime); B 180 days, 3 days out; C 540-720 days (seeded per aircraft), 21 days; D 2190-3650 days (6-10 years), 60 days.
+  A heavier check resets the lighter ones. Costs are estimates: A 12k/28k, B 40k/90k, C 0.9M/2.4M, D 3.5M/9M USD (narrow/wide) scaled by list price relative to a 100M narrow or 270M wide reference.
+  A due B/C/D check is *deferred* while pulling the aircraft would reduce scheduled round trips (re-running `assign` without it), for at most `graceDays` = 30; after that it is forced and the route
+  shows as under-supplied. Spares and same-class substitutes cover without any deferral. Notices on every check start, finish, deferral and forced removal.
+- Delivered aircraft pay lease-equivalent ownership plus 600/day overhead whether flying or not; aircraft awaiting delivery pay nothing.
+
+## 8. Starting scenario (`startingScenario(airports, types, seed)`)
+Skybridge Pacific, LAX, day 0 = 2015-01-01, USD 150M. Fleet 6x B737-800, 2x A320, 2x B757-200, 1x B767-300ER, 2x B777-200ER (ids from `@arg/data`), ages 2-14 years, default cabins
+(`defaultLayout`: narrow J 12 + Y 6-abreast, wide J 36 + optional W 28 + Y 8-10 abreast, about 86% / 78% of `maxSeats`). Routes (round trips a week, type): LAX-SFO 42 (737-800), LAX-SAN 14 (A320),
+LAX-HNL 14 (777-200ER), LAX-OGG 7 (757-200); fares at the benchmark curve. The 767 and four extra 737s are idle growth/spare capacity. Year-one cash change with seed 2015: about +20M.
+
+## 9. Hub connections (`route/routeModel.ts`)
+`evaluateHubConnection({ origin, hub, destination, leg1, leg2, types, day, ... })` (e.g. SAN-HNL via LAX): local traffic on each leg is simulated first with `simulateRouteWeek` and keeps its seats (local priority);
+the through market is `marketOnDay(origin, destination)` and the player's itinerary uses both legs with only the *remaining* seats as leg capacity, competing with the synthetic rival direct(s) and one-stop. The existing
+connection logic applies (`connectionFrequencyFactor` 0.6 on min leg frequency, layover, misconnect, `connectPenaltyMin`). Through passengers appear in `legs[i].connectingPassengers` and in each leg's load factor.
+`networkContribution(conn)` prorates the through fare (default 92% of benchmark) to the legs by great-circle distance (`leg1ProrateShare = d1 / (d1 + d2)`), adds each leg's own ledger revenue, and recomputes leg costs
+with the extra passengers on board; `proratedTotal` equals `throughRevenue`. This is a hook: `stepDay` does not yet include hub passengers in the daily finances.

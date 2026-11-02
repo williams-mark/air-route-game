@@ -89,6 +89,9 @@ importers:
       '@arg/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@arg/data':
+        specifier: workspace:*
+        version: link:../data
 
 packages:
 
