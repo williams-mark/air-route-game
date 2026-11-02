@@ -1,4 +1,4 @@
-import type { Day } from "@arg/contracts";
+import type { Airport, Day } from "@arg/contracts";
 import { fractionalYear } from "../time/calendar";
 
 /**
@@ -41,7 +41,7 @@ export const HAWAII_FUEL_PREMIUM = 0.35;
 /** Jet-A kilograms per US gallon (density ~0.804 kg/L x 3.785 L). */
 export const KG_PER_GALLON = 3.04;
 
-export function jetAPriceUsdPerGallon(day: Day, region: "CA" | "HI" = "CA"): number {
+export function jetAPriceUsdPerGallon(day: Day, region: Airport["region"] = "CA"): number {
   const y = fractionalYear(day);
   const a = JET_A_ANCHORS;
   let price = a[a.length - 1]![1];
@@ -59,6 +59,6 @@ export function jetAPriceUsdPerGallon(day: Day, region: "CA" | "HI" = "CA"): num
   return price + (region === "HI" ? HAWAII_FUEL_PREMIUM : 0);
 }
 
-export function jetAPriceUsdPerKg(day: Day, region: "CA" | "HI" = "CA"): number {
+export function jetAPriceUsdPerKg(day: Day, region: Airport["region"] = "CA"): number {
   return jetAPriceUsdPerGallon(day, region) / KG_PER_GALLON;
 }

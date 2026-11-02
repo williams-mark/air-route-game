@@ -15,7 +15,7 @@ export interface Airport {
   city: string;
   lat: number;
   lon: number;
-  region: "CA" | "HI";
+  region: "CA" | "HI" | "OR" | "WA";
   runwayM: number; // longest runway
   metroPopulation: number;
   gdpPerCapita: number;

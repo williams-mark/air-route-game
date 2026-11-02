@@ -2,6 +2,8 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { airports } from "@arg/data";
 import { suggestAirports } from "./helpers";
 
+const REGION_NAME = { CA: "California", HI: "Hawaii", OR: "Oregon", WA: "Washington" } as const;
+
 interface Props {
   label: string;
   value: string | null;
@@ -60,7 +62,7 @@ export function AirportField({ label, value, onChange, exclude = [], picking, on
           ))}
         </ul>
       )}
-      <div className="af-sub">{selected ? `${selected.name}, ${selected.region === "HI" ? "Hawaii" : "California"}` : picking ? "Click an airport on the map." : " "}</div>
+      <div className="af-sub">{selected ? `${selected.name}, ${REGION_NAME[selected.region]}` : picking ? "Click an airport on the map." : " "}</div>
     </div>
   );
 }

@@ -25,6 +25,11 @@ export interface Metro {
 export const DEFAULT_METROS: readonly Metro[] = [
   { id: "LA", anchors: ["LAX", "ONT"], population: 17_750_000, shares: { LAX: 0.78, SNA: 0.1, ONT: 0.044, BUR: 0.042, LGB: 0.034 } },
   { id: "SF", anchors: ["SFO", "SJC"], population: 6_630_000, shares: { SFO: 0.7, OAK: 0.16, SJC: 0.14 } },
+  // Seattle: BFI and PAE sit inside the Seattle-Tacoma-Bellevue MSA (SEA's population), so the anchor is SEA alone. Shares are tuning
+  // weights, not sourced traffic: SEA carried nearly everything in 2015-2025 (PAE's terminal opened March 2019 with roughly 0.5M
+  // passengers a year against SEA's 50M+; BFI has almost no scheduled service), so PAE and BFI get a small latent share the player can
+  // build up. Portland is a single-airport metro (PDX; HIO has no airline service) and needs no entry: share 1.
+  { id: "SEA", anchors: ["SEA"], population: 3_733_000, shares: { SEA: 0.88, PAE: 0.08, BFI: 0.04 } },
 ];
 
 export interface MetroCatchment {

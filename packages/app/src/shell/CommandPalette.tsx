@@ -27,7 +27,7 @@ function useCommands(): Cmd[] {
     list.push({ id: "new-route", label: "New route", group: "Routes", hint: "N", run: () => useCreation.getState().begin() });
     list.push({ id: "pause", label: "Pause / resume", group: "Game", hint: "Space", run: togglePause });
     for (const s of [1, 2, 3, 4, 5] as Speed[]) list.push({ id: `speed-${s}`, label: `Set speed ${s}`, group: "Game", hint: String(s), run: () => setSpeed(s) });
-    for (const p of ["california", "hawaii", "both"] as CameraPresetId[]) {
+    for (const p of ["california", "northwest", "hawaii", "both"] as CameraPresetId[]) {
       list.push({ id: `fly-${p}`, label: `Map: show ${PRESET_LABEL[p]}`, group: "Map", run: () => { ui().setView("map"); ui().flyTo(p); } });
     }
     list.push(

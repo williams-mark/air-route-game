@@ -112,6 +112,8 @@ export const STARTING_RIVALS: StartingRivalSpec[] = [
       ["LAX", "SJC", 0.1], ["LAX", "SMF", 0.1], ["LAX", "OAK", 0.06],
       ["SFO", "HNL", 0.24], ["SFO", "OGG", 0.24], ["SFO", "KOA", 0.16], ["SFO", "LIH", 0.16],
       ["LAX", "HNL", 0.3], ["LAX", "OGG", 0.3], ["LAX", "KOA", 0.14], ["LAX", "LIH", 0.14],
+      // Pacific Northwest trunks (OR/WA).
+      ["SFO", "SEA", 0.3], ["SFO", "PDX", 0.25],
     ],
   },
   {
@@ -120,6 +122,7 @@ export const STARTING_RIVALS: StartingRivalSpec[] = [
       ["SAN", "OAK", 0.2], ["SAN", "SMF", 0.2], ["SAN", "SFO", 0.16], ["SAN", "SJC", 0.12],
       ["OAK", "LAX", 0.14], ["OAK", "BUR", 0.14], ["OAK", "SNA", 0.14], ["OAK", "LGB", 0.12],
       ["OAK", "HNL", 0.12], ["OAK", "OGG", 0.12], ["SAN", "HNL", 0.08],
+      ["OAK", "SEA", 0.14], ["OAK", "PDX", 0.14], ["SAN", "SEA", 0.14], ["SAN", "PDX", 0.1],
       // Trunk routes the player also flies: several carriers share them, as on the real LAX-SFO and LAX-Hawaii markets.
       ["LAX", "SFO", 0.2], ["LAX", "HNL", 0.28], ["LAX", "SAN", 0.6],
     ],
@@ -130,6 +133,7 @@ export const STARTING_RIVALS: StartingRivalSpec[] = [
       ["LAX", "SBA", 0.3], ["LAX", "MRY", 0.3], ["LAX", "SBP", 0.35], ["LAX", "PSP", 0.25], ["LAX", "FAT", 0.3],
       ["LAX", "MMH", 0.5], ["SFO", "ACV", 0.5], ["SFO", "RDD", 0.4], ["SFO", "SBA", 0.25], ["SFO", "FAT", 0.2],
       ["SFO", "PSP", 0.2], ["LAX", "RDD", 0.2],
+      ["SFO", "MFR", 0.4], ["SFO", "RDM", 0.35], ["SFO", "EUG", 0.3], ["SFO", "OTH", 0.5],
     ],
   },
   {
@@ -145,6 +149,7 @@ export const STARTING_RIVALS: StartingRivalSpec[] = [
       ["SMF", "LAX", 0.14], ["SMF", "SAN", 0.18], ["SMF", "BUR", 0.14], ["SMF", "SNA", 0.12], ["SMF", "ONT", 0.1],
       ["SJC", "SAN", 0.14], ["SJC", "LAX", 0.14], ["SJC", "SNA", 0.1], ["SMF", "HNL", 0.1], ["SJC", "HNL", 0.1],
       ["SMF", "OGG", 0.1], ["SJC", "OGG", 0.1], ["SMF", "LGB", 0.1], ["LAX", "OGG", 0.2],
+      ["SMF", "SEA", 0.12], ["SMF", "PDX", 0.12], ["SJC", "SEA", 0.1],
     ],
   },
 ];
@@ -164,6 +169,8 @@ export interface EntrantSpec {
 /** Scheduled new entrants (rare). Random extra entrants: see RIVAL_PARAMS.randomEntrantChancePerYear. */
 export const SCHEDULED_ENTRANTS: EntrantSpec[] = [
   { id: "ember-air", name: "Ember Air", archetype: "lcc", bases: ["LAX", "SNA"], cash: 70_000_000, launchYear: 2.3, jitterDays: 90, initialRoutes: 4 },
+  // Pacific Northwest regional (Seattle and Portland); routes are chosen from the candidate list at launch.
+  { id: "cascade-connect", name: "Cascade Connect", archetype: "regional", bases: ["SEA", "PDX"], cash: 90_000_000, launchYear: 0.5, jitterDays: 60, initialRoutes: 6 },
 ];
 
 /** Names for random startups. Fictional. */

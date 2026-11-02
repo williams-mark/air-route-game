@@ -3,7 +3,7 @@
 import type { Aircraft, AircraftType, Airport } from "@arg/contracts";
 
 const ap = (
-  id: string, name: string, city: string, lat: number, lon: number, region: "CA" | "HI",
+  id: string, name: string, city: string, lat: number, lon: number, region: Airport["region"],
   runwayM: number, metroPopulation: number, gdpPerCapita: number, tourismIndex: number, slotsPerHour: number,
 ): Airport => ({ id, name, city, lat, lon, region, runwayM, metroPopulation, gdpPerCapita, tourismIndex, slotsPerHour });
 

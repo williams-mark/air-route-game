@@ -48,9 +48,11 @@ export function pickHubs(airports: Airport[]): string[] {
   const sorted = [...airports].sort((a, b) => b.slotsPerHour - a.slotsPerHour || b.metroPopulation - a.metroPopulation);
   const n = Math.min(8, Math.max(4, Math.round(airports.length * 0.15)));
   const hubs = sorted.slice(0, n).map((a) => a.id);
-  for (const region of ["CA", "HI"] as const) {
+  // Every region keeps at least one hub: swap the best airport of a missing region into the lowest slot not already guaranteed.
+  let slot = hubs.length - 1;
+  for (const region of ["CA", "HI", "OR", "WA"] as const) {
     const best = sorted.find((a) => a.region === region);
-    if (best && !hubs.includes(best.id)) hubs[hubs.length - 1] = best.id;
+    if (best && !hubs.includes(best.id) && slot >= 0) hubs[slot--] = best.id;
   }
   return hubs;
 }

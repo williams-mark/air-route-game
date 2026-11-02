@@ -1,4 +1,5 @@
 import type { Airport, Day } from "@arg/contracts";
+import { isLandPair } from "@arg/data";
 import { distanceKm } from "../geo";
 import { monthPosition } from "../time/calendar";
 import { catchmentOf, DEFAULT_METROS, type Metro } from "./metros";
@@ -78,10 +79,12 @@ export function pairTourism(a: Airport, b: Airport): number {
 
 /**
  * True when a road (or rail) trip between the two airports is a practical alternative to flying.
- * Anything crossing water (HI-HI, HI-CA) has none, so short-haul ground damping must not apply.
+ * Anything crossing water (HI-HI, HI-mainland) has none, so short-haul ground damping must not apply.
+ * CA, OR and WA are one mainland (CA-OR, OR-WA, ... all count as land pairs); the distance terms in the damping and in the
+ * drive outside option make the road irrelevant on long pairs such as SAN-SEA.
  */
 export function hasSurfaceAlternative(a: Airport, b: Airport): boolean {
-  return a.region === b.region && a.region === "CA";
+  return isLandPair(a, b);
 }
 
 /** Annual-average potential one-way weekly passengers for the pair (symmetric). */

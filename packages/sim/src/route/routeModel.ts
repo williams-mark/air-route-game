@@ -8,7 +8,7 @@ import {
   type Itinerary,
   type Leg,
 } from "../demand/choice";
-import { marketOnDay, SEGMENTS, segmentMap, type DayMarket, type MarketParams, DEFAULT_MARKET_PARAMS } from "../demand/market";
+import { hasSurfaceAlternative, marketOnDay, SEGMENTS, segmentMap, type DayMarket, type MarketParams, DEFAULT_MARKET_PARAMS } from "../demand/market";
 import { distanceKm } from "../geo";
 import { cabinFillRatios, layoutEffects } from "../cabin/effects";
 import { rivalSizingMarket } from "./rivalSizing";
@@ -240,7 +240,7 @@ export function simulateRouteWeek(
   const choice = runChoice({
     demand,
     itineraries: [player, ...rivals],
-    outside: { distanceKm: dist, driveAvailable: a.region === "CA" && b.region === "CA" },
+    outside: { distanceKm: dist, driveAvailable: hasSurfaceAlternative(a, b) },
     params: cfg.choice,
   });
   const mine = choice.itineraries[0]!;
@@ -418,7 +418,7 @@ export function evaluateHubConnection(input: HubConnectionInput): HubConnection 
   const choice = runChoice({
     demand,
     itineraries: [player, ...rivals],
-    outside: { distanceKm: dist, driveAvailable: a.region === "CA" && b.region === "CA" },
+    outside: { distanceKm: dist, driveAvailable: hasSurfaceAlternative(a, b) },
     params: cfg.choice,
   });
   const c = choice.itineraries[0]!.passengers;
