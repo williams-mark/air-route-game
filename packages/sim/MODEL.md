@@ -19,40 +19,53 @@ P = metro population in millions, G = GDP per capita, T = tourismIndex, d = grea
 
 | constant | value | meaning |
 |---|---|---|
-| K `scale` | 3700 | overall scale (was 1790) |
-| alpha `popExponent` | 0.45 | sub-linear population effect (was 0.6) |
-| gamma `distExponent` | 0.5 | distance decay (distance in thousands of km; was 0.4) |
+| K `scale` | 1780 | overall scale (was 3700 before the metro split) |
+| alpha `popExponent` | 0.47 | sub-linear population effect |
+| gamma `distExponent` | 0.25 | distance decay (distance in thousands of km) |
 | dmin `minDistanceKm` | 150 | floor on distance in the decay term |
-| g `groundSubstitutionKm` / n `groundPower` | 400 / 3 | short-haul damping d^n/(d^n+g^n) (was 250 / 2) |
-| eta `incomeExponent` / Gref `incomeRefUsd` | 1.0 / 75,000 | income elasticity (was 0.6) |
-| tau `tourismBoost` / rho `tourismPower` | 1.0 / 1.1 | tourism pulls the pair up (was 6 / 2) |
-| `interislandBoost` | 5 | multiplier for HI-HI pairs (no road, frequent business/VFR trips) |
+| g `groundSubstitutionKm` / n `groundPower` | 150 / 3 | short-haul damping d^n/(d^n+g^n). Mild on purpose: the choice model's driving option already removes most short-haul passengers, so a strong damping here double-counted (LAX-SAN) |
+| eta `incomeExponent` / Gref `incomeRefUsd` | 1.28 / 75,000 | income elasticity |
+| tau `tourismBoost` / rho `tourismPower` | 1.7 / 3 | tourism pulls the pair up (only strongly touristy ends) |
+| `interislandBoost` | 12.5 | multiplier for HI-HI pairs (no road, frequent business/VFR trips) |
+| `metros` | `DEFAULT_METROS` | multi-airport catchments, section 1a |
+| `growthPerYear` | 0.025 | compound market growth from 2015 (applied in `marketOnDay`; no pandemic shock is modelled) |
 
 **Water-crossing exemption.** `hasSurfaceAlternative(a, b)` is true only for CA-CA pairs. The ground-damping factor applies only
 there; HI-HI and HI-CA pairs get factor 1 (no practical surface alternative). The itinerary-choice driving option already
 required CA-CA. The interisland boost then lifts HI-HI pairs because a plain gravity model on island populations is far
 below the real interisland market.
 
-Calibration targets are all-carrier *potential* one-way weekly passengers (DOT-scale). Real @arg/data airports, before and after
-this lane (printed by `src/integration.test.ts`):
+Calibration targets are all-carrier *potential* one-way weekly passengers (DOT-scale), summed over the airports of each metro (printed by
+`src/integration.test.ts`). Real @arg/data airports, before this lane (each airport the whole metro) and after (metro split, section 1a):
 
-| pair | target | before | after |
+| pair (metro totals) | target | before | after |
 |---|---|---|---|
-| LAX-SFO | 35-50k | 113.3k | 44.0k |
-| LAX-HNL | 8-14k | 31.6k | 10.6k |
-| LAX-OGG | 4-7k | 9.4k | 4.2k |
-| HNL-OGG | 25-40k | 2.3k | 32.8k |
-| SAN-SFO | plausible (about 15k) | 46.8k | 23.9k |
-| SMF-LAX | plausible (about 8k) | 55.0k | 23.3k |
-| SFO-HNL | 5-12k | 18.7k | 7.9k |
-| HNL-KOA / HNL-LIH | 10-25k | 2.4k / 1.3k | 18.3k / 21.3k |
-| LAX-SAN | small (ground damped) | 47.5k | 6.0k |
+| LA airports - SF airports | 35-50k | 113k (LAX-SFO alone 44k) | 37.7k (LAX-SFO alone 22.6k) |
+| SMF - LA airports | 8-14k | 23.3k | 13.4k |
+| SAN - SF airports | about 8-14k | 23.9k | 15.8k (a little rich) |
+| LA - HNL | 8-14k | 10.6k | 11.0k (LAX-HNL alone 10.9k) |
+| LA - OGG | 4-7k | 4.2k | 4.0k |
+| HNL-OGG | 25-40k | 32.8k | 29.4k |
+| SF - HNL | 5-12k | 7.9k | 8.5k |
+| HNL-KOA / HNL-LIH | 10-25k | 18.3k / 21.3k | 17.5k / 18.6k |
+| LA - SAN (all airports) | small | 6.0k | 16.3k potential, but 75-80% drives (LAX-SAN carried about 1.3-3k) |
 
-Fixture airports (unit tests only): LAX-SFO 45.5k, LAX-HNL 11.5k. The parameters came from a coarse random/local search on the four
-headline pairs, then hand rounding; they are not an estimate from data. Known misses: pairs between large metros that share a
-region with several airports (SMF-LAX, SJC/OAK-LAX at 23-31k, SAN-SFO 24k) run about 2x real DOT because the model treats each
-airport as the whole metro (no multi-airport catchment split). LAX-OGG sits at the low end of its band.
-Re-tune: K first (linear), then alpha (LAX-OGG vs LAX-HNL ratio) and gamma (short vs long haul); `interislandBoost` only moves HI-HI.
+Fixture airports (unit tests only) are single airports, so `market.test.ts` evaluates them with `metros: null` and metro populations.
+The parameters came from a random/local search against the targets above (with a small penalty for leaving the earlier values), then hand
+rounding; they are not an estimate from data. The pair structure of the data (SAN and SMF are small metros with modest GDP) limits how far
+SAN-SFO can fall without breaking the Hawaii pairs; it stays about 15% above the band. Re-tune: K first (linear), then alpha, gamma;
+`interislandBoost` only moves HI-HI.
+
+### 1a. Metro catchments (`demand/metros.ts`)
+`DEFAULT_METROS`: LA = LAX, SNA, ONT, BUR, LGB with base shares 0.78 / 0.10 / 0.044 / 0.042 / 0.034 and SF = SFO, OAK, SJC with 0.70 / 0.16 / 0.14.
+Shares are rounded estimates of 2015 passenger traffic in each metro (FAA/DOT enplanements from memory; NOT sourced data in packages/data, tuning weights only).
+Metro population is the sum of the `metroPopulation` of non-overlapping anchor MSAs (LA: LAX 13.3M + ONT 4.45M = 17.75M; SF: SFO 4.65M + SJC 1.98M = 6.63M), checked by a test.
+
+    W(a, b) = W_metro(pop(metro a), pop(metro b), d_ab) * share_a(d) * share_b(d)
+
+so the sum over airport pairs of two metros equals the metro-to-metro volume. Income and tourism use each airport's own values. Long routes concentrate on the
+dominant airport: weights are share^phi renormalised within the metro, phi = 1 + 1.2 min(1, (d/2500)^2), so LAX carries about 95% of LA-Hawaii but about 74% of LA-SF.
+Single-airport metros (SAN, SMF, HNL ...) have share 1. LAX-SFO alone is 22.6k (real about 18-21k).
 
 ### Segments (`segmentShares`)
 With t = max(Ta,Tb)^1.5 and dd = 1 / (1 + (d/4000)^1.5), raw weights, then normalised:
@@ -129,18 +142,36 @@ Shares are multinomial logit over all open itineraries plus the outside option `
 `evaluateRoute` returns `lines[]` (key, label, weekly USD, human-readable formula) plus totals. Route = `weeklyFrequency`
 departures each way, so flights/week = 2 x frequency. Passengers are both directions combined, capped at seats.
 
-- Block hours = 1.04 d / (0.93 cruise) + 0.5. Feasible only if `1.04 d + 370 km <= range`, both runways >= needed, seats <= maxSeats.
+- Block hours = 1.04 d / (0.93 cruise) + 0.65. Feasible only if `1.04 d + 370 km <= range`, both runways >= needed, seats <= maxSeats.
   Infeasible: no flights or revenue; only fixed costs accrue (negative profit, margin -1).
 - Revenue: per cabin pax x fare. Pax split across cabins proportional to seats x fill weight (F .75, J .8, W .88, Y 1.0), capped at seats.
   Ancillary 14 USD/pax.
 - Fuel: `burn x 1.04 d x (0.92 + 0.16 LF) + taxi (450 kg narrow, 900 wide)`, kg / 3.04 kg/gal x price.
-- Crew: block h x (pilots x 230 + FAs x 62). Pilots 2 (3 if block > 8 h, 4 if > 12). FAs = max(2, ceil(seats/40)).
-- Landing/airport: 450 + 6.2 per seat per landing. Handling: 450 narrow / 900 wide per departure. Passenger services 11/pax.
-- Maintenance: block h x seats x 6.0 (narrow) or 7.5 (wide).
+- Crew: block h x (pilots x 340 + FAs x 85). Pilots 2 (3 if block > 8 h, 4 if > 12). FAs = max(2, ceil(seats/40)).
+- Landing/airport: 800 + 7.5 per seat per landing. Handling: 700 narrow / 1400 wide per departure. Passenger services 13/pax.
+- Maintenance: block h x seats x 3.5 (narrow) or 4.5 (wide) (the A-D checks of section 7 are charged on top, so the route line is only line maintenance and parts).
 - Ownership: lease = list price x 0.55 street x 0.75%/month; aircraft-equivalent = weekly block hours / (11 narrow or 13 wide h/day x 7);
   cost = equivalent x monthly lease x 12/52. (`ownership: "excluded"` when the real fleet is charged instead.)
-- Distribution 6% of revenue; overhead 3% of revenue + 3,000 USD/week per route.
-- Calibration: LAX-HNL 787-9 daily at 82% LF, Y 270 / W 460 / J 900: margin about 14%. A sold-out route has much higher margin.
+- Distribution 6% of revenue; overhead 6% of revenue + 5,000 USD/week per route.
+- Premium cabins: unpriced J/F/W use `fare Y x multiplier x premiumDistanceFactor(d)` (0.55 at 0 km to 1.0 at 3500 km, so a 12-seat domestic J sells at about 2x Y on LAX-SFO and 3.2x on LAX-HNL).
+  A cabin priced above the going multiple m0 gets `fillScale = (m0/m)^2` and can sell only that fraction of its seats, so premium revenue peaks near the going fare
+  and falls as 1/m (fixes the "J fare x 400 is free money" exploit found by the bots, BALANCE.md).
+
+### CASM / RASM sanity (route level, ownership charged fractionally, starting fares, four seasons; `src/economics.test.ts`)
+US majors 2015-2019: CASM about 12-15 cents on a 1,000 mile stage, 18-25 cents on 350 miles, 8-10 cents transpacific; margins 5-15%. Cents per ASM mile:
+
+| route | type | miles | /wk | fare | LF | CASM | RASM | margin | fuel | crew | airport+handling | pax svc | maint | ownership | distrib+overhead |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| LAX-SFO | 737-800 | 338 | 42 | 105 | 69% | 20.5 | 25.6 | 20% | 2.15 | 2.77 | 4.96 | 2.66 | 1.42 | 3.29 | 3.19 |
+| SMF-LAX | A320 | 373 | 14 | 108 | 72% | 19.9 | 25.0 | 20% | 2.16 | 2.64 | 4.69 | 2.52 | 1.36 | 3.23 | 3.32 |
+| SAN-SFO | 737-800 | 447 | 10 | 115 | 68% | 17.3 | 20.9 | 17% | 2.04 | 2.45 | 3.75 | 1.99 | 1.26 | 2.91 | 2.85 |
+| LAX-SAN | A320 | 109 | 14 | 62 | 79% | 51.8 | 57.6 | 10% | 3.25 | 5.51 | 16.0 | 9.44 | 2.83 | 6.74 | 8.01 |
+| LAX-HNL | 777-200ER | 2553 | 14 | 270 | 77% | 8.4 | 10.5 | 20% | 2.13 | 0.95 | 0.55 | 0.39 | 1.01 | 2.10 | 1.28 |
+| LAX-OGG | 757-200 | 2483 | 7 | 266 | 64% | 7.1 | 8.0 | 11% | 1.81 | 1.38 | 0.60 | 0.34 | 0.83 | 1.14 | 1.03 |
+| HNL-OGG | A319 | 101 | 56 | 80 | 67% | 57.0 | 65.7 | 13% | 4.34 | 6.65 | 18.75 | 8.64 | 3.01 | 7.41 | 8.22 |
+
+Before the recalibration the same routes showed 42-51% margins before ownership (14-37% after). The remaining route margins are contribution
+before corporate overhead and idle aircraft; the airline as a whole earns about 10% on the passive starting fleet (BALANCE.md). Sold-out routes earn 30%+.
 
 ### Fuel price series (`finance/fuel.ts`)
 Hard-coded USD/gal anchors (fraction of year, price), linearly interpolated, clamped outside 2015-2026. West Coast
@@ -161,8 +192,10 @@ aircraft of a type, the ledger charges notional fractional ownership (`notionalF
 Corporate overhead 8,000/day + 600/aircraft/day (`DEFAULT_SIM_PARAMS`).
 
 ### Synthetic rivals (`buildRivals`, `RouteModelConfig`)
-Rival count by annual potential one-way demand: up to 1,500/wk 1 rival, up to 6,000/wk 2, above 3 (`rivalCountBands`). Combined rival seats =
-`baseWeekly x rivalMarketCoverage (0.6) / rivalTargetLoadFactor (0.8)`, split 45/33/22% (profiles: fare x1.00/0.96/1.05, quality 0.55/0.5/0.45),
+**Sizing on carried demand (`route/rivalSizing.ts`).** Rivals used to be sized on the potential market, which on drivable pairs is mostly lost to the driving option (LAX-SAN carried 23%), so they flew nearly empty and diluted the player to a 17% load factor. A probe run with the rivals alone measures the share of demand an all-rival market carries (`airShare`); `buildRivals` then receives `baseWeekly x airShare`. Long-haul pairs carry 75-80%, so coverage moved from 0.6 to 0.8 of carried demand (long-haul results unchanged). Costs one extra choice run per route per day.
+
+Rival count by annual one-way demand *that flies* (see below): up to 1,500/wk 1 rival, up to 6,000/wk 2, above 3 (`rivalCountBands`). Combined rival seats =
+`carriedWeekly x rivalMarketCoverage (0.8) / rivalTargetLoadFactor (0.8)`, split 45/33/22% (profiles: fare x1.00/0.96/1.05, quality 0.55/0.5/0.45),
 aircraft of 90-250 seats by distance and market size, minimum 2 departures a week each. The one-stop rival is sized at a quarter of the
 rival direct frequency. Coverage 0.6 (not 1.0) because only about 75-80% of potential demand is carried after the outside option, so
 rivals alone run about 80% LF and a new player takes a share by diluting them.
@@ -206,13 +239,34 @@ Daily order in `stepDay`: deliveries, finished checks, checks falling due, sched
 - Delivered aircraft pay lease-equivalent ownership plus 600/day overhead whether flying or not; aircraft awaiting delivery pay nothing.
 
 ## 8. Starting scenario (`startingScenario(airports, types, seed)`)
-Skybridge Pacific, LAX, day 0 = 2015-01-01, USD 150M. Fleet 6x B737-800, 2x A320, 2x B757-200, 1x B767-300ER, 2x B777-200ER (ids from `@arg/data`), ages 2-14 years, default cabins
-(`defaultLayout`: narrow J 12 + Y 6-abreast, wide J 36 + optional W 28 + Y 8-10 abreast, about 86% / 78% of `maxSeats`). Routes (round trips a week, type): LAX-SFO 42 (737-800), LAX-SAN 14 (A320),
-LAX-HNL 14 (777-200ER), LAX-OGG 7 (757-200); fares at the benchmark curve. The 767 and four extra 737s are idle growth/spare capacity. Year-one cash change with seed 2015: about +20M.
+Skybridge Pacific, LAX, day 0 = 2015-01-01, USD 150M. Fleet 3x B737-800, 1x A320, 2x B757-200, 2x B777-200ER (ids from `@arg/data`), ages 2-14 years, default cabins
+(`defaultLayout`). It was 13 aircraft (6 737, 2 A320, 2 757, 1 767, 2 777): the four routes need 1.5 / 0.3 / 1.1 / 1.8 aircraft at 11 h/day, so the extra four 737s, one A320 and the 767 sat idle
+paying about USD 40M a year of lease and made the company margin negative once costs were realistic. One spare 737 remains so an SFO check does not under-supply the route.
+Routes (round trips a week, type): LAX-SFO 42 (737-800), LAX-SAN 14 (A320), LAX-HNL 14 (777-200ER), LAX-OGG 7 (757-200); fares from `startingFare`: the benchmark curve, except drivable
+sectors under 400 km, which fall linearly to 60% of it at zero distance (LAX-SAN 62 instead of 81 USD).
+
+LAX-SAN choice of fare and frequency (one A320, ownership charged, mean of four seasons, profit USD k/wk / load factor %; first row of fares is the fare in USD):
+
+| freq \ fare | 55 | 62 | 69 | 81 |
+|---|---|---|---|---|
+| 8 | 1 / 84 | -4 / 71 | -12 / 58 | -26 / 41 |
+| 10 | 10 / 89 | 6 / 76 | -4 / 63 | -22 / 46 |
+| 14 | 21 / 91 | 16 / 79 | 5 / 67 | -19 / 49 |
+| 18 | 20 / 88 | 15 / 76 | 1 / 65 | -22 / 59 |
+
+Profit is maximised at 14 to 16 a week at any fare, and the benchmark 81 USD fare loses money at every frequency, so the 17% load factor was a pricing problem (and the rival oversizing above), not a frequency problem.
+62 USD at 14/wk gives 73% local load factor and 78% with the feeder traffic for HNL/OGG/SFO (day 30), USD +16k a week. Startup state after this lane: passive airline margin about 10% a year (2015-2019), 3% in the 2022 fuel spike.
 
 ## 9. Hub connections (`route/routeModel.ts`)
 `evaluateHubConnection({ origin, hub, destination, leg1, leg2, types, day, ... })` (e.g. SAN-HNL via LAX): local traffic on each leg is simulated first with `simulateRouteWeek` and keeps its seats (local priority);
 the through market is `marketOnDay(origin, destination)` and the player's itinerary uses both legs with only the *remaining* seats as leg capacity, competing with the synthetic rival direct(s) and one-stop. The existing
 connection logic applies (`connectionFrequencyFactor` 0.6 on min leg frequency, layover, misconnect, `connectPenaltyMin`). Through passengers appear in `legs[i].connectingPassengers` and in each leg's load factor.
 `networkContribution(conn)` prorates the through fare (default 92% of benchmark) to the legs by great-circle distance (`leg1ProrateShare = d1 / (d1 + d2)`), adds each leg's own ledger revenue, and recomputes leg costs
-with the extra passengers on board; `proratedTotal` equals `throughRevenue`. This is a hook: `stepDay` does not yet include hub passengers in the daily finances.
+with the extra passengers on board; `proratedTotal` equals `throughRevenue`. `stepDay` includes hub passengers (section 9a).
+
+### 9a. Hub passengers in `stepDay` (`route/network.ts`, `evaluateNetwork`)
+After the local route weeks, every airport on two or more player routes is a hub. For each pair of spoke routes whose far ends differ and have no direct player route (SAN-HNL and SAN-OGG via LAX, SMF-HNL via LAX,
+SFO-HNL via LAX ...) `evaluateHubConnection` runs with the already simulated local weeks (`week1/week2`). Local passengers keep their seats; markets are served largest first (at most `NETWORK_LIMITS.maxMarkets` = 12 with potential at least 300/wk) and each takes seats from
+what earlier markets left (`reservedSeats1/2`), so a seat is never sold twice. Revenue: through fare (92% of benchmark) prorated by distance, both directions (`networkContribution`; the per-market proration sums to the through revenue, tested).
+Cost: the leg's ledger is re-run with the extra passengers aboard; the increase, minus the revenue-linked lines (distribution, overhead) recomputed on the through revenue rather than the leg fares, is booked as "Cost of carrying connecting passengers".
+The route's `evaluation` (load factor, passengers, revenue, costs, margin, ledger lines) and the daily revenue and costs include the result; `RouteReport.connecting` lists the markets. Starting network, day 30 (through passengers each way a week): LAX-SFO 129, LAX-SAN 107 (SFO-SAN 36, SAN-HNL 43, SAN-OGG 28), LAX-HNL 123, LAX-OGG 41; load factors 65 / 78 / 73 / 60%.

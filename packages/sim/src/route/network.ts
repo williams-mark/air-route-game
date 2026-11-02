@@ -52,6 +52,9 @@ export interface NetworkResult {
   deltaCosts: number;
 }
 
+/** At most this many through markets are evaluated per day (largest first); smaller ones are ignored. Keeps stepDay O(routes). */
+export const NETWORK_LIMITS = { maxMarkets: 12, minWeeklyDemand: 300 } as const;
+
 const P = LEDGER_PARAMS;
 const empty = (): NetworkResult => ({ evaluations: {}, connecting: {}, deltaRevenue: 0, deltaCosts: 0 });
 
@@ -101,6 +104,8 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
   }
   if (cands.length === 0) return out;
   cands.sort((x, y) => y.weekly - x.weekly || (x.r1.id + x.r2.id < y.r1.id + y.r2.id ? -1 : 1));
+  cands.splice(NETWORK_LIMITS.maxMarkets);
+  while (cands.length > 0 && cands[cands.length - 1]!.weekly < NETWORK_LIMITS.minWeeklyDemand) cands.pop();
 
   const reserved: Record<Id, number> = {};
   const acc: Record<Id, RouteConnecting> = {};

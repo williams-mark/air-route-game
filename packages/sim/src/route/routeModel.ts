@@ -78,7 +78,14 @@ export function premiumDistanceFactor(distKm: number): number {
 
 export function cabinsFor(route: Pick<Route, "fares">, type: AircraftType, aircraft: Aircraft | undefined, distKm?: number): CabinInput[] {
   const pf = distKm === undefined ? 1 : premiumDistanceFactor(distKm);
-  const fareFor = (cls: CabinClass, fares: Fares) => fares[cls] ?? fares.Y * (cls === "Y" ? 1 : PREMIUM_FARE_MULTIPLIER[cls] * pf);
+  const going = (cls: CabinClass) => (cls === "Y" ? 1 : PREMIUM_FARE_MULTIPLIER[cls] * pf);
+  const fareFor = (cls: CabinClass, fares: Fares) => fares[cls] ?? fares.Y * going(cls);
+  /** Premium cabins priced above the going multiple of economy fill less: weight (going / actual)^2, so revenue falls as 1/multiple. */
+  const fillScale = (cls: CabinClass, fares: Fares) => {
+    if (cls === "Y") return 1;
+    const mult = fareFor(cls, fares) / Math.max(1e-9, fares.Y);
+    return mult > going(cls) ? (going(cls) / mult) ** 2 : 1;
+  };
   if (aircraft) {
     const bySection = new Map<CabinClass, number>();
     for (const s of aircraft.layout.sections) {
@@ -87,7 +94,7 @@ export function cabinsFor(route: Pick<Route, "fares">, type: AircraftType, aircr
     const out: CabinInput[] = [];
     for (const cls of ["F", "J", "W", "Y"] as const) {
       const seats = bySection.get(cls);
-      if (seats) out.push({ cls, seats, fare: fareFor(cls, route.fares) });
+      if (seats) out.push({ cls, seats, fare: fareFor(cls, route.fares), fillScale: fillScale(cls, route.fares) });
     }
     if (out.length > 0) return out;
   }
@@ -104,7 +111,7 @@ export function cabinsFor(route: Pick<Route, "fares">, type: AircraftType, aircr
   for (const cls of ["F", "J", "W"] as const) {
     const seats = Math.round(total * share[cls]);
     if (seats > 0) {
-      cabins.push({ cls, seats, fare: fareFor(cls, f) });
+      cabins.push({ cls, seats, fare: fareFor(cls, f), fillScale: fillScale(cls, f) });
       used += seats;
     }
   }

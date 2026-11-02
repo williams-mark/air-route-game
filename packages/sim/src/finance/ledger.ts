@@ -35,6 +35,8 @@ export interface CabinInput {
   seats: number;
   /** One-way fare in USD. */
   fare: number;
+  /** Multiplier on the cabin's fill weight (default 1); premium cabins priced above the going multiple fill less. */
+  fillScale?: number;
 }
 
 export interface RouteInputs {
@@ -106,15 +108,19 @@ export function isRangeFeasible(distKm: number, aircraft: AircraftType): boolean
 /** Allocate passengers across cabins proportionally to seats x fill weight, capping at seats. */
 export function allocateCabins(cabins: CabinInput[], pax: number): number[] {
   const out = cabins.map(() => 0);
-  let left = Math.min(pax, cabins.reduce((s, c) => s + c.seats, 0));
+  // A cabin priced far above the going multiple (fillScale < 1) can only ever sell that fraction of its seats, so overflow
+  // demand cannot be dumped into a ridiculously priced premium cabin.
+  const cap = (i: number) => cabins[i]!.seats * Math.min(1, cabins[i]!.fillScale ?? 1);
+  let left = Math.min(pax, cabins.reduce((s, _c, i) => s + cap(i), 0));
   const active = new Set(cabins.map((_, i) => i).filter((i) => cabins[i]!.seats > 0));
   for (let guard = 0; guard < 8 && left > 1e-9 && active.size > 0; guard++) {
-    const wsum = [...active].reduce((s, i) => s + cabins[i]!.seats * P.cabinFillWeight[cabins[i]!.cls], 0);
+    const w = (i: number) => P.cabinFillWeight[cabins[i]!.cls] * (cabins[i]!.fillScale ?? 1);
+    const wsum = [...active].reduce((s, i) => s + cabins[i]!.seats * w(i), 0);
     let given = 0;
     for (const i of [...active]) {
       const c = cabins[i]!;
-      const want = (left * c.seats * P.cabinFillWeight[c.cls]) / wsum;
-      const room = c.seats - out[i]!;
+      const want = (left * c.seats * w(i)) / wsum;
+      const room = cap(i) - out[i]!;
       const g = Math.min(want, room);
       out[i]! += g;
       given += g;
