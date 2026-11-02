@@ -5,6 +5,7 @@ import type { RouteEvaluation } from "./finance/ledger";
 import type { Offer } from "./offers/types";
 import type { BankruptcyRecord, RivalsState } from "./rivals/types";
 import type { RouteConnecting } from "./route/network";
+import type { PlannerState } from "./planner/types";
 
 // ---------------------------------------------------------------------------
 // SimState: WorldState (from contracts) plus sim-internal state
@@ -141,6 +142,8 @@ export interface SimState {
   rivals: RivalsState | null;
   /** Airlines that failed, with the fleet they released (for the offers lane). Oldest first. */
   bankruptcies: BankruptcyRecord[];
+  /** Fleet-planner steering of the scheduler (pins, preferred types, spares). Absent = defaults. */
+  planner?: PlannerState;
   /** Monotonic counters for ids: route, aircraft, order. */
   counters: { route: number; aircraft: number; order: number };
 }

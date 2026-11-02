@@ -8,9 +8,20 @@ export const SCHEDULER_PARAMS = {
   blockHoursPerDay: { narrow: 9.5, wide: 12.5 },
 } as const;
 
+/** Planner steering resolved for one day (see planner/). Absent or empty = the default scheduler behaviour. */
+export interface AssignPrefs {
+  /** Aircraft id -> route id it should fly first, when active and able to serve the pair. */
+  pins?: ReadonlyMap<Id, Id>;
+  /** Route id -> ordered fallback type ids tried (after the requested type) before the same-size-class substitutes. */
+  routeTypes?: ReadonlyMap<Id, readonly Id[]>;
+  /** Aircraft held back as spares: not scheduled at all (a pin on the aircraft overrides). */
+  reserved?: ReadonlySet<Id>;
+}
+
 export interface ScheduleContext {
   airports: ReadonlyMap<Id, Airport>;
   types: ReadonlyMap<Id, AircraftType>;
+  prefs?: AssignPrefs;
 }
 
 export interface AircraftLoad {
@@ -45,8 +56,9 @@ export function weeklyCapacityHours(type: AircraftType): number {
 export function assign(routes: readonly Route[], fleet: readonly Aircraft[], ctx: ScheduleContext): ScheduleResult {
   const free = new Map<Id, number>();
   const loads: Record<Id, AircraftLoad> = {};
+  const prefs = ctx.prefs;
   const active = fleet
-    .filter((ac) => ac.status === "active" && ctx.types.has(ac.typeId))
+    .filter((ac) => ac.status === "active" && ctx.types.has(ac.typeId) && !(prefs?.reserved?.has(ac.id) && !prefs.pins?.has(ac.id)))
     .sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
   for (const ac of active) {
     free.set(ac.id, weeklyCapacityHours(ctx.types.get(ac.typeId)!));
@@ -75,20 +87,54 @@ export function assign(routes: readonly Route[], fleet: readonly Aircraft[], ctx
     };
   }
 
+  const usedBy = new Map<Id, Map<Id, number>>();
+  const leftBy = new Map<Id, number>();
+  for (const p of prepared) { usedBy.set(p.route.id, new Map()); leftBy.set(p.route.id, p.route.weeklyFrequency); }
+
+  // Pins first (all routes), so a pinned aircraft is not taken by an earlier route in the main order.
+  if (prefs?.pins && prefs.pins.size > 0) {
+    for (const ac of active) {
+      const rid = prefs.pins.get(ac.id);
+      const p = rid === undefined ? undefined : prepared.find((q) => q.route.id === rid);
+      if (!p || !p.a || !p.b || !p.reqType) continue;
+      const type = ctx.types.get(ac.typeId)!;
+      if (!typeCanServe(p.a, p.b, type)) continue;
+      const left = leftBy.get(p.route.id)!;
+      const rt = 2 * blockHours(p.dist, type);
+      const k = Math.min(left, Math.floor((free.get(ac.id)! + 1e-9) / rt));
+      if (k < 1) continue;
+      const res = out[p.route.id]!;
+      free.set(ac.id, free.get(ac.id)! - k * rt);
+      const load = loads[ac.id]!;
+      load.blockHoursPerWeek += k * rt;
+      load.assignments.push({ routeId: p.route.id, roundTrips: k, blockHoursPerRoundTrip: rt });
+      const used = usedBy.get(p.route.id)!;
+      used.set(ac.id, (used.get(ac.id) ?? 0) + k * rt);
+      res.scheduledFrequency += k;
+      res.blockHoursPerWeek += k * rt;
+      if (type.id !== p.reqType.id) res.substitutedFrequency += k;
+      leftBy.set(p.route.id, left - k);
+    }
+  }
+
   for (const p of order) {
     const { route, a, b, reqType } = p;
     const res = out[route.id]!;
     if (!a || !b || !reqType) continue;
-    let left = route.weeklyFrequency;
-    const used = new Map<Id, number>();
-    for (const pass of ["requested", "substitute"] as const) {
+    let left = leftBy.get(route.id)!;
+    const used = usedBy.get(route.id)!;
+    const fallbacks = (prefs?.routeTypes?.get(route.id) ?? []).filter((t) => t !== reqType.id);
+    const passes: Array<"requested" | "substitute" | string> = ["requested", ...fallbacks.map((t) => `type:${t}`), "substitute"];
+    for (const pass of passes) {
       while (left > 0) {
         const cands = active
           .map((ac) => ({ ac, type: ctx.types.get(ac.typeId)! }))
           .filter(({ type }) =>
             pass === "requested"
               ? type.id === reqType.id && typeCanServe(a, b, type)
-              : type.id !== reqType.id && type.widebody === reqType.widebody && typeCanServe(a, b, type))
+              : pass.startsWith("type:")
+                ? type.id === pass.slice(5) && typeCanServe(a, b, type)
+                : type.id !== reqType.id && type.widebody === reqType.widebody && typeCanServe(a, b, type))
           .map(({ ac, type }) => {
             const rt = 2 * blockHours(p.dist, type);
             return { ac, type, rt, fit: Math.floor((free.get(ac.id)! + 1e-9) / rt) };
@@ -105,7 +151,7 @@ export function assign(routes: readonly Route[], fleet: readonly Aircraft[], ctx
         used.set(pick.ac.id, (used.get(pick.ac.id) ?? 0) + k * pick.rt);
         res.scheduledFrequency += k;
         res.blockHoursPerWeek += k * pick.rt;
-        if (pass === "substitute") res.substitutedFrequency += k;
+        if (pass !== "requested") res.substitutedFrequency += k;
         left -= k;
       }
     }

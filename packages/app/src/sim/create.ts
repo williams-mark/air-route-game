@@ -1,5 +1,7 @@
 import { seedRoutes } from "../routes/seed";
 import { MockSimBridge, type SimBridge } from "./bridge";
+import { aircraftTypes, airports } from "@arg/data";
+import { plannerDemoFleet } from "@arg/sim";
 import { RealSimBridge } from "./realBridge";
 import { startScreenWanted } from "../save/saves";
 
@@ -19,7 +21,9 @@ export function createBridge(search: string = typeof location !== "undefined" ? 
     return b;
   }
   const seed = Number(q.get("seed"));
-  const b = new RealSimBridge({ seed: q.has("seed") && Number.isFinite(seed) ? seed : 2015, startPaused });
+  const s0 = q.has("seed") && Number.isFinite(seed) ? seed : 2015;
+  // ?fleetdemo: a 35-aircraft test fleet with 10+ routes for the fleet planner (screenshots, QA).
+  const b = new RealSimBridge({ seed: s0, startPaused, ...(q.has("fleetdemo") ? { initial: plannerDemoFleet(airports, aircraftTypes, s0) } : {}) });
   const ff = Number(q.get("ff"));
   if (ff > 0) b.stepDays(Math.min(ff, 3650));
   b.start();

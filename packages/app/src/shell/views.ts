@@ -1,11 +1,12 @@
 import type { ComponentType } from "react";
 import type { ViewId } from "../store";
-import { IconFinance, IconFleet, IconCabin, IconMap, IconOrders, IconRoutes, IconSettings, IconRivals } from "./icons";
+import { IconFinance, IconFleet, IconPlanner, IconCabin, IconMap, IconOrders, IconRoutes, IconSettings, IconRivals } from "./icons";
 
 export const VIEWS: Array<{ id: ViewId; label: string; Icon: ComponentType<{ size?: number }> }> = [
   { id: "map", label: "Map", Icon: IconMap },
   { id: "routes", label: "Routes", Icon: IconRoutes },
   { id: "fleet", label: "Fleet", Icon: IconFleet },
+  { id: "planner", label: "Planner", Icon: IconPlanner },
   { id: "orders", label: "Orders / Offers", Icon: IconOrders },
   { id: "finance", label: "Finance", Icon: IconFinance },
   { id: "rivals", label: "Rivals", Icon: IconRivals },

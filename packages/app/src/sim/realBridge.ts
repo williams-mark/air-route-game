@@ -4,7 +4,7 @@
 import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as dataAirports } from "@arg/data";
 import {
-  applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, type CabinCommand, type OfferCommand, startingScenario, stepDay,
+  applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay,
   type AutoSlowHook, type Clock, type SimState,
 } from "@arg/sim";
 import type {
@@ -243,7 +243,9 @@ export class RealSimBridge implements SimBridge {
     this.emit();
   }
 
-  dispatch(cmd: Command | OfferCommand | CabinCommand): CommandResult | void {
+  getSim = (): SimState => this.sim;
+
+  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand): CommandResult | void {
     if (cmd.kind === "setSpeed") {
       if (![0, 1, 2, 3, 4, 5].includes(cmd.speed)) return { ok: false, error: { code: "invalid_speed", message: "Speed must be 0 to 5." } };
       this.setSpeed(cmd.speed);

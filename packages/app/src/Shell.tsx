@@ -22,6 +22,7 @@ import "./routes/routes.css";
 const LAZY: Partial<Record<ViewId, ReturnType<typeof lazy>>> = {
   routes: lazy(() => import("./views/RoutesView")),
   fleet: lazy(() => import("./views/FleetView")),
+  planner: lazy(() => import("./views/PlannerView")),
   orders: lazy(() => import("./views/OrdersView")),
   cabin: lazy(() => import("./views/CabinView")),
   finance: lazy(() => import("./views/FinanceView")),
