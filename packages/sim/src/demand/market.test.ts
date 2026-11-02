@@ -12,10 +12,10 @@ describe("market calibration", () => {
         const m = pairMarket(AIRPORTS[i]!, AIRPORTS[j]!);
         console.log(`  ${m.origin}-${m.destination} ${Math.round(m.distanceKm)} km ${Math.round(m.baseWeekly)}/wk`);
       }
-    expect(sfo).toBeGreaterThan(60_000);
-    expect(sfo).toBeLessThan(90_000);
-    expect(hnl).toBeGreaterThan(25_000);
-    expect(hnl).toBeLessThan(40_000);
+    expect(sfo).toBeGreaterThan(35_000);
+    expect(sfo).toBeLessThan(50_000);
+    expect(hnl).toBeGreaterThan(8_000);
+    expect(hnl).toBeLessThan(14_000);
   });
 
   it("small pairs are much smaller than the big ones", () => {

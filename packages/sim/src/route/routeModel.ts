@@ -23,6 +23,14 @@ export const PREMIUM_FARE_MULTIPLIER: Record<CabinClass, number> = { F: 5, J: 3.
 /** Default layout shares of seats when a route has no fleet aircraft assigned yet. */
 export const DEFAULT_SEAT_FRACTION = { narrow: 0.9, wide: 0.7 } as const;
 
+/** Choice parameters used by the route model: soft capacity spill and seat-share weighting switched on. */
+export const ROUTE_CHOICE_PARAMS: ChoiceParams = {
+  ...DEFAULT_CHOICE_PARAMS,
+  spillCv: 0.2,
+  fareScaleExponent: 1,
+  capacityShareExponent: 1,
+};
+
 export interface RouteModelConfig {
   market: MarketParams;
   choice: ChoiceParams;
@@ -34,16 +42,29 @@ export interface RouteModelConfig {
   /** Rival one-stop itinerary is added for pairs at least this long (km). */
   rivalConnectingMinKm: number;
   rivalConnectingFareFactor: number;
+  /** Rivals' combined seats serve this fraction of the annual-average potential market (at the target load factor). */
+  rivalMarketCoverage: number;
+  /** Rival count by potential one-way weekly demand: [upTo, count] pairs, last entry applies above. */
+  rivalCountBands: ReadonlyArray<readonly [upToWeekly: number, count: number]>;
+  /** Capacity split, fare multiplier and quality offset of rivals 1..3 (first n used). */
+  rivalProfiles: ReadonlyArray<{ seatShare: number; fareFactor: number; quality: number }>;
 }
 
 export const DEFAULT_ROUTE_MODEL_CONFIG: RouteModelConfig = {
   market: DEFAULT_MARKET_PARAMS,
-  choice: DEFAULT_CHOICE_PARAMS,
+  choice: ROUTE_CHOICE_PARAMS,
   rivalTargetLoadFactor: 0.8,
   rivalFareFactor: 1.0,
   rivalQuality: 0.5,
   rivalConnectingMinKm: 800,
   rivalConnectingFareFactor: 0.85,
+  rivalMarketCoverage: 0.6,
+  rivalCountBands: [[1500, 1], [6000, 2], [Infinity, 3]],
+  rivalProfiles: [
+    { seatShare: 0.45, fareFactor: 1.0, quality: 0.55 },
+    { seatShare: 0.33, fareFactor: 0.96, quality: 0.5 },
+    { seatShare: 0.22, fareFactor: 1.05, quality: 0.45 },
+  ],
 };
 
 export function cabinsFor(route: Pick<Route, "fares">, type: AircraftType, aircraft: Aircraft | undefined): CabinInput[] {
@@ -153,22 +174,31 @@ export function simulateRouteWeek(
     legs: [makeLeg(`player:${route.id}`, a.id, b.id, dist, type.cruiseKmh, flownFreq, seatsPerFlight)],
     fare: route.fares.Y,
     quality: 0.5,
+    marketDistanceKm: dist,
   };
 
-  // Synthetic rest-of-market: one direct rival sized to the annual-average market, plus a one-stop rival.
-  const rivalSeats = dist > 3000 ? 250 : dist > 1200 ? 180 : 140;
-  const rivalFreq = Math.max(3, Math.ceil(market.baseWeekly / cfg.rivalTargetLoadFactor / rivalSeats));
-  const rivalFare = benchmarkFare(dist) * cfg.rivalFareFactor;
-  const rivals: Itinerary[] = [
-    {
-      id: `rival:${a.id}-${b.id}`, carrier: "rival", fare: rivalFare, quality: cfg.rivalQuality,
-      legs: [makeLeg(`rival:${a.id}-${b.id}`, a.id, b.id, dist, 840, rivalFreq, rivalSeats)],
-    },
-  ];
-  if (dist >= cfg.rivalConnectingMinKm) {
-    const f = Math.max(3, Math.ceil(rivalFreq / 3));
+  // Synthetic rest-of-market: 1-3 direct rivals sized to the annual-average market, plus a one-stop rival.
+  const rivalSeats = dist > 3000 ? 250 : dist > 1200 ? 180 : dist < 400 && market.baseWeekly < 6000 ? 90 : 140;
+  const nRivals = (cfg.rivalCountBands.find(([upTo]) => market.baseWeekly <= upTo) ?? cfg.rivalCountBands[cfg.rivalCountBands.length - 1]!)[1];
+  const profiles = cfg.rivalProfiles.slice(0, nRivals);
+  const profileTotal = profiles.reduce((s, r) => s + r.seatShare, 0);
+  const totalRivalSeats = (market.baseWeekly * cfg.rivalMarketCoverage) / cfg.rivalTargetLoadFactor;
+  const benchFare = benchmarkFare(dist) * cfg.rivalFareFactor;
+  const rivals: Itinerary[] = [];
+  let totalRivalFreq = 0;
+  profiles.forEach((pf, k) => {
+    const freq = Math.max(2, Math.ceil((totalRivalSeats * pf.seatShare) / profileTotal / rivalSeats));
+    totalRivalFreq += freq;
+    const id = `rival${k + 1}:${a.id}-${b.id}`;
     rivals.push({
-      id: `conn:${a.id}-${b.id}`, carrier: "conn", fare: rivalFare * cfg.rivalConnectingFareFactor, quality: cfg.rivalQuality,
+      id, marketDistanceKm: dist, carrier: `rival${k + 1}`, fare: benchFare * pf.fareFactor, quality: pf.quality + (cfg.rivalQuality - 0.5),
+      legs: [makeLeg(id, a.id, b.id, dist, 840, freq, rivalSeats)],
+    });
+  });
+  if (dist >= cfg.rivalConnectingMinKm) {
+    const f = Math.max(2, Math.ceil(totalRivalFreq / 4));
+    rivals.push({
+      id: `conn:${a.id}-${b.id}`, marketDistanceKm: dist, carrier: "conn", fare: benchFare * cfg.rivalConnectingFareFactor, quality: cfg.rivalQuality,
       legs: [
         makeLeg(`conn:${a.id}-hub`, a.id, "HUB", dist * 0.55, 840, f, rivalSeats),
         makeLeg(`conn:hub-${b.id}`, "HUB", b.id, dist * 0.7, 840, f, rivalSeats),
