@@ -1,9 +1,13 @@
 import type {
-  Aircraft, AircraftType, Airport, FinanceSnapshot, Id, MarketSnapshot, SimEvent, WorldState,
+  Aircraft, AircraftType, Airport, FinanceSnapshot, Id, Route, SimEvent, WorldState,
 } from "@arg/contracts";
-import { monthlyOwnershipUsd, type RouteEvaluation } from "./finance/ledger";
-import { routeAircraftNeed, simulateRouteWeek } from "./route/routeModel";
-import { makeRng } from "./rng";
+import { monthlyOwnershipUsd } from "./finance/ledger";
+import { simulateRouteWeek } from "./route/routeModel";
+import { makeRng, mixSeed } from "./rng";
+import { checkCostUsd, checkEndDay, dueCheck, initialMeta, MAINTENANCE_PARAMS, resetAfterCheck } from "./fleet/maintenance";
+import { assign } from "./fleet/scheduler";
+import { pushEvents } from "./commands";
+import { DEFAULT_SIM_PARAMS, type AircraftMeta, type CheckKind, type RouteReport, type SimParams, type SimState } from "./state";
 
 export { makeRng };
 export * from "./demand/market";
@@ -13,56 +17,33 @@ export * from "./finance/fuel";
 export * from "./time/clock";
 export * from "./time/calendar";
 export { distanceKm, haversineKm } from "./geo";
-export { simulateRouteWeek, routeAircraftNeed, cabinsFor, DEFAULT_ROUTE_MODEL_CONFIG } from "./route/routeModel";
-export type { RouteWeek, RouteModelConfig, RouteWeekOptions } from "./route/routeModel";
+export {
+  simulateRouteWeek, routeAircraftNeed, cabinsFor, DEFAULT_ROUTE_MODEL_CONFIG, ROUTE_CHOICE_PARAMS,
+  evaluateHubConnection, networkContribution,
+} from "./route/routeModel";
+export type {
+  RouteWeek, RouteModelConfig, RouteWeekOptions, HubConnection, HubConnectionInput, NetworkContribution,
+} from "./route/routeModel";
 
-// ---------------------------------------------------------------------------
-// SimState: WorldState (from contracts) plus sim-internal state
-// ---------------------------------------------------------------------------
-
-/** Latest per-route result, for the UI "why" ledger. Weekly figures; the daily P&L is weekly / 7. */
-export interface RouteReport {
-  routeId: Id;
-  day: number;
-  evaluation: RouteEvaluation;
-  market: MarketSnapshot;
-  operatedFraction: number;
-  /** True when the player owns no aircraft of the route's type, so ownership is notionally leased. */
-  notionalFleet: boolean;
-}
-
-export interface SimParams {
-  /** Corporate overhead per day, USD. */
-  corporateOverheadPerDay: number;
-  /** Extra overhead per owned aircraft per day (crew base, hangar, insurance). */
-  overheadPerAircraftPerDay: number;
-  /** Demand noise amplitude (peak-to-peak fraction). */
-  demandNoise: number;
-  /** How many daily snapshots to keep. */
-  snapshotHistory: number;
-}
-
-export const DEFAULT_SIM_PARAMS: SimParams = {
-  corporateOverheadPerDay: 8000,
-  overheadPerAircraftPerDay: 600,
-  demandNoise: 0.03,
-  snapshotHistory: 800,
-};
-
-export interface SimState {
-  world: WorldState;
-  airports: Airport[];
-  aircraftTypes: AircraftType[];
-  params: SimParams;
-  /** Rolling history of daily snapshots (oldest first). */
-  snapshots: FinanceSnapshot[];
-  routeReports: Record<Id, RouteReport>;
-  /** Events emitted by the most recent step. */
-  events: SimEvent[];
-}
+export * from "./state";
+export * from "./commands";
+export * from "./scenario";
+export * from "./fleet/layout";
+export * from "./fleet/maintenance";
+export * from "./fleet/scheduler";
+export { mixSeed } from "./rng";
 
 export function newWorld(seed: number): WorldState {
   return { seed, day: 0, playerId: "player", cash: 100_000_000, routes: [], fleet: [] };
+}
+
+export interface StartOptions {
+  cash?: number;
+  fleet?: Aircraft[];
+  routes?: Route[];
+  airlineName?: string;
+  baseAirport?: Id | null;
+  day?: number;
 }
 
 export function newSim(
@@ -70,28 +51,40 @@ export function newSim(
   airports: Airport[],
   aircraftTypes: AircraftType[],
   params: Partial<SimParams> = {},
+  start: StartOptions = {},
 ): SimState {
+  const world = newWorld(seed);
+  if (start.cash !== undefined) world.cash = start.cash;
+  if (start.day !== undefined) world.day = start.day;
+  world.fleet = (start.fleet ?? []).map((ac) => ({ ...ac, layout: ac.layout, hoursSinceCheck: { ...ac.hoursSinceCheck } }));
+  world.routes = (start.routes ?? []).map((r) => ({ ...r, fares: { ...r.fares } }));
+  const rng = makeRng(mixSeed(seed, 0x5eed));
+  const fleetMeta: Record<Id, AircraftMeta> = {};
+  for (const ac of world.fleet) fleetMeta[ac.id] = initialMeta(ac, rng);
   return {
-    world: newWorld(seed),
+    world,
     airports,
     aircraftTypes,
     params: { ...DEFAULT_SIM_PARAMS, ...params },
+    airlineName: start.airlineName ?? "Player Airline",
+    baseAirport: start.baseAirport ?? null,
+    speed: 0,
     snapshots: [],
     routeReports: {},
     events: [],
+    pendingEvents: [],
+    fleetMeta,
+    orders: [],
+    counters: { route: world.routes.length, aircraft: world.fleet.length, order: 0 },
   };
 }
+
 
 function isSimState(s: WorldState | SimState): s is SimState {
   return "world" in s;
 }
 
-function mixSeed(seed: number, day: number): number {
-  let h = (seed ^ Math.imul(day + 1, 0x9e3779b1)) >>> 0;
-  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b) >>> 0;
-  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
-  return (h ^ (h >>> 16)) >>> 0;
-}
+const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /** Advance a bare world one day (no economy; kept for callers that have no airport data). */
 export function stepDay(state: WorldState): WorldState;
@@ -105,31 +98,99 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   const airports = new Map(state.airports.map((a) => [a.id, a]));
   const types = new Map(state.aircraftTypes.map((t) => [t.id, t]));
   const rng = makeRng(mixSeed(world.seed, day));
+  const notices: SimEvent[] = [];
+  const say = (text: string) => notices.push({ kind: "notice", day, text });
+  const ctx = { airports, types };
 
-  // Fleet capacity by type, shared across that type's routes.
-  const fleetByType = new Map<Id, Aircraft[]>();
-  for (const ac of world.fleet) {
+  // Work on private copies so the input state is never modified.
+  const fleet: Aircraft[] = world.fleet.map((ac) => ({ ...ac, hoursSinceCheck: { ...ac.hoursSinceCheck } }));
+  const meta: Record<Id, AircraftMeta> = {};
+  for (const ac of fleet) {
+    const m = state.fleetMeta[ac.id] ?? initialMeta(ac, makeRng(mixSeed(world.seed, 977 + fleet.indexOf(ac))));
+    meta[ac.id] = { ...m, daysSince: { ...m.daysSince }, intervals: { ...m.intervals } };
+  }
+  const byId = [...fleet].sort((x, y) => cmp(x.id, y.id));
+  let cashAdjust = 0;
+  let checkCosts = 0;
+
+  // 1. Deliveries: the deposit is credited back as the aircraft joins the financed fleet.
+  for (const ac of byId) {
+    const m = meta[ac.id]!;
+    if (ac.status === "delivery" && m.deliveryDay !== null && m.deliveryDay <= day) {
+      ac.status = "active";
+      ac.ageDays = 0;
+      const order = state.orders.find((o) => o.id === m.orderId);
+      if (order) cashAdjust += order.depositUsd / order.count;
+      m.deliveryDay = null;
+      say(`Delivered ${ac.tailNumber} (${ac.typeId})${order ? ` from ${order.id}` : ""}.`);
+    }
+  }
+
+  // 2. Heavy checks that finish today.
+  for (const ac of byId) {
+    const m = meta[ac.id]!;
+    if (ac.status === "maintenance" && m.maintenance && m.maintenance.endDay <= day) {
+      say(`${ac.tailNumber} (${ac.typeId}) is back in service after its ${m.maintenance.check} check.`);
+      m.maintenance = null;
+      ac.status = "active";
+    }
+  }
+
+  // 3. Checks that fall due. A checks happen overnight (cost, no downtime). Heavier checks are deferred
+  //    (up to the grace period) when pulling the aircraft would leave scheduled flights uncovered.
+  let baseline: number | null = null;
+  for (const ac of byId) {
+    const m = meta[ac.id]!;
     if (ac.status !== "active") continue;
-    const list = fleetByType.get(ac.typeId) ?? [];
-    list.push(ac);
-    fleetByType.set(ac.typeId, list);
+    const kind = dueCheck(ac, m);
+    if (!kind) continue;
+    const type = types.get(ac.typeId);
+    if (!type) continue;
+    const cost = checkCostUsd(type, kind);
+    if (kind === "A") {
+      checkCosts += cost;
+      resetAfterCheck(ac, m, "A");
+      say(`${ac.tailNumber} A check done overnight ($${Math.round(cost / 1000)}k).`);
+      continue;
+    }
+    if (m.deferredDays < MAINTENANCE_PARAMS.graceDays && world.routes.length > 0) {
+      baseline ??= baselineTotalsWith(world.routes, fleet, ctx);
+      ac.status = "maintenance";
+      const without = baselineTotalsWith(world.routes, fleet, ctx);
+      ac.status = "active";
+      if (without < baseline) {
+        if (m.deferredDays === 0) say(`${ac.tailNumber} ${kind} check is due but no spare aircraft can cover it; deferring up to ${MAINTENANCE_PARAMS.graceDays} days.`);
+        m.deferredDays += 1;
+        continue;
+      }
+    }
+    const down = MAINTENANCE_PARAMS.downtimeDays[kind];
+    ac.status = "maintenance";
+    m.maintenance = { check: kind, startDay: day, endDay: checkEndDay(kind, day), cost };
+    m.deferredDays = 0;
+    resetAfterCheck(ac, m, kind);
+    checkCosts += cost;
+    baseline = null; // the active set changed
+    say(`${ac.tailNumber} (${ac.typeId}) enters ${kind} check for ${down} days ($${(cost / 1e6).toFixed(2)}M).`);
   }
-  const needByType = new Map<Id, number>();
-  for (const r of world.routes) {
-    needByType.set(r.typeId, (needByType.get(r.typeId) ?? 0) + routeAircraftNeed(r, airports, types));
-  }
+
+  // 4. Schedule the active fleet onto routes.
+  const schedule = assign(world.routes, fleet, ctx);
+  const fleetById = new Map(fleet.map((ac) => [ac.id, ac]));
+  const ownedTypes = new Set(fleet.filter((ac) => ac.status !== "delivery").map((ac) => ac.typeId));
 
   let revenue = 0;
   let routeCosts = 0;
   const reports: Record<Id, RouteReport> = {};
   for (const route of world.routes) {
-    const fleet = fleetByType.get(route.typeId) ?? [];
-    const need = needByType.get(route.typeId) ?? 0;
-    const notional = fleet.length === 0;
-    const fraction = notional || need <= 0 ? 1 : Math.min(1, fleet.length / need);
+    const notional = params.notionalFleet && !ownedTypes.has(route.typeId);
+    const sched = schedule.routes[route.id];
+    const fraction = notional || !sched ? 1 : sched.scheduledFrequency / route.weeklyFrequency;
+    const flying = sched ? sched.aircraftIds.map((id) => fleetById.get(id)!).filter(Boolean) : [];
+    const layoutSource = flying.length > 0 ? flying : fleet.filter((ac) => ac.typeId === route.typeId && ac.status !== "delivery");
     const noise = 1 + (rng() - 0.5) * params.demandNoise;
     const week = simulateRouteWeek(route, airports, types, day, {
-      fleetAircraft: fleet,
+      fleetAircraft: notional ? [] : layoutSource,
       operatedFraction: fraction,
       demandScale: noise,
       chargeOwnership: notional,
@@ -144,36 +205,66 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
       market: week.snapshot,
       operatedFraction: fraction,
       notionalFleet: notional,
+      scheduling: notional ? null : sched ?? null,
     };
+    const prev = state.routeReports[route.id]?.scheduling;
+    if (!notional && sched) {
+      const before = prev?.underSupplied ?? 0;
+      if (sched.underSupplied > 0 && before === 0) {
+        say(`${route.origin}-${route.destination} is under-supplied: ${sched.scheduledFrequency} of ${route.weeklyFrequency} weekly round trips can be flown.`);
+      } else if (sched.underSupplied === 0 && before > 0) {
+        say(`${route.origin}-${route.destination} is back to its full ${route.weeklyFrequency}/wk schedule.`);
+      }
+    }
   }
 
-  // Fleet-level costs: lease for every owned aircraft whether or not it flies, plus overhead.
-  let fleetCost = params.corporateOverheadPerDay;
-  for (const ac of world.fleet) {
+  // 5. Utilisation: flight hours and cycles from the schedule, calendar counters, ageing.
+  for (const ac of fleet) {
+    const m = meta[ac.id]!;
+    const load = schedule.aircraft[ac.id];
+    const hours = load ? load.blockHoursPerWeek / 7 : 0;
+    const cycles = load ? load.assignments.reduce((s, a) => s + (2 * a.roundTrips) / 7, 0) : 0;
+    m.flightHours += hours;
+    m.cycles += cycles;
+    for (const k of ["A", "B", "C", "D"] as CheckKind[]) ac.hoursSinceCheck[k] += hours;
+    if (ac.status !== "delivery") {
+      if (ac.status !== "maintenance") for (const k of ["B", "C", "D"] as const) m.daysSince[k] += 1;
+      ac.ageDays += 1;
+    }
+  }
+
+  // 6. Fleet-level costs: lease for every delivered aircraft whether or not it flies, plus overhead and checks.
+  let fleetCost = params.corporateOverheadPerDay + checkCosts;
+  for (const ac of fleet) {
+    if (ac.status === "delivery") continue;
     const t = types.get(ac.typeId);
     if (t) fleetCost += monthlyOwnershipUsd(t) / 30.4375 + params.overheadPerAircraftPerDay;
   }
   const costs = routeCosts + fleetCost;
   const profit = revenue - costs;
-  const cash = world.cash + profit;
+  const cash = world.cash + profit + cashAdjust;
   const snapshot: FinanceSnapshot = { day, cash, revenue, costs, profit };
 
   const snapshots = state.snapshots.length >= params.snapshotHistory
     ? [...state.snapshots.slice(state.snapshots.length - params.snapshotHistory + 1), snapshot]
     : [...state.snapshots, snapshot];
 
-  return {
+  const events: SimEvent[] = [{ kind: "tick", day: day + 1 }, { kind: "finance", snapshot }];
+  const next: SimState = {
     ...state,
-    world: {
-      ...world,
-      day: day + 1,
-      cash,
-      fleet: world.fleet.map((ac) => ({ ...ac, ageDays: ac.ageDays + 1 })),
-    },
+    world: { ...world, day: day + 1, cash, fleet },
     snapshots,
     routeReports: reports,
-    events: [{ kind: "tick", day: day + 1 }, { kind: "finance", snapshot }],
+    events,
+    fleetMeta: meta,
   };
+  return pushEvents(next, [...events, ...notices]);
+}
+
+/** Total scheduled round trips with the fleet as given (used to test whether pulling an aircraft loses flights). */
+function baselineTotalsWith(routes: readonly Route[], fleet: readonly Aircraft[], ctx: Parameters<typeof assign>[2]): number {
+  const r = assign(routes, fleet, ctx);
+  return Object.values(r.routes).reduce((s, x) => s + x.scheduledFrequency, 0);
 }
 
 /** Convenience: step `n` days. */
