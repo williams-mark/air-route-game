@@ -15,10 +15,10 @@ describe("startingScenario", () => {
 
   it("has the specified fleet and routes", () => {
     const count = (id: string) => s.world.fleet.filter((a) => a.typeId === id).length;
-    expect([count("B737-800"), count("A320"), count("B757-200"), count("B767-300ER"), count("B777-200ER")]).toEqual([6, 2, 2, 1, 2]);
-    expect(s.world.fleet).toHaveLength(13);
+    expect([count("B737-800"), count("A320"), count("B757-200"), count("B767-300ER"), count("B777-200ER")]).toEqual([3, 1, 2, 0, 2]);
+    expect(s.world.fleet).toHaveLength(8);
     expect(s.world.fleet.every((a) => a.status === "active")).toBe(true);
-    expect(new Set(s.world.fleet.map((a) => a.tailNumber)).size).toBe(13);
+    expect(new Set(s.world.fleet.map((a) => a.tailNumber)).size).toBe(8);
     expect(s.world.routes.map((r) => `${r.origin}-${r.destination}`)).toEqual(["LAX-SFO", "LAX-SAN", "LAX-HNL", "LAX-OGG"]);
   });
 

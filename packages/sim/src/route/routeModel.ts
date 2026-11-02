@@ -11,11 +11,11 @@ import {
 import { marketOnDay, SEGMENTS, segmentMap, type DayMarket, type MarketParams, DEFAULT_MARKET_PARAMS } from "../demand/market";
 import { distanceKm } from "../geo";
 import { cabinFillRatios, layoutEffects } from "../cabin/effects";
+import { rivalSizingMarket } from "./rivalSizing";
 import {
   aircraftEquivalentFor,
   blockHours,
   evaluateRoute,
-  LEDGER_PARAMS,
   type CabinInput,
   type RouteEvaluation,
 } from "../finance/ledger";
@@ -60,7 +60,7 @@ export const DEFAULT_ROUTE_MODEL_CONFIG: RouteModelConfig = {
   rivalQuality: 0.5,
   rivalConnectingMinKm: 800,
   rivalConnectingFareFactor: 0.85,
-  rivalMarketCoverage: 0.6,
+  rivalMarketCoverage: 0.8,
   rivalCountBands: [[1500, 1], [6000, 2], [Infinity, 3]],
   rivalProfiles: [
     { seatShare: 0.45, fareFactor: 1.0, quality: 0.55 },
@@ -69,8 +69,24 @@ export const DEFAULT_ROUTE_MODEL_CONFIG: RouteModelConfig = {
   ],
 };
 
-export function cabinsFor(route: Pick<Route, "fares">, type: AircraftType, aircraft: Aircraft | undefined): CabinInput[] {
-  const fareFor = (cls: CabinClass, fares: Fares) => fares[cls] ?? fares.Y * PREMIUM_FARE_MULTIPLIER[cls];
+/**
+ * Premium cabins earn less over economy on short sectors (a 12-seat domestic first class on a 540 km hop sells at about 2x
+ * economy, not 3.2x). Scales the unpriced-cabin multiplier from 0.55 at zero distance to 1.0 at 3500 km and beyond.
+ */
+export function premiumDistanceFactor(distKm: number): number {
+  return 0.55 + 0.45 * Math.min(1, Math.max(0, distKm) / 3500);
+}
+
+export function cabinsFor(route: Pick<Route, "fares">, type: AircraftType, aircraft: Aircraft | undefined, distKm?: number): CabinInput[] {
+  const pf = distKm === undefined ? 1 : premiumDistanceFactor(distKm);
+  const going = (cls: CabinClass) => (cls === "Y" ? 1 : PREMIUM_FARE_MULTIPLIER[cls] * pf);
+  const fareFor = (cls: CabinClass, fares: Fares) => fares[cls] ?? fares.Y * going(cls);
+  /** Premium cabins priced above the going multiple of economy fill less: weight (going / actual)^2, so revenue falls as 1/multiple. */
+  const fillScale = (cls: CabinClass, fares: Fares) => {
+    if (cls === "Y") return 1;
+    const mult = fareFor(cls, fares) / Math.max(1e-9, fares.Y);
+    return mult > going(cls) ? (going(cls) / mult) ** 2 : 1;
+  };
   if (aircraft) {
     const bySection = new Map<CabinClass, number>();
     for (const s of aircraft.layout.sections) {
@@ -79,7 +95,7 @@ export function cabinsFor(route: Pick<Route, "fares">, type: AircraftType, aircr
     const out: CabinInput[] = [];
     for (const cls of ["F", "J", "W", "Y"] as const) {
       const seats = bySection.get(cls);
-      if (seats) out.push({ cls, seats, fare: fareFor(cls, route.fares) });
+      if (seats) out.push({ cls, seats, fare: fareFor(cls, route.fares), fillScale: fillScale(cls, route.fares) });
     }
     if (out.length > 0) return out;
   }
@@ -96,7 +112,7 @@ export function cabinsFor(route: Pick<Route, "fares">, type: AircraftType, aircr
   for (const cls of ["F", "J", "W"] as const) {
     const seats = Math.round(total * share[cls]);
     if (seats > 0) {
-      cabins.push({ cls, seats, fare: fareFor(cls, f) });
+      cabins.push({ cls, seats, fare: fareFor(cls, f), fillScale: fillScale(cls, f) });
       used += seats;
     }
   }
@@ -167,6 +183,8 @@ export interface RouteWeekOptions {
   operatedFraction?: number;
   /** Charge ownership via the ledger. Default: true when no fleet aircraft are supplied. */
   chargeOwnership?: boolean;
+  /** Modelled rival itineraries for this pair (rivals lane). When non-empty they replace the synthetic direct rivals; the synthetic one-stop stays. */
+  rivalItineraries?: Itinerary[];
 }
 
 /**
@@ -187,12 +205,12 @@ export function simulateRouteWeek(
   if (!a || !b || !type || a.id === b.id) return null;
 
   const fleet = opts.fleetAircraft ?? [];
-  let cabins = cabinsFor(route, type, fleet[0]);
   // Cabin lane: layout quality feeds the choice model's quality term (0.5 for the default layout).
   const layout = fleet[0]?.layout;
   const fx = layout && layout.sections.length > 0 ? layoutEffects(type, layout) : null;
-  const seatsPerFlight = cabins.reduce((s, c) => s + c.seats, 0);
   const dist = distanceKm(a, b);
+  let cabins = cabinsFor(route, type, fleet[0], dist);
+  const seatsPerFlight = cabins.reduce((s, c) => s + c.seats, 0);
   const fraction = Math.max(0, Math.min(1, opts.operatedFraction ?? 1));
   const demandScale = opts.demandScale ?? 1;
 
@@ -214,7 +232,10 @@ export function simulateRouteWeek(
     marketDistanceKm: dist,
   };
 
-  const rivals = buildRivals(a, b, dist, market, cfg);
+  const synthetic = buildRivals(a, b, dist, rivalSizingMarket(a, b, dist, market, demand, cfg.choice, (m) => buildRivals(a, b, dist, m, cfg)), cfg);
+  const rivals = opts.rivalItineraries && opts.rivalItineraries.length > 0
+    ? [...opts.rivalItineraries, ...synthetic.filter((i) => i.id.startsWith("conn:"))]
+    : synthetic;
 
   const choice = runChoice({
     demand,
@@ -227,7 +248,7 @@ export function simulateRouteWeek(
   if (fx && layout && flownFreq > 0) {
     const paxPerFlight = mine.passengers / (flownFreq * 1);
     const ratios = cabinFillRatios(type, layout, paxPerFlight, { shares: market.shares, routeKm: dist });
-    cabins = cabins.map((c) => ({ ...c, fillWeight: LEDGER_PARAMS.cabinFillWeight[c.cls] * ratios[c.cls] }));
+    cabins = cabins.map((c) => ({ ...c, fillRatio: ratios[c.cls] }));
   }
   const evaluation = evaluateRoute({
     origin: a, destination: b, aircraft: type, day, weeklyFrequency: route.weeklyFrequency, cabins,
@@ -288,6 +309,12 @@ export interface HubConnectionInput {
   /** Through fare (economy, one way). Default: 92% of the benchmark fare for the O&D distance. */
   connectingFare?: number;
   demandScale?: number;
+  /** Precomputed local weeks of the two legs (as `simulateRouteWeek` returns them); avoids simulating them again. */
+  week1?: RouteWeek | null;
+  week2?: RouteWeek | null;
+  /** One-way weekly seats on each leg already given to other connections (local traffic and earlier connections have priority). */
+  reservedSeats1?: number;
+  reservedSeats2?: number;
 }
 
 export interface HubLegLoad {
@@ -354,16 +381,16 @@ export function evaluateHubConnection(input: HubConnectionInput): HubConnection 
   const opts = (fleet: Aircraft[] | undefined, frac: number): RouteWeekOptions => ({
     config: cfg, fleetAircraft: fleet, operatedFraction: frac, demandScale, chargeOwnership: !fleet || fleet.length === 0,
   });
-  const w1 = simulateRouteWeek(leg1, airports, types, day, opts(input.fleet1, f1));
-  const w2 = simulateRouteWeek(leg2, airports, types, day, opts(input.fleet2, f2));
+  const w1 = input.week1 ?? simulateRouteWeek(leg1, airports, types, day, opts(input.fleet1, f1));
+  const w2 = input.week2 ?? simulateRouteWeek(leg2, airports, types, day, opts(input.fleet2, f2));
   if (!w1 || !w2) return null;
 
-  const cab1 = cabinsFor(leg1, t1, input.fleet1?.[0]);
-  const cab2 = cabinsFor(leg2, t2, input.fleet2?.[0]);
+  const cab1 = cabinsFor(leg1, t1, input.fleet1?.[0], distanceKm(a, h));
+  const cab2 = cabinsFor(leg2, t2, input.fleet2?.[0], distanceKm(h, b));
   const seats1 = leg1.weeklyFrequency * f1 * cab1.reduce((s, c) => s + c.seats, 0);
   const seats2 = leg2.weeklyFrequency * f2 * cab2.reduce((s, c) => s + c.seats, 0);
-  const left1 = Math.max(0, seats1 - w1.playerPassengersOneWay);
-  const left2 = Math.max(0, seats2 - w2.playerPassengersOneWay);
+  const left1 = Math.max(0, seats1 - w1.playerPassengersOneWay - (input.reservedSeats1 ?? 0));
+  const left2 = Math.max(0, seats2 - w2.playerPassengersOneWay - (input.reservedSeats2 ?? 0));
   const d1 = distanceKm(a, h);
   const d2 = distanceKm(h, b);
   const dist = distanceKm(a, b);
@@ -387,7 +414,7 @@ export function evaluateHubConnection(input: HubConnectionInput): HubConnection 
       mk(`player:${leg2.id}`, h.id, b.id, d2, t2, leg2, f2, left2),
     ],
   };
-  const rivals = buildRivals(a, b, dist, market, cfg);
+  const rivals = buildRivals(a, b, dist, rivalSizingMarket(a, b, dist, market, demand, cfg.choice, (m) => buildRivals(a, b, dist, m, cfg)), cfg);
   const choice = runChoice({
     demand,
     itineraries: [player, ...rivals],

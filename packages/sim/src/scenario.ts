@@ -1,9 +1,11 @@
 import type { Aircraft, AircraftType, Airport, Route } from "@arg/contracts";
 import { benchmarkFare } from "./demand/choice";
+import { hasSurfaceAlternative } from "./demand/market";
 import { defaultLayout } from "./fleet/layout";
 import { distanceKm } from "./geo";
 import { makeRng, mixSeed } from "./rng";
 import { newSim, type StartOptions } from "./index";
+import { createRivals } from "./rivals";
 import type { SimState } from "./state";
 
 /** Placeholder airline for the 2015 campaign. */
@@ -12,10 +14,9 @@ export const STARTING_CASH_USD = 150_000_000;
 
 /** Starting fleet by type id (ids from @arg/data). */
 export const STARTING_FLEET: ReadonlyArray<readonly [typeId: string, count: number]> = [
-  ["B737-800", 6],
-  ["A320", 2],
+  ["B737-800", 3],
+  ["A320", 1],
   ["B757-200", 2],
-  ["B767-300ER", 1],
   ["B777-200ER", 2],
 ];
 
@@ -26,6 +27,19 @@ export const STARTING_ROUTES: ReadonlyArray<readonly [string, string, number, st
   ["LAX", "HNL", 14, "B777-200ER"],
   ["LAX", "OGG", 7, "B757-200"],
 ];
+
+/**
+ * Starting economy fare for a pair. Drivable short sectors cannot hold the benchmark curve (LAX-SAN at the benchmark 81 USD
+ * flew 17% full): the fare falls linearly from the benchmark at 400 km to 60% of it at zero distance, i.e. about 63 USD
+ * for LAX-SAN (180 km). A grid search over fare and frequency (MODEL.md section 8) puts the profit optimum for LAX-SAN at
+ * 14 to 16 round trips a week at 62-65 USD with 74-79% load factor, which is where the starting scenario sits.
+ */
+export function startingFare(a: Airport, b: Airport): number {
+  const d = distanceKm(a, b);
+  const bench = benchmarkFare(d);
+  if (!hasSurfaceAlternative(a, b) || d >= 400) return Math.round(bench);
+  return Math.round(bench * (0.6 + (0.4 * d) / 400));
+}
 
 /**
  * The 2015 starting position: Skybridge Pacific based at LAX with 13 aircraft, four routes and USD 150M.
@@ -59,7 +73,7 @@ export function startingScenario(airports: Airport[], aircraftTypes: AircraftTyp
     const a = apById.get(o);
     const b = apById.get(d);
     if (!a || !b) throw new Error(`startingScenario: airport ${o} or ${d} not in data`);
-    const y = Math.round(benchmarkFare(distanceKm(a, b)));
+    const y = startingFare(a, b);
     const wide = typeById.get(typeId)!.widebody;
     return {
       id: `route-${i + 1}`,
@@ -71,5 +85,6 @@ export function startingScenario(airports: Airport[], aircraftTypes: AircraftTyp
     };
   });
   const opts: StartOptions = { cash: STARTING_CASH_USD, fleet, routes, airlineName: STARTING_AIRLINE, baseAirport: "LAX" };
-  return newSim(seed, airports, aircraftTypes, { notionalFleet: false }, opts);
+  const sim = newSim(seed, airports, aircraftTypes, { notionalFleet: false }, opts);
+  return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, sim.world.routes) };
 }

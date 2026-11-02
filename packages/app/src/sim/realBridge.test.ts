@@ -14,7 +14,7 @@ describe("RealSimBridge", () => {
     expect(s.cash).toBe(150_000_000);
     expect(s.day).toBe(0);
     expect(s.speed).toBe(0);
-    expect(s.fleet).toHaveLength(13);
+    expect(s.fleet).toHaveLength(8);
     expect(s.airline).toEqual({ name: "Skybridge Pacific", hub: "LAX" });
   });
 
@@ -69,7 +69,7 @@ describe("RealSimBridge", () => {
     const res = b.dispatch({ kind: "orderAircraft", typeId: "A320N", count: 3, layout: { sections: [] } });
     expect(res).toMatchObject({ ok: true });
     const s = b.getState();
-    expect(s.fleet).toHaveLength(16);
+    expect(s.fleet).toHaveLength(11);
     const onOrder = s.fleet.filter((a) => a.status === "delivery");
     expect(onOrder).toHaveLength(3);
     for (const a of onOrder) expect(a.deliveryDay).toBeGreaterThan(0);
@@ -110,6 +110,8 @@ describe("RealSimBridge", () => {
 
   it("raises a low-load-factor card and decide() dispatches the matching command", () => {
     const b = make({ seed: 2015 });
+    // The balanced starting LAX-SAN route is healthy; overprice it so it runs half empty.
+    b.dispatch({ kind: "updateRoute", id: b.getState().routes.find((r) => r.destination === "SAN")!.id, patch: { fares: { Y: 160 } } });
     b.stepDays(40);
     const card = b.getState().decisions.find((d) => d.title.includes("LAX–SAN") || d.title.includes("LAX-SAN"));
     expect(card).toBeTruthy();
@@ -124,7 +126,7 @@ describe("RealSimBridge", () => {
   it("pauses when a decision arrives and auto-pause is on, not when it is off", () => {
     const on = new RealSimBridge({ autoPause: true });
     const off = new RealSimBridge({ autoPause: false });
-    for (const b of [on, off]) { b.setSpeed(2); for (let i = 0; i < 400; i++) b.advance(250); }
+    for (const b of [on, off]) { b.dispatch({ kind: "updateRoute", id: b.getState().routes.find((r) => r.destination === "SAN")!.id, patch: { fares: { Y: 160 } } }); b.setSpeed(2); for (let i = 0; i < 400; i++) b.advance(250); }
     expect(on.getState().speed).toBe(0);
     expect(on.getState().decisions.length).toBeGreaterThan(0);
     expect(off.getState().speed).toBe(2);
