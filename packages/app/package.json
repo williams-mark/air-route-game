@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -p . && vite build",
     "typecheck": "tsc -p .",
-    "test": "echo 'no tests yet'"
+    "test": "vitest run"
   },
   "dependencies": {
     "@arg/contracts": "workspace:*",
