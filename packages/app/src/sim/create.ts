@@ -1,6 +1,7 @@
 import { seedRoutes } from "../routes/seed";
 import { MockSimBridge, type SimBridge } from "./bridge";
 import { RealSimBridge } from "./realBridge";
+import { startScreenWanted } from "../save/saves";
 
 export type StartableBridge = SimBridge & { start?: () => void };
 
@@ -10,7 +11,8 @@ export type StartableBridge = SimBridge & { start?: () => void };
  */
 export function createBridge(search: string = typeof location !== "undefined" ? location.search : ""): StartableBridge {
   const q = new URLSearchParams(search);
-  const startPaused = q.has("paused");
+  // While the start screen is up the game is held at speed 0; choosing New game / Continue starts it.
+  const startPaused = q.has("paused") || (q.get("mock") !== "1" && startScreenWanted(search));
   if (q.get("mock") === "1") {
     const b = new MockSimBridge({ startPaused, routes: seedRoutes() });
     b.start();

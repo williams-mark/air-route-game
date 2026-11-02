@@ -134,3 +134,12 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 .toast-text { flex: 1; }
 .toast-x { width: 1.6rem; height: 1.6rem; background: transparent; border-color: transparent; font-size: .75rem; }
 @media (max-width: 900px) { .main.has-panel .view { right: 0; } .route-panel { width: calc(100% - 28px); } }
+.hud-btn[aria-pressed="true"] { border-color: var(--route-rival); }
+.rival-swatch { display: inline-block; width: 18px; height: 4px; border-radius: 2px; margin-right: 7px; vertical-align: middle; background: var(--route-rival); }
+.comp-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.comp-table th { text-align: left; font-weight: 600; color: var(--text-dim); font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; padding: .2rem .3rem; }
+.comp-table td { padding: .3rem; border-top: 1px solid var(--line); vertical-align: top; }
+.comp-table td.num, .comp-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.comp-sum { margin: 0 0 .5rem; font-size: .82rem; color: var(--text-dim); }
+.comp-flag { font-size: .72rem; padding: .05rem .4rem; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+.comp-flag.below { color: var(--sev-good); } .comp-flag.above { color: var(--sev-warn); }

@@ -2,7 +2,7 @@ import type { Rgba } from "./types";
 
 export interface MapColors {
   water: string; land: string; landFocus: string; landBorder: string; coastGlow: string;
-  profit: Rgba; marginal: Rgba; loss: Rgba; planned: Rgba; casing: Rgba; select: Rgba;
+  profit: Rgba; marginal: Rgba; loss: Rgba; planned: Rgba; casing: Rgba; select: Rgba; rival: Rgba;
   airportFill: Rgba; airportStroke: Rgba; airportHub: Rgba; aircraft: Rgba; label: Rgba; labelHalo: Rgba;
 }
 
@@ -21,7 +21,7 @@ export function readMapColors(): MapColors {
     water: css("--map-water"), land: css("--map-land"), landFocus: css("--map-land-focus"),
     landBorder: css("--map-land-border"), coastGlow: css("--map-coast-glow"),
     profit: rgba("--route-profit"), marginal: rgba("--route-marginal"), loss: rgba("--route-loss"),
-    planned: rgba("--route-planned"), casing: rgba("--route-casing", 150), select: rgba("--route-select"),
+    planned: rgba("--route-planned"), casing: rgba("--route-casing", 150), select: rgba("--route-select"), rival: rgba("--route-rival", 150),
     airportFill: rgba("--airport-fill"), airportStroke: rgba("--airport-stroke"), airportHub: rgba("--airport-hub"),
     aircraft: rgba("--aircraft"), label: rgba("--map-label"), labelHalo: rgba("--map-label-halo"),
   };

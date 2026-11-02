@@ -15,8 +15,9 @@ const outDir = path.join(root, "screenshots");
 mkdirSync(outDir, { recursive: true });
 const argv = process.argv.slice(2);
 const onlyCabin = argv.includes("--cabin");
-const doMock = !onlyCabin && (argv.includes("--mock") || !argv.includes("--real"));
-const doReal = !onlyCabin && (argv.includes("--real") || !argv.includes("--mock"));
+const onlySaveUi = argv.includes("--saveui");
+const doMock = !onlyCabin && !onlySaveUi && (argv.includes("--mock") || !argv.includes("--real"));
+const doReal = !onlyCabin && !onlySaveUi && (argv.includes("--real") || !argv.includes("--mock"));
 const PORT = 5199;
 const url = `http://localhost:${PORT}/`;
 
@@ -163,7 +164,65 @@ async function realShots(theme) {
   await page.close();
 }
 
+/** Start screen, save/load dialog, rivals view, competition block, competitor map layer. Run with --saveui. */
+async function saveUiShots(theme) {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const problems = [];
+  const open = async (query) => {
+    const page = await ctx.newPage();
+    page.on("console", (m) => { if (m.type() === "error") problems.push(m.text()); });
+    page.on("pageerror", (e) => problems.push(e.message));
+    await page.goto(`${url}?theme=${theme}&t=420${query}`);
+    return page;
+  };
+  const snap = async (page, name) => {
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: path.join(outDir, `saveui-${theme}-${name}.png`) });
+    console.log("saved saveui", theme, name);
+  };
+  // 1. Start screen with no saves.
+  let page = await open("");
+  await page.getByRole("dialog", { name: "Start screen" }).waitFor();
+  await snap(page, "start-empty");
+  await page.close();
+  // 2. Play, save through the dialog, look at the rivals screens.
+  page = await open(`&paused=1&ff=${process.env.ARG_FF ?? 91}`);
+  await page.waitForFunction(() => window.__argMap && window.__argMap.loaded(), null, { timeout: 20000 });
+  await page.waitForTimeout(1200);
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Save\u2026" }).click();
+  await snap(page, "save-dialog-empty");
+  await page.getByRole("button", { name: "Save here" }).first().click();
+  await page.getByRole("button", { name: "Overwrite" }).first().waitFor();
+  await snap(page, "save-dialog-saved");
+  await page.getByRole("tab", { name: "Load game" }).click();
+  await snap(page, "load-dialog");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Rivals" }).click();
+  await snap(page, "rivals");
+  await page.getByRole("button", { name: /Pacific Crown/ }).first().click();
+  await snap(page, "rival-detail");
+  await page.getByRole("button", { name: "Routes" }).click();
+  await page.getByRole("button", { name: /Inspect LAX.SFO/ }).click();
+  await page.getByRole("heading", { name: /Competition in this market/ }).scrollIntoViewIfNeeded();
+  await snap(page, "competition-block");
+  await page.getByRole("button", { name: "Close route inspector" }).click();
+  await page.getByRole("button", { name: "Map", exact: true }).click();
+  await page.getByRole("button", { name: /Show competitors/ }).click();
+  await snap(page, "map-competitors");
+  await page.close();
+  // 3. Start screen with a save present (same browser profile -> same IndexedDB).
+  page = await open("");
+  await page.getByRole("button", { name: /Continue/ }).waitFor();
+  await page.getByRole("button", { name: "Load slot" }).click();
+  await snap(page, "start-continue");
+  await page.close();
+  if (problems.length) console.log("[saveui problems]", theme, problems.slice(0, 5));
+  await ctx.close();
+}
+
 try {
+  if (onlySaveUi) for (const theme of ["dark", "light"]) await saveUiShots(theme);
   if (doReal) for (const theme of ["dark", "light"]) await realShots(theme);
   if (doReal || argv.includes("--cabin")) for (const theme of ["dark", "light"]) await cabinShots(theme);
   if (doMock) for (const theme of ["dark", "light"]) {

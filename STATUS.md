@@ -18,9 +18,9 @@ Last updated: Mon 2 Nov 2026 (early morning UTC). `main` passes typecheck, test 
 | T11 route inspector/creation | done | sandbox, inspector, why-ledger lines |
 | T12 fleet/order book/checks | done | orders with delivery delays, A-D checks, scheduler, Fleet/Orders views, cabin layout in order form and refits |
 | T13 offers panel | done (lane/offers) | launch, end-of-life, flash-sale and used offers; Offers tab, popup, badge. See MODEL.md "Offers" |
-| T14 basic rivals | done in sim | 5 fictional rivals + Ember Air 2017 entrant, retaliation, bankruptcy (see packages/sim/RIVALS.md). UI for rivals not wired yet: use rivalReports/rivalNews |
+| T14 basic rivals | done (lane/saveui UI) | sim + Rivals view, competition block in route inspector, map competitor layer, rival fare-cut decision cards (match / partial + frequency / hold; one at a time) |
 | T15 why ledger and hub board | partial | ledger in inspector; hub board not started |
-| T16 save/load, cabin sliders, light polish | partial | Cabin sliders done: designer view, order and refit editors (lane/cabin, see MODEL.md "Cabin"); save/load not started |
+| T16 save/load, cabin sliders, light polish | partial | Cabin sliders done: designer view, order and refit editors (lane/cabin, see MODEL.md "Cabin"); save/load done (lane/saveui): IndexedDB 5 slots + autosave (monthly, tab hide), Ctrl+S, export/import, start screen (skip with ?newgame/?seed/?nostart/?ff/?mock/?paused) |
 | T17 QA and balance bots | partly done | bots + BALANCE.md (pnpm --filter @arg/sim bots); premium-fare exploit fixed; UI QA not started |
 | T18 deploy and hardening | partly done (lane/ship) | manualChunks vendor split, build:single, deploy.yml, netlify.toml, DEPLOY.md, build stamp in Settings. Nothing deployed yet; needs Mark's Cloudflare secrets |
 
@@ -47,3 +47,8 @@ Mon afternoon/evening: keep about 30% free. Tue: unrestricted. Wed: none. Thu: a
 - Default layouts for A220-100/300 (6-abreast) and A350-1000 (10-abreast) fail the new validation; defaultLayout was left untouched to keep today's numbers.
 - Cabin geometry values are estimates (header of packages/sim/src/cabin/geometry.ts).
 - Merge points: index.ts (export cabin, stepDay refit message), routeModel simulateRouteWeek (quality, fill ratios, cabinCost), ledger CabinInput.fillWeight and RouteInputs.cabinCost, commands.ts AnyCommand.
+
+## Save/UI lane notes
+- Save envelope in packages/sim/src/serialize.ts (SAVE_VERSION 1); bridge extras (feed, ledger, pending cards, decision engine) saved beside SimState. Loading starts paused.
+- Screenshots: `node scripts/screenshots.mjs --saveui` (saveui-* files).
+- Known: toasts overlap page headers; Delete-slot not offered; no Web Worker yet; extras are not validated beyond presence of engine.

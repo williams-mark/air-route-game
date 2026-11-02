@@ -200,3 +200,24 @@ export function buildGhostLayers(ghost: Ghost, c: MapColors): Layer[] {
   }
   return layers;
 }
+
+/** A rival-served market drawn on the map (fog of war: carriers and seats only). */
+export interface RivalMapEdge { a: Airport; b: Airport; path: [number, number][]; carriers: string[]; seats: number }
+
+export function buildRivalEdges(markets: Array<{ origin: string; destination: string; carriers: Array<{ name: string; weeklySeats: number }>; totalWeeklySeats: number }>, airports: Map<string, Airport>): RivalMapEdge[] {
+  const out: RivalMapEdge[] = [];
+  for (const m of markets) {
+    const a = airports.get(m.origin), b = airports.get(m.destination);
+    if (!a || !b) continue;
+    out.push({ a, b, path: greatCircle(a.lon, a.lat, b.lon, b.lat, 32), carriers: m.carriers.map((c) => c.name), seats: m.totalWeeklySeats });
+  }
+  return out;
+}
+
+export function buildRivalLayer(edges: RivalMapEdge[], c: MapColors): Layer {
+  return new PathLayer<RivalMapEdge>({
+    id: "rival-routes", data: edges, getPath: (d) => d.path, getColor: c.rival,
+    getWidth: (d) => Math.max(1.2, Math.min(4, 0.8 + Math.sqrt(d.seats / 400))), widthUnits: "pixels", capRounded: true, jointRounded: true,
+    pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 60], updateTriggers: { getColor: [c] },
+  });
+}

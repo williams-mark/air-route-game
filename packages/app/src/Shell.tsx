@@ -13,7 +13,10 @@ import { VIEWS } from "./shell/views";
 import { MapView } from "./views/MapView";
 import { RoutePanel, usePanelOpen } from "./routes/RoutePanel";
 import { Toasts } from "./routes/Toasts";
+import { useToasts } from "./routes/store";
 import { useCreation } from "./routes/store";
+import { SaveDialog, StartScreen, quickSave } from "./save/SaveUi";
+import { installAutosave } from "./save/saves";
 import "./routes/routes.css";
 
 const LAZY: Partial<Record<ViewId, ReturnType<typeof lazy>>> = {
@@ -22,6 +25,7 @@ const LAZY: Partial<Record<ViewId, ReturnType<typeof lazy>>> = {
   orders: lazy(() => import("./views/OrdersView")),
   cabin: lazy(() => import("./views/CabinView")),
   finance: lazy(() => import("./views/FinanceView")),
+  rivals: lazy(() => import("./views/RivalsView")),
   settings: lazy(() => import("./views/SettingsView")),
 };
 
@@ -35,13 +39,16 @@ function useGlobalKeys() {
     const down = (e: KeyboardEvent) => {
       const st = useUi.getState();
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); st.setPalette(!st.paletteOpen); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); if (!st.startOpen) void quickSave(); return; }
+      if (st.startOpen) return;
       if (e.key === "Escape") {
-        if (st.paletteOpen) st.setPalette(false); else if (st.helpOpen) st.setHelp(false);
+        if (st.saveDialog) st.setSaveDialog(null);
+        else if (st.paletteOpen) st.setPalette(false); else if (st.helpOpen) st.setHelp(false);
         return;
       }
-      if (st.paletteOpen || st.helpOpen) return;
+      if (st.paletteOpen || st.helpOpen || st.saveDialog) return;
       if (isTyping(e.target)) return;
-      if (e.altKey && /^[1-7]$/.test(e.key)) { st.setView(VIEWS[Number(e.key) - 1]!.id); e.preventDefault(); return; }
+      if (e.altKey && /^[1-9]$/.test(e.key) && VIEWS[Number(e.key) - 1]) { st.setView(VIEWS[Number(e.key) - 1]!.id); e.preventDefault(); return; }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === " " || e.code === "Space") { e.preventDefault(); if (!e.repeat) togglePause(); }
       else if (/^[1-5]$/.test(e.key)) setSpeed(Number(e.key) as Speed);
@@ -53,7 +60,7 @@ function useGlobalKeys() {
     // Stop a focused button from also being "clicked" when Space is used as the pause key.
     const up = (e: KeyboardEvent) => {
       const st = useUi.getState();
-      if ((e.key === " " || e.code === "Space") && !isTyping(e.target) && !st.paletteOpen && !st.helpOpen) e.preventDefault();
+      if ((e.key === " " || e.code === "Space") && !isTyping(e.target) && !st.paletteOpen && !st.helpOpen && !st.saveDialog && !st.startOpen) e.preventDefault();
     };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
@@ -76,6 +83,13 @@ function useAutoPause() {
   }, [sim.decisions, sim.notices]);
 }
 
+function useAutosave() {
+  useEffect(() => installAutosave(bridge, {
+    blocked: () => useUi.getState().startOpen,
+    onError: (m) => useToasts.getState().push("info", `Autosave failed: ${m}`),
+  }), []);
+}
+
 export function Shell() {
   const view = useUi((s) => s.view);
   const palette = useUi((s) => s.paletteOpen);
@@ -83,6 +97,9 @@ export function Shell() {
   const panel = usePanelOpen();
   useGlobalKeys();
   useAutoPause();
+  useAutosave();
+  const startOpen = useUi((s) => s.startOpen);
+  const saveDialog = useUi((s) => s.saveDialog);
   const Lazy = LAZY[view];
   let page: ReactNode = null;
   if (Lazy) page = (<main className="view" id="main" aria-label={VIEWS.find((v) => v.id === view)?.label}><Suspense fallback={<div className="page"><p>Loading{"…"}</p></div>}><Lazy /></Suspense></main>);
@@ -100,6 +117,8 @@ export function Shell() {
       <Toasts />
       {palette && <CommandPalette />}
       {help && <ShortcutsOverlay />}
+      {saveDialog && <SaveDialog />}
+      {startOpen && <StartScreen />}
     </div>
   );
 }

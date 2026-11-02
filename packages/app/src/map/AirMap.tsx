@@ -5,7 +5,8 @@ import { MapboxOverlay } from "@deck.gl/mapbox";
 import type { Airport } from "@arg/contracts";
 import { readMapColors } from "./colors";
 import { applyStyleColors, buildStyle } from "./style";
-import { bandOf, buildAircraftLayer, buildGhostLayers, buildStaticLayers, declutterLabels, type Ghost, type ZoomBand } from "./layers";
+import type { RivalMapEdge } from "./layers";
+import { bandOf, buildAircraftLayer, buildGhostLayers, buildRivalEdges, buildRivalLayer, buildStaticLayers, declutterLabels, type Ghost, type ZoomBand } from "./layers";
 import { buildModel, type AggEdge, type RouteGeo } from "./model";
 import { PRESET_BOUNDS } from "./presets";
 import type { CameraPresetId, MapRoute, Theme } from "./types";
@@ -32,6 +33,8 @@ export interface AirMapProps {
   ghost?: Ghost | null;
   /** Make every airport visible and clickable at all zoom levels. */
   showAllAirports?: boolean;
+  /** Competitor markets to draw in a muted colour (undefined/empty = layer off). */
+  rivalMarkets?: Array<{ origin: string; destination: string; carriers: Array<{ name: string; weeklySeats: number }>; totalWeeklySeats: number }>;
   onSelectRoute?: (id: string) => void;
   onSelectAirport?: (id: string) => void;
 }
@@ -46,7 +49,7 @@ function fitCamera(map: MLMap, preset: CameraPresetId, padding: Required<NonNull
 const tierWord = { profit: "Profitable", marginal: "Marginal", loss: "Loss-making", planned: "Planned" } as const;
 
 export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(props, ref) {
-  const { airports, routes, simTime, theme, preset, presetNonce, selectedRouteId = null, selectedAirportId = null, ghost = null, showAllAirports = false } = props;
+  const { airports, routes, simTime, theme, preset, presetNonce, selectedRouteId = null, selectedAirportId = null, ghost = null, showAllAirports = false, rivalMarkets } = props;
   const pad = useMemo(() => ({ top: 70, bottom: 60, left: 60, right: 60, ...props.padding }), [props.padding]);
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
@@ -90,6 +93,9 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
         if (id === "routes") {
           const g = o as RouteGeo;
           text = `${g.o.id} → ${g.d.id} · ${g.route.weeklyFrequency}/wk · ${tierWord[g.route.tier]} · ${Math.round(g.km)} km`;
+        } else if (id === "rival-routes") {
+          const g = o as unknown as RivalMapEdge;
+          text = `${g.a.id} ⇄ ${g.b.id} · ${g.carriers.join(", ")} · ${g.seats.toLocaleString()} seats/wk (competitor)`;
         } else if (id === "agg-routes") {
           const g = o as AggEdge;
           text = `${g.a.id} ⇄ ${g.b.id} corridor · ${g.routes} route${g.routes > 1 ? "s" : ""} · ${g.freq}/wk`;
@@ -179,11 +185,16 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
     [model, colors, band, selectedRouteId, selectedAirportId, theme, labelIds, showAllAirports],
   );
 
+  const rivalLayer = useMemo(() => {
+    if (!rivalMarkets || rivalMarkets.length === 0) return null;
+    return buildRivalLayer(buildRivalEdges(rivalMarkets, new Map(airports.map((a) => [a.id, a]))), colors);
+  }, [rivalMarkets, airports, colors]);
+
   useEffect(() => {
     if (!ready) return;
     const ghostLayers = ghost ? buildGhostLayers(ghost, colors) : [];
-    overlayRef.current?.setProps({ layers: [...staticLayers, ...ghostLayers, buildAircraftLayer(model, colors, band, simTime)] });
-  }, [ready, staticLayers, model, colors, band, simTime, ghost]);
+    overlayRef.current?.setProps({ layers: [...(rivalLayer ? [rivalLayer] : []), ...staticLayers, ...ghostLayers, buildAircraftLayer(model, colors, band, simTime)] });
+  }, [ready, staticLayers, rivalLayer, model, colors, band, simTime, ghost]);
 
   return (
     <>
