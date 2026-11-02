@@ -27,3 +27,4 @@ export const IconGood = (p: P) => <Svg {...p}><circle cx="12" cy="12" r="9" /><p
 export const IconWarn = (p: P) => <Svg {...p}><path d="M12 3.5 2.5 20h19L12 3.5Z" /><path d="M12 10v5M12 17.5h.01" /></Svg>;
 export const IconAlert = (p: P) => <Svg {...p}><path d="M8 3h8l5 5v8l-5 5H8l-5-5V8l5-5Z" /><path d="M12 8v5M12 16h.01" /></Svg>;
 export const IconBell = (p: P) => <Svg {...p}><path d="M6 17V11a6 6 0 1 1 12 0v6l1.5 2h-15L6 17ZM10 21h4" /></Svg>;
+export const IconTag = (p: P) => <Svg {...p}><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.5 1.5 0 0 1 0 2.1l-6.6 6.6a1.5 1.5 0 0 1-2.1 0L3.5 12.2Z" /><path d="M8 8h.01" /></Svg>;

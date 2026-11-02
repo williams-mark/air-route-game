@@ -1,6 +1,6 @@
 // UI <-> sim boundary. The UI only talks to a SimBridge; swap `createBridge` to plug in the real sim.
 import type { Command, Day, Id, Route, WorldState } from "@arg/contracts";
-import { newWorld, stepDay, type CheckKind, type RouteReport } from "@arg/sim";
+import { newWorld, stepDay, type CheckKind, type Offer, type OfferCommand, type RouteReport } from "@arg/sim";
 import { routeName, validateRouteDraft, type CommandError } from "../routes/helpers";
 import type { DayRecord } from "./finance";
 
@@ -48,6 +48,13 @@ export interface OrderItem {
   seats: number;
 }
 
+/** An open offer as the Offers tab, popup and top-bar badge show it. */
+export interface OfferItem extends Offer {
+  typeName: string;
+  /** Seats in the offered cabin (the type's default layout when the offer has none). */
+  seats: number;
+}
+
 /** Immutable snapshot; a new object is produced whenever anything changes. */
 export interface SimSnapshot {
   day: Day;
@@ -65,6 +72,8 @@ export interface SimSnapshot {
   /** Real-sim data. The mock bridge leaves these empty and the views fall back to their own projections. */
   fleet: FleetItem[];
   orders: OrderItem[];
+  /** Open manufacturer and market offers (empty from the mock bridge). */
+  offers: OfferItem[];
   /** Latest sim report per route id (weekly figures). */
   reports: Record<Id, RouteReport>;
   /** Every simulated day so far, oldest first. */
@@ -72,13 +81,13 @@ export interface SimSnapshot {
 }
 
 /** Outcome of a command. Bridges that cannot report an outcome return nothing, which the UI treats as accepted. */
-export type CommandResult = { ok: true; routeId?: Id; orderId?: Id; warnings?: string[] } | { ok: false; error: CommandError };
+export type CommandResult = { ok: true; routeId?: Id; orderId?: Id; warnings?: string[]; offerId?: Id } | { ok: false; error: CommandError };
 export type { CommandError };
 
 export interface SimBridge {
   getState(): SimSnapshot;
   subscribe(listener: () => void): () => void;
-  dispatch(cmd: Command): CommandResult | void;
+  dispatch(cmd: Command | OfferCommand): CommandResult | void;
   setSpeed(speed: Speed): void;
   /** Resolve a pending decision card by choosing one of its options. */
   decide(decisionId: string, optionId: string): void;
@@ -183,7 +192,7 @@ export class MockSimBridge implements SimBridge {
   getState = (): SimSnapshot => this.snap;
   subscribe = (l: () => void): (() => void) => { this.listeners.add(l); return () => { this.listeners.delete(l); }; };
 
-  dispatch(cmd: Command): CommandResult | void {
+  dispatch(cmd: Command | OfferCommand): CommandResult | void {
     switch (cmd.kind) {
       case "setSpeed": this.setSpeed(cmd.speed); return;
       case "openRoute": {
@@ -253,7 +262,7 @@ export class MockSimBridge implements SimBridge {
       profit30: series.reduce((a, b) => a + b, 0), profitSeries: series,
       notices: this.notices, decisions: this.pending, routes: this.routes,
       airline: { name: "Skybridge Pacific", hub: "LAX" },
-      fleet: [], orders: [], reports: {}, ledger: [],
+      fleet: [], orders: [], offers: [], reports: {}, ledger: [],
     };
   }
   private emit() {

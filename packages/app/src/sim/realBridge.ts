@@ -4,11 +4,11 @@
 import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as dataAirports } from "@arg/data";
 import {
-  applyCommand, createClock, drainEvents, layoutSeats, startingScenario, stepDay,
+  applyCommand, createClock, defaultLayout, drainEvents, layoutSeats, type OfferCommand, startingScenario, stepDay,
   type AutoSlowHook, type Clock, type SimState,
 } from "@arg/sim";
 import type {
-  CommandResult, Decision, FleetItem, Notice, OrderItem, Severity, SimBridge, SimSnapshot, Speed,
+  CommandResult, Decision, FleetItem, Notice, OfferItem, OrderItem, Severity, SimBridge, SimSnapshot, Speed,
 } from "./bridge";
 import { DecisionEngine, type PendingDecision } from "./decisions";
 import { dayRecord, type DayRecord } from "./finance";
@@ -29,8 +29,8 @@ export const LOW_CASH_USD = 15_000_000;
 
 /** Severity from the text of a sim notice. Sim notices are plain strings; keep this list in step with the sim wording. */
 export function classifyNotice(text: string): Severity {
-  if (/under-supplied|forced|no spare aircraft can cover|deferring/i.test(text)) return "warn";
-  if (/Delivered|back in service|back to its full|Opened|Ordered/i.test(text)) return "good";
+  if (/under-supplied|forced|no spare aircraft can cover|deferring|Delivery delayed|Offer expiring soon/i.test(text)) return "warn";
+  if (/Delivered|back in service|back to its full|Opened|Ordered|is on schedule/i.test(text)) return "good";
   if (/enters [A-D] check|Closed/i.test(text)) return "warn";
   return "info";
 }
@@ -117,6 +117,7 @@ export class RealSimBridge implements SimBridge {
 
   private stepOne(): void {
     this.sim = stepDay(this.sim);
+    if (this.sim.orders.some((o) => o.delayDays)) this.refreshDeliveryDays();
     const snap = this.sim.events.find((e): e is Extract<SimEvent, { kind: "finance" }> => e.kind === "finance");
     if (snap) this.ledger.push(dayRecord(snap.snapshot, this.sim.routeReports));
     const raised = this.engine.onDay(this.sim, this.pending);
@@ -190,7 +191,7 @@ export class RealSimBridge implements SimBridge {
     this.emit();
   }
 
-  dispatch(cmd: Command): CommandResult | void {
+  dispatch(cmd: Command | OfferCommand): CommandResult | void {
     if (cmd.kind === "setSpeed") {
       if (![0, 1, 2, 3, 4, 5].includes(cmd.speed)) return { ok: false, error: { code: "invalid_speed", message: "Speed must be 0 to 5." } };
       this.setSpeed(cmd.speed);
@@ -203,13 +204,15 @@ export class RealSimBridge implements SimBridge {
       this.emit();
       return { ok: false, error: { code: result.error, message: result.message } };
     }
-    if (result.kind === "orderAircraft") this.refreshDeliveryDays();
+    if (result.kind === "orderAircraft" || result.kind === "acceptOffer") this.refreshDeliveryDays();
     this.emit();
     switch (result.kind) {
       case "openRoute": return { ok: true, routeId: result.routeId, warnings: result.warnings };
       case "updateRoute": return { ok: true, routeId: result.routeId, warnings: result.warnings };
       case "closeRoute": return { ok: true, routeId: result.routeId };
       case "orderAircraft": return { ok: true, orderId: result.orderId };
+      case "acceptOffer": return { ok: true, orderId: result.orderId, offerId: result.offerId };
+      case "dismissOffer": return { ok: true, offerId: result.offerId };
       default: return { ok: true };
     }
   }
@@ -250,9 +253,21 @@ export class RealSimBridge implements SimBridge {
       airline: { name: sim.airlineName, hub: sim.baseAirport ?? "" },
       fleet: buildFleet(sim),
       orders: buildOrders(sim),
+      offers: this.offersView(),
       reports: sim.routeReports,
       ledger: this.ledger.slice(),
     };
+  }
+
+  private offersOf: SimState["offers"] | null = null;
+  private offersCache: OfferItem[] = [];
+  /** Offer cards for the UI; keeps the same array while the sim's offer list is unchanged. */
+  private offersView(): OfferItem[] {
+    if (this.offersOf !== this.sim.offers) {
+      this.offersOf = this.sim.offers;
+      this.offersCache = buildOffers(this.sim);
+    }
+    return this.offersCache;
   }
 
   private viewOf: PendingDecision[] | null = null;
@@ -315,4 +330,16 @@ export function buildOrders(sim: SimState): OrderItem[] {
     firstDelivery: Math.min(...o.deliveryDays), lastDelivery: Math.max(...o.deliveryDays),
     unitPriceUsd: o.unitPriceUsd, discount: o.discount, depositUsd: o.depositUsd, seats: layoutSeats(o.layout),
   }));
+}
+
+export function buildOffers(sim: SimState): OfferItem[] {
+  const types = new Map(sim.aircraftTypes.map((t) => [t.id, t]));
+  return sim.offers.map((o): OfferItem => {
+    const t = types.get(o.typeId);
+    return {
+      ...o,
+      typeName: t?.name ?? o.typeId,
+      seats: layoutSeats(o.layout ?? (t ? defaultLayout(t) : { sections: [] })),
+    };
+  });
 }

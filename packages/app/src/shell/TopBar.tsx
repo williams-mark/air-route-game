@@ -2,14 +2,17 @@ import { useSim, setSpeed, togglePause } from "../sim/useSim";
 import { formatDay, formatMoney } from "../sim/format";
 import type { Speed } from "../sim/bridge";
 import { useUi } from "../store";
-import { IconKeyboard, IconMoon, IconPause, IconPlay, IconSearch, IconSun, IconBell } from "./icons";
+import { IconKeyboard, IconMoon, IconPause, IconPlay, IconSearch, IconSun, IconBell, IconTag } from "./icons";
 import { Sparkline } from "./Sparkline";
+import { useOffersUi } from "../offers/store";
 
 export function TopBar() {
   const sim = useSim();
   const ui = useUi();
   const paused = sim.speed === 0;
   const pending = sim.decisions.length;
+  const offerCount = sim.offers.length;
+  const openOffers = () => { useOffersUi.getState().setTab("offers"); useOffersUi.getState().markSeen(sim.offers.map((o) => o.id)); ui.setView("orders"); };
   return (
     <header className="topbar">
       <div className="brand" title="Hub: LAX">
@@ -41,6 +44,11 @@ export function TopBar() {
         {pending > 0 && (
           <button className="pill-btn" aria-label={`${pending} pending decisions. Show`} onClick={() => { ui.unsnoozeAll(); }}>
             <IconBell size={16} /> {pending}
+          </button>
+        )}
+        {offerCount > 0 && (
+          <button className="pill-btn offers-badge" aria-label={`${offerCount} open offer${offerCount > 1 ? "s" : ""}. Show`} title="Open manufacturer and market offers" onClick={openOffers}>
+            <IconTag size={16} /> {offerCount}
           </button>
         )}
         <button className="icon-btn" aria-label="Open command palette" title="Command palette (Ctrl/Cmd+K)" onClick={() => ui.setPalette(true)}><IconSearch size={18} /></button>
