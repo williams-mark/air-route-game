@@ -4,6 +4,7 @@ import type {
 import type { RouteEvaluation } from "./finance/ledger";
 import type { Offer } from "./offers/types";
 import type { BankruptcyRecord, RivalsState } from "./rivals/types";
+import type { RouteConnecting } from "./route/network";
 
 // ---------------------------------------------------------------------------
 // SimState: WorldState (from contracts) plus sim-internal state
@@ -33,6 +34,8 @@ export interface RouteReport {
   notionalFleet: boolean;
   /** Scheduler outcome; null in notional-fleet mode (no real aircraft to schedule). */
   scheduling: RouteScheduling | null;
+  /** Connecting (hub) passengers carried on this route and already included in `evaluation`; absent when there are none. */
+  connecting?: RouteConnecting;
 }
 
 export interface SimParams {

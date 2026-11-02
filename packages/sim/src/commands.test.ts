@@ -168,6 +168,6 @@ describe("orderAircraft", () => {
       layout: { sections: [{ cls: "Y", rows: 60, seatsAcross: 6, pitchIn: 28 }] },
     }).result;
     expect(code(tooBig)).toBe("invalid_layout");
-    expect(s.world.fleet).toHaveLength(13);
+    expect(s.world.fleet).toHaveLength(8);
   });
 });
