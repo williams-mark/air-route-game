@@ -12,4 +12,5 @@ Single-player, pausable real-time airline management game. TypeScript, pnpm work
 - `main` must always pass `pnpm typecheck && pnpm test && pnpm build`.
 - One branch per lane (`lane/sim`, `lane/map`, ...), small PRs, merge only when green.
 - Data needs a source note. Never invent aircraft or airport figures.
+- Read STATUS.md first for task states and known issues; update it before ending a session.
 - Build plan: "Air Route Game: Week-One Build Plan" in the Claude project.
