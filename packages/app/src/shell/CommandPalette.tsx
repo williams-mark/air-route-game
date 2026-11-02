@@ -7,6 +7,8 @@ import { bridge } from "../sim/useSim";
 import { PRESET_LABEL } from "../map/presets";
 import type { CameraPresetId } from "../map/types";
 import { VIEWS } from "./views";
+import { toggleDock } from "../notify/NotificationDock";
+import { useDock } from "../notify/dockStore";
 
 interface Cmd { id: string; label: string; group: string; hint?: string; run: () => void }
 
@@ -31,8 +33,9 @@ function useCommands(): Cmd[] {
     list.push(
       { id: "competitors", label: "Toggle competitors on the map", group: "Map", run: () => { ui().setView("map"); ui().setShowCompetitors(!ui().showCompetitors); } },
       { id: "theme", label: "Toggle light / dark theme", group: "Interface", run: () => ui().setTheme(ui().theme === "dark" ? "light" : "dark") },
-      { id: "feed", label: "Toggle event feed", group: "Interface", run: () => ui().setFeedOpen(!ui().feedOpen) },
-      { id: "decisions", label: "Show pending decisions", group: "Interface", run: () => ui().unsnoozeAll() },
+      { id: "feed", label: "Show / minimize notifications", group: "Interface", hint: "J", run: () => toggleDock() },
+      { id: "decisions", label: "Show pending decisions", group: "Interface", run: () => { ui().unsnoozeAll(); toggleDock(true); } },
+      { id: "dock-reset", label: "Reset notification position", group: "Interface", run: () => useDock.getState().resetPosition() },
       { id: "help", label: "Keyboard shortcuts", group: "Interface", hint: "?", run: () => ui().setHelp(true) },
     );
     return list;

@@ -4,9 +4,9 @@ import type { Speed } from "./sim/bridge";
 import { useUi, type ViewId } from "./store";
 import { TopBar } from "./shell/TopBar";
 import { Toolbar } from "./shell/Toolbar";
-import { EventFeed } from "./shell/EventFeed";
-import { Decisions } from "./shell/Decisions";
-import { OfferPopup } from "./offers/OfferPopup";
+import { useDock } from "./notify/dockStore";
+import { NotificationDock, minimizeDock, toggleDock } from "./notify/NotificationDock";
+import { TimeControls } from "./shell/TimeControls";
 import { CommandPalette } from "./shell/CommandPalette";
 import { ShortcutsOverlay } from "./shell/ShortcutsOverlay";
 import { VIEWS } from "./shell/views";
@@ -34,6 +34,11 @@ function isTyping(t: EventTarget | null): boolean {
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
 }
 
+const dockCollapsed = () => {
+  const d = useDock.getState();
+  return useUi.getState().view === "map" ? d.minimized : !d.peek;
+};
+
 function useGlobalKeys() {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -44,6 +49,7 @@ function useGlobalKeys() {
       if (e.key === "Escape") {
         if (st.saveDialog) st.setSaveDialog(null);
         else if (st.paletteOpen) st.setPalette(false); else if (st.helpOpen) st.setHelp(false);
+        else if (!dockCollapsed()) minimizeDock();
         return;
       }
       if (st.paletteOpen || st.helpOpen || st.saveDialog) return;
@@ -55,6 +61,7 @@ function useGlobalKeys() {
       else if (e.key === "+" || e.key === "=" || e.code === "NumpadAdd") { e.preventDefault(); bumpSpeed(1); }
       else if (e.key === "-" || e.key === "_" || e.code === "NumpadSubtract") { e.preventDefault(); bumpSpeed(-1); }
       else if (e.key === "?") { st.setHelp(true); }
+      else if (e.key === "j" || e.key === "J") { e.preventDefault(); toggleDock(); }
       else if (e.key === "n" || e.key === "N") { e.preventDefault(); useCreation.getState().begin(); }
     };
     // Stop a focused button from also being "clicked" when Space is used as the pause key.
@@ -110,10 +117,10 @@ export function Shell() {
       <div className={`main ${view === "map" ? "on-map" : ""} ${panel ? "has-panel" : ""}`}>
         <MapView />
         {page}
-        {view === "map" && <div className="overlay-left"><EventFeed /></div>}
-        <div className="overlay-right"><OfferPopup /><Decisions /></div>
         <RoutePanel />
+        <TimeControls />
       </div>
+      <NotificationDock />
       <Toasts />
       {palette && <CommandPalette />}
       {help && <ShortcutsOverlay />}

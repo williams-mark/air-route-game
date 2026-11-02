@@ -1,15 +1,14 @@
-import { useSim, setSpeed, togglePause } from "../sim/useSim";
+import { useSim } from "../sim/useSim";
+import { toggleDock } from "../notify/NotificationDock";
 import { formatDay, formatMoney } from "../sim/format";
-import type { Speed } from "../sim/bridge";
 import { useUi } from "../store";
-import { IconKeyboard, IconMoon, IconPause, IconPlay, IconSearch, IconSun, IconBell, IconTag } from "./icons";
+import { IconKeyboard, IconMoon, IconSearch, IconSun, IconBell, IconTag } from "./icons";
 import { Sparkline } from "./Sparkline";
 import { useOffersUi } from "../offers/store";
 
 export function TopBar() {
   const sim = useSim();
   const ui = useUi();
-  const paused = sim.speed === 0;
   const pending = sim.decisions.length;
   const offerCount = sim.offers.length;
   const openOffers = () => { useOffersUi.getState().setTab("offers"); useOffersUi.getState().markSeen(sim.offers.map((o) => o.id)); ui.setView("orders"); };
@@ -33,16 +32,8 @@ export function TopBar() {
       </div>
 
       <div className="topbar-right">
-        <div className="speed" role="group" aria-label="Game speed">
-          <button className="icon-btn" aria-label={paused ? "Resume" : "Pause"} aria-pressed={paused} title="Pause / resume (Space)" onClick={togglePause}>
-            {paused ? <IconPlay size={18} /> : <IconPause size={18} />}
-          </button>
-          {([1, 2, 3, 4, 5] as Speed[]).map((s) => (
-            <button key={s} className="speed-btn" aria-label={`Speed ${s}`} aria-pressed={sim.speed === s} title={`Speed ${s} (key ${s})`} onClick={() => setSpeed(s)}>{s}</button>
-          ))}
-        </div>
         {pending > 0 && (
-          <button className="pill-btn" aria-label={`${pending} pending decisions. Show`} onClick={() => { ui.unsnoozeAll(); }}>
+          <button className="pill-btn" aria-label={`${pending} pending decisions. Show`} onClick={() => { ui.unsnoozeAll(); toggleDock(true); }}>
             <IconBell size={16} /> {pending}
           </button>
         )}

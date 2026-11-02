@@ -1,0 +1,40 @@
+/* Notification dock. Fixed to the viewport; geometry is computed in NotificationDock.tsx and clamped below the top bar. */
+.dock { position: fixed; z-index: 40; width: min(23rem, calc(100vw - 6rem)); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; max-height: min(26rem, 55vh); }
+.dock.dragging { box-shadow: 0 12px 36px rgba(0,0,0,.4); border-color: var(--accent); }
+.dock-min { width: auto; background: transparent; border: 0; box-shadow: none; overflow: visible; }
+.dock-pill { display: inline-flex; align-items: center; gap: .4rem; height: 2.1rem; padding: 0 .75rem; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); font-weight: 650; }
+.dock-pill.urgent { border-color: var(--sev-warn); }
+.dock-pill-n { font-variant-numeric: tabular-nums; }
+.dock-pill-sub { color: var(--text-dim); font-weight: 400; font-size: .74rem; }
+.dock-head { display: flex; align-items: center; gap: .4rem; padding: .35rem .45rem .35rem .3rem; border-bottom: 1px solid var(--line); flex: none; }
+.dock-head h2 { margin: 0; font-size: .86rem; }
+.dock-sp { flex: 1; }
+.dock-grip { width: 1.7rem; height: 1.7rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; border-color: transparent; color: var(--text-dim); cursor: grab; touch-action: none; }
+.dock-grip:disabled { cursor: default; opacity: .4; }
+.dock-grip svg { fill: currentColor; }
+.dock.dragging .dock-grip { cursor: grabbing; }
+.dock-count { min-width: 1.3rem; text-align: center; font-size: .7rem; padding: .02rem .4rem; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.dock-count.on { background: var(--sev-warn); border-color: var(--sev-warn); color: #14100a; font-weight: 700; }
+:root[data-theme="light"] .dock-count.on { color: #fff; }
+.dock-clear { font-size: .74rem; padding: .2rem .5rem; }
+.dock-min-btn { width: 1.7rem; height: 1.7rem; }
+.dock-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
+.dock-row { border-bottom: 1px solid var(--line); }
+.dock-row:last-child { border-bottom: 0; }
+.dock-row-head { display: flex; align-items: center; gap: .45rem; width: 100%; text-align: left; border: 0; border-radius: 0; background: transparent; padding: .45rem .7rem; font-size: .8rem; line-height: 1.3; }
+.dock-row-head:hover { background: var(--panel-2); border-color: transparent; }
+.dock-ico { display: inline-flex; flex: none; color: var(--text-dim); }
+.dock-kicker { flex: none; font-size: .64rem; text-transform: uppercase; letter-spacing: .07em; color: var(--text-dim); }
+.dock-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dock-title.full { white-space: normal; }
+.dock-row-head time { flex: none; color: var(--text-dim); font-size: .7rem; font-variant-numeric: tabular-nums; }
+.dock-chev { display: inline-flex; flex: none; transition: transform .15s; color: var(--text-dim); } .dock-chev.up { transform: rotate(180deg); }
+.dock-decision { border-left: 3px solid var(--accent); }
+.dock-decision .dock-title { font-weight: 650; }
+.dock-decision.later { opacity: .65; }
+.dock-offer { border-left: 3px solid var(--sev-info); }
+.dock-notice .dock-title { color: var(--text); }
+.dock-row-body { padding: .1rem .75rem .65rem; }
+.dock-row-body p { margin: 0 0 .55rem; font-size: .8rem; color: var(--text-dim); line-height: 1.35; }
+.dock-empty { padding: .8rem; color: var(--text-dim); font-size: .8rem; }
+.sev-info .sev-icon { color: var(--sev-info); } .sev-good .sev-icon { color: var(--sev-good); } .sev-warn .sev-icon { color: var(--sev-warn); } .sev-alert .sev-icon { color: var(--sev-alert); }
