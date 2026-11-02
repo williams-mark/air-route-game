@@ -67,7 +67,7 @@ export function NotificationDock() {
   const dock = useDock();
   const collapsed = useDockCollapsed();
   const onMap = view === "map";
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(() => (bridge.getState().decisions[0] ? `d:${bridge.getState().decisions[0]!.id}` : null));
   const rootRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ w: 0, h: 0 });
   const [tick, setTick] = useState(0);

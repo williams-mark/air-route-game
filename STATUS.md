@@ -54,3 +54,10 @@ Mon afternoon/evening: keep about 30% free. Tue: unrestricted. Wed: none. Thu: a
 - Save envelope in packages/sim/src/serialize.ts (SAVE_VERSION 1); bridge extras (feed, ledger, pending cards, decision engine) saved beside SimState. Loading starts paused.
 - Screenshots: `node scripts/screenshots.mjs --saveui` (saveui-* files).
 - Known: toasts overlap page headers; Delete-slot not offered; no Web Worker yet; extras are not validated beyond presence of engine.
+
+## UIFIX lane notes (lane/uifix)
+- Owner play-test feedback: AircraftPicker tile browser (manufacturer > family > variant, `packages/app/src/aircraft/`, `familyOf` in families.ts) replaces every type dropdown (orders, route sandbox, cabin designer, route swap); remembers last choice per picker in localStorage.
+- Route inspector has an Aircraft section with guided type swap (updateRoute typeId, live projection, no-owned-aircraft warning and order link); also Routes table row action and command palette entries.
+- Notification dock (`packages/app/src/notify/`) replaces EventFeed, Decisions and OfferPopup: draggable, minimizable, J toggles, Esc minimizes, corner and reset in Settings; auto-collapses to a pill on non-map views. Toasts are compact at top-center.
+- Time controls are a floating pill at the bottom-right of the main area (class `time-pill`); date/cash/profit stay in the top bar.
+- Screenshots: `node scripts/screenshots.mjs --uifix` (uifix-* files). Known: on non-map views an opened dock can cover the lower-left of page content; e2e speed-rate checks are timing-sensitive.

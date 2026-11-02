@@ -122,7 +122,7 @@ export function AircraftPicker({ label, value, onChange, year, types = aircraftT
               return (
                 <button type="button" role="listitem" data-tile key={f.family} className="ap-tile ap-tile-big" onClick={() => setPath([man!.manufacturer, f.family])}>
                   <b>{f.family}</b>
-                  <span>{f.types.length} {f.types.length === 1 ? "variant" : "variants"}, up to {Math.min(...seats)}{Math.min(...seats) === Math.max(...seats) ? "" : `-${Math.max(...seats)}`} seats</span>
+                  <span>{f.types.length} {f.types.length === 1 ? "variant" : "variants"}, {Math.min(...seats)}{Math.min(...seats) === Math.max(...seats) ? "" : `-${Math.max(...seats)}`} seats</span>
                   <span className="ap-fam-avail">{live > 0 ? `${live} in production` : availabilityOf(f.types[0]!, year) === "future" ? "Not yet in production" : "Out of production"}</span>
                   {selected && f.types.some((t) => t.id === selected.id) && <span className="ap-cur">Current</span>}
                 </button>

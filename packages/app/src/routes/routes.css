@@ -145,10 +145,10 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 .comp-flag.below { color: var(--sev-good); } .comp-flag.above { color: var(--sev-warn); }
 
 /* Aircraft section and swap */
-.rp-swap { display: flex; flex-direction: column; gap: .6rem; margin-top: .4rem; }
-.rp-swap-cmp { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: .25rem .6rem; font-size: .84rem; font-variant-numeric: tabular-nums; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .65rem; }
-.rp-swap-cmp .k { color: var(--text-dim); font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; align-self: center; }
-.rp-swap .rp-alert { flex-direction: row; border-color: var(--sev-warn); }
-.rp-swap .rp-alert svg { color: var(--sev-warn); }
-.rp-swap .link-btn { padding-left: 0; color: var(--accent); }
+.rp-acswap { display: flex; flex-direction: column; gap: .6rem; margin-top: .4rem; }
+.rp-acswap-cmp { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: .25rem .6rem; font-size: .84rem; font-variant-numeric: tabular-nums; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .65rem; }
+.rp-acswap-cmp .k { color: var(--text-dim); font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; align-self: center; }
+.rp-acswap .rp-alert { flex-direction: row; border-color: var(--sev-warn); }
+.rp-acswap .rp-alert svg { color: var(--sev-warn); }
+.rp-acswap .link-btn { padding-left: 0; color: var(--accent); }
 .row-act { font-size: .74rem; padding: .15rem .5rem; }

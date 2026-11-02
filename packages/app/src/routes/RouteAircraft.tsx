@@ -76,12 +76,12 @@ export function RouteAircraft({ route }: { route: Route }) {
       {!changing ? (
         <div className="rp-actions"><button type="button" onClick={() => { setNewId(route.typeId); setChanging(true); }}>Change aircraft type</button></div>
       ) : (
-        <div className="rp-swap">
+        <div className="rp-acswap">
           <AircraftPicker label="New aircraft type" value={newId} onChange={setNewId} year={year} types={aircraftTypes} hideBlocked defaultOpen={!changed}
             block={(t) => (a && b ? routeBlock(t, a, b, year) : "Unknown airport")} owned={owned} memoryKey="swap" />
           {changed && nextType && (
             <>
-              <div className="rp-swap-cmp" aria-live="polite">
+              <div className="rp-acswap-cmp" aria-live="polite">
                 <div /><div className="k">Now</div><div className="k">With {nextType.id}</div>
                 <div className="k">Profit / week</div><div>{cur ? usdSigned(cur.profit) : "–"}</div>
                 <div className={proj ? (proj.profit >= (cur?.profit ?? 0) ? "pos" : "neg") : ""}>{proj ? usdSigned(proj.profit) : "–"}</div>

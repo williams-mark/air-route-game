@@ -264,6 +264,7 @@ async function uifixShots(theme) {
   await page.waitForTimeout(600);
   await snap(page, "swap-open");
   const rp = page.locator(".route-panel");
+  await rp.locator(".ap-nav button.ap-crumb", { hasText: "All" }).click();
   await rp.locator(".ap-tile", { hasText: "Airbus" }).first().click();
   await rp.locator(".ap-tile", { hasText: "A330" }).first().click();
   await rp.locator(".ap-var", { hasText: "A330-300" }).first().click();
