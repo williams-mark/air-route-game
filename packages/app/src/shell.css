@@ -143,3 +143,4 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .order-form select, .order-form input { width: 100%; }
 .order-quote { grid-column: 1 / -1; max-width: 32rem; }
 .order-form .primary { grid-column: 1 / -1; justify-self: start; }
+.order-form > .rp-field:first-child { grid-column: 1 / -1; max-width: 44rem; }
