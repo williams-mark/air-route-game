@@ -1,6 +1,6 @@
 # Build status (update at the end of every work session)
 
-Last updated: Sun 1 Nov 2026 (night). `main` passes typecheck, test (data 12, sim 107, app 35) and build.
+Last updated: Mon 2 Nov 2026 (early morning UTC). `main` passes typecheck, test (data 12, sim 165, app 46) and build.
 
 ## Task table (T1-T18 from the Week-One Build Plan doc)
 | Task | State | Notes |
@@ -16,15 +16,18 @@ Last updated: Sun 1 Nov 2026 (night). `main` passes typecheck, test (data 12, si
 | T9 finance and time | done | ledger, clock, speeds 0-5 |
 | T10 UI shell | done | top bar, toolbar, feed, decision cards, command palette |
 | T11 route inspector/creation | done | sandbox, inspector, why-ledger lines |
-| T12 fleet/order book/checks | mostly done | orders with delivery delays, A-D checks, scheduler, Fleet/Orders views. Cabin layout selector now live (lane/cabin) |
+| T12 fleet/order book/checks | done | orders with delivery delays, A-D checks, scheduler, Fleet/Orders views, cabin layout in order form and refits |
 | T13 offers panel | done (lane/offers) | launch, end-of-life, flash-sale and used offers; Offers tab, popup, badge. See MODEL.md "Offers" |
-| T14 basic rivals | not started | only synthetic rival carriers inside the market model |
+| T14 basic rivals | done in sim | 5 fictional rivals + Ember Air 2017 entrant, retaliation, bankruptcy (see packages/sim/RIVALS.md). UI for rivals not wired yet: use rivalReports/rivalNews |
 | T15 why ledger and hub board | partial | ledger in inspector; hub board not started |
 | T16 save/load, cabin sliders, light polish | partial | Cabin sliders done: designer view, order and refit editors (lane/cabin, see MODEL.md "Cabin"); save/load not started |
 | T17 QA and balance bots | partly done | bots + BALANCE.md (pnpm --filter @arg/sim bots); premium-fare exploit fixed; UI QA not started |
 | T18 deploy and hardening | not started | |
 
 ## Known issues to fix next
+- Rivals UI not wired (market view of competitors, rival news cards); bankruptcies rare in normal play, so few distressed lots (see RIVALS.md).
+- Save/load (IndexedDB), hub board, QA Playwright smoke tests, deploy not started. Sim still on main thread.
+- Rival bankruptcies: only Ember Air fails in the seed-2015 baseline; consider shocks (2020 pandemic is not modelled).
 - Balance lane (see packages/sim/BALANCE.md): rivals do not react to player fares; aircraft order discount has no economic effect; no bankruptcy rule in the sim; no pandemic shock.
 - Balance lane changed the starting fleet to 8 aircraft (3x 737-800, A320, 2x 757, 2x 777) and edited two app tests (realBridge.test.ts) that depended on the old LAX-SAN bug and the 13-aircraft fleet.
 - Sim runs on the main thread (about 0.9 ms/day); move to a Web Worker later.
