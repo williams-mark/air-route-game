@@ -1,4 +1,5 @@
 import type { AircraftType, CabinLayout, CabinSection } from "@arg/contracts";
+import { allowedAcross, validateLayout as validateCabinRules } from "../cabin/rules";
 
 /** Fraction of the type's maximum (high-density) seat count that a default full-service layout keeps. */
 export const DEFAULT_LAYOUT_FRACTION = { narrow: 0.86, wide: 0.78 } as const;
@@ -28,27 +29,24 @@ export function defaultLayout(type: AircraftType): CabinLayout {
     sections.push({ cls: "J", rows: 3, seatsAcross: 4, pitchIn: 37 });
     used += 12;
   }
-  const across = type.widebody ? (type.maxSeats >= 480 ? 10 : type.maxSeats >= 330 ? 9 : 8) : type.maxSeats >= 120 ? 6 : 4;
+  const wanted = type.widebody ? (type.maxSeats >= 480 ? 10 : type.maxSeats >= 330 ? 9 : 8) : type.maxSeats >= 120 ? 6 : 4;
+  // Economy abreast must be one the cabin rules allow for this type (A220 is 5-abreast, A350 8 or 9): take the widest allowed <= wanted.
+  const allowed = allowedAcross(type, "Y").map((o) => o.across);
+  const across = allowed.filter((n) => n <= wanted).pop() ?? allowed[0] ?? wanted;
   const rows = Math.max(1, Math.floor((target - used) / across));
   sections.push({ cls: "Y", rows, seatsAcross: across, pitchIn: 31 });
   return { sections };
 }
 
-export type LayoutError = "empty_layout" | "bad_section" | "too_many_seats";
+export type LayoutError = "empty_layout" | "bad_section" | "too_many_seats" | "duplicate_class" | "class_unavailable" | "bad_across" | "bad_pitch" | "too_long";
 
-/** Returns an error code and message, or null when the layout is legal for the type. */
+/**
+ * Returns an error code and message, or null when the layout is legal for the type. This is the single rule set
+ * (cabin/rules.ts) used by defaults, orders, offers, refits and the designer; only the first error is reported here.
+ */
 export function validateLayout(type: AircraftType, layout: CabinLayout): { error: LayoutError; message: string } | null {
-  if (!layout || !Array.isArray(layout.sections) || layout.sections.length === 0) {
-    return { error: "empty_layout", message: "Cabin layout has no sections." };
-  }
-  for (const s of layout.sections) {
-    if (!Number.isInteger(s.rows) || !Number.isInteger(s.seatsAcross) || s.rows < 1 || s.seatsAcross < 1 || !(s.pitchIn > 0)) {
-      return { error: "bad_section", message: `Cabin section ${s.cls} needs positive whole rows and seats across, and a positive pitch.` };
-    }
-  }
-  const seats = layoutSeats(layout);
-  if (seats > type.maxSeats) {
-    return { error: "too_many_seats", message: `${seats} seats exceeds the ${type.maxSeats}-seat maximum of the ${type.name}.` };
-  }
-  return null;
+  if (!layout || !Array.isArray(layout.sections)) return { error: "empty_layout", message: "Cabin layout has no sections." };
+  const v = validateCabinRules(type, layout);
+  const e = v.errors[0];
+  return e ? { error: e.code as LayoutError, message: e.message } : null;
 }

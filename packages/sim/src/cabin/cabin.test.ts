@@ -68,9 +68,20 @@ describe("validateLayout", () => {
     expect(validateLayout(a320, lay(["Y", 10, 6, 31], ["Y", 10, 6, 31])).errors.some((e) => e.code === "duplicate_class")).toBe(true);
     expect(validateLayout(a320, { sections: [] }).errors[0]!.code).toBe("empty_layout");
   });
-  it("accepts the game's default layouts for all types except those flagged", () => {
+  it("accepts the game's default layouts for every type, with realistic seat counts", () => {
     const bad = aircraftTypes.filter((t) => !validateLayout(t, defaultLayout(t)).ok).map((t) => t.id);
-    expect(bad).toEqual(["A220-100", "A220-300", "A350-1000"]); // default uses 6-abreast on the A220 and 10-abreast on the A350-1000 (known issues)
+    expect(bad).toEqual([]);
+    for (const t of aircraftTypes) {
+      const seats = layoutSeats(defaultLayout(t));
+      expect(seats, t.id).toBeLessThanOrEqual(t.maxSeats);
+      expect(seats, t.id).toBeGreaterThan(t.maxSeats * 0.7);
+    }
+  });
+  it("the A220 and A350-1000 defaults use abreast counts the rules allow", () => {
+    const y = (id: string) => defaultLayout(aircraftTypes.find((t) => t.id === id)!).sections.find((s) => s.cls === "Y")!.seatsAcross;
+    expect(y("A220-100")).toBe(5);
+    expect(y("A220-300")).toBe(5);
+    expect(y("A350-1000")).toBe(9);
   });
 });
 

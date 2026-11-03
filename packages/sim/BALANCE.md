@@ -39,3 +39,6 @@ With `MAINTENANCE_ENABLED = false` the per-hour maintenance cost and all A-D dow
 - Greedy and passive are both stable but the market has no saturation signal for the player's own slot or airport capacity (`slotsPerHour` is unused).
 - SAN-SFO metro volume is about 15.8k against a 8-14k target (structural, see MODEL.md section 1). Pandemic 2020-21 is not modelled; passive margins do not dip in 2020.
 - stepDay costs about 1.5 ms (4 routes) to 8 ms (20+ routes) per day, up from 0.9 ms, because of rival sizing probes and hub markets (capped at 12 a day).
+
+## Order discount now has an economic effect (lane/qa-save)
+Regular orders set `ownershipFactor = net / list`, so the 8-40% volume discount lowers recurring ownership cost as offer orders already did. 12 x 10y bots afterwards: bankruptcies 8/12, exploits 0, crashes 0; passive median 658M (was 616M), greedy 399M (was 285M); best year x1.34, best route margin 66%. No parameter recalibrated.

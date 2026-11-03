@@ -72,7 +72,7 @@ export default function FleetView() {
       <ul className="cards">{sorted.map((a) => <Card key={a.id} a={a} onRefit={setRefitting} />)}</ul>
       {refitting && refitType && refitting.layout && (
         <CabinDialog
-          title={`Refit ${refitting.tail} (${refitType.name})`} type={refitType} initial={refitting.layout} day={day} confirmLabel="Start refit"
+          title={`Refit ${refitting.tail} (${refitType.name})`} type={refitType} initial={refitting.layout} day={day} confirmLabel="Start refit" requireChange
           quote={(l) => { const q = refitQuote(refitType, l); return <>Cost {usd(q.costUsd)}, out of service {q.downtimeDays} days.</>; }}
           blocker={(l) => (refitQuote(refitType, l).costUsd > cash ? "Not enough cash for this refit." : null)}
           onClose={() => setRefitting(null)}
