@@ -5,7 +5,7 @@ import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as dataAirports } from "@arg/data";
 import {
   applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay,
-  type AutoSlowHook, type Clock, type SimState,
+  validateSimState, type AutoSlowHook, type Clock, type SimState,
 } from "@arg/sim";
 import type {
   CommandResult, Decision, FleetItem, Notice, OfferItem, OrderItem, Severity, SimBridge, SimSnapshot, Speed,
@@ -36,6 +36,24 @@ export interface BridgeExtras {
   engine: EngineState;
   lowCash: boolean;
 }
+const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** Problems with the saved UI extras (feed, ledger, pending decision cards, decision engine). Empty when usable. */
+export function validateExtras(x: unknown): string[] {
+  if (!isObj(x)) return ["the saved interface data is damaged"];
+  const out: string[] = [];
+  if (!Array.isArray(x.notices) || x.notices.some((n) => !isObj(n) || !isNum(n.id) || !isNum(n.day) || typeof n.text !== "string" || typeof n.severity !== "string")) out.push("the saved notices are damaged");
+  if (!isNum(x.nextNotice)) out.push("the notice counter is invalid");
+  if (!Array.isArray(x.ledger) || x.ledger.some((r) => !isObj(r) || !isNum(r.day) || !isNum(r.cash) || !isNum(r.revenue) || !isNum(r.costs) || !isNum(r.profit) || !isObj(r.by))) out.push("the saved finance ledger is damaged");
+  if (!Array.isArray(x.pending) || x.pending.some((p) => !isObj(p) || typeof p.id !== "string" || typeof p.key !== "string" || !isNum(p.day) || !isNum(p.expiresDay) || typeof p.title !== "string" || !Array.isArray(p.options) || !isObj(p.commands))) out.push("the saved decision cards are damaged");
+  const e = x.engine;
+  if (!isObj(e) || !isObj(e.lfSum) || !isObj(e.lowWeeks) || !Array.isArray(e.cooldown) || !Array.isArray(e.status) || typeof e.primed !== "boolean" || !isNum(e.newsSeen)
+    || e.cooldown.some((c) => !Array.isArray(c) || c.length !== 2) || e.status.some((c) => !Array.isArray(c) || c.length !== 2)) out.push("the saved decision engine is damaged");
+  if (typeof x.lowCash !== "boolean") out.push("the low-cash flag is invalid");
+  return out;
+}
+
 /** Cash at which a bankruptcy warning is raised (once, until cash recovers). */
 export const LOW_CASH_USD = 15_000_000;
 
@@ -111,12 +129,37 @@ export class RealSimBridge implements SimBridge {
     });
   }
 
-  /** Replace the running game with a loaded one (paused). */
+  /**
+   * Replace the running game with a loaded one (paused). The save is fully validated first (state, references and UI
+   * extras) and one day is trial-run on a copy; if anything fails this throws and the running game is left untouched.
+   */
   loadGame(save: SaveFile): void {
+    const problems = [...validateSimState(save?.state), ...(save?.extras === undefined ? [] : validateExtras(save.extras))];
+    if (problems.length > 0) throw new Error(`the save is damaged (${problems[0]})`);
     const extras = save.extras as BridgeExtras | undefined;
-    this.reset(save.state, 0, false, extras && extras.engine ? extras : undefined);
-    this.say(this.sim.world.day, "info", "Game loaded. Press Space to resume.");
-    this.emit();
+    // Trial: the sim must be able to step the loaded state (pure, so this leaves `save.state` unchanged).
+    stepDay(save.state);
+    const keep = this.captureFields();
+    try {
+      this.reset(save.state, 0, false, extras);
+      this.say(this.sim.world.day, "info", "Game loaded. Press Space to resume.");
+      this.emit();
+    } catch (e) {
+      this.restoreFields(keep);
+      throw e;
+    }
+  }
+
+  private static readonly FIELDS = [
+    "sim", "clock", "snap", "notices", "nextNotice", "ledger", "pending", "engine", "deliveryDays", "lowCash", "reportedSlow",
+    "offersOf", "offersCache", "viewOf", "rivalsOf", "rivalsCache",
+  ] as const;
+  private captureFields(): Record<string, unknown> {
+    const self = this as unknown as Record<string, unknown>;
+    return Object.fromEntries(RealSimBridge.FIELDS.map((k) => [k, self[k]]));
+  }
+  private restoreFields(saved: Record<string, unknown>): void {
+    Object.assign(this as unknown as Record<string, unknown>, saved);
   }
 
   /** Start a fresh game with `seed`. */

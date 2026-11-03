@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { AircraftType, CabinLayout } from "@arg/contracts";
 import { CabinEditor } from "./CabinEditor";
-import { validateCabinLayout } from "@arg/sim";
+import { sameLayout, validateCabinLayout } from "@arg/sim";
 
 interface Props {
   title: string;
@@ -14,12 +14,14 @@ interface Props {
   /** Return a message to block confirming (e.g. not enough cash). */
   blocker?: (layout: CabinLayout) => string | null;
   defaultRoute?: string;
+  /** Refits: keep the confirm button disabled until the layout differs from `initial`. */
+  requireChange?: boolean;
   onConfirm: (layout: CabinLayout) => void;
   onClose: () => void;
 }
 
 /** Modal wrapper around the editor: Escape cancels, focus returns to the opener. */
-export function CabinDialog({ title, type, initial, day, confirmLabel, quote, blocker, defaultRoute, onConfirm, onClose }: Props) {
+export function CabinDialog({ title, type, initial, day, confirmLabel, quote, blocker, defaultRoute, requireChange, onConfirm, onClose }: Props) {
   const [layout, setLayout] = useState(initial);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -28,7 +30,8 @@ export function CabinDialog({ title, type, initial, day, confirmLabel, quote, bl
     return () => prev?.focus?.();
   }, []);
   const valid = validateCabinLayout(type, layout).ok;
-  const block = valid ? blocker?.(layout) ?? null : "Fix the problems listed before confirming.";
+  const unchanged = !!requireChange && sameLayout(initial, layout);
+  const block = !valid ? "Fix the problems listed before confirming." : unchanged ? "Change the cabin before starting a refit." : blocker?.(layout) ?? null;
   return (
     <div className="scrim" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div

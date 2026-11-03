@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
-import type { Aircraft, Route } from "@arg/contracts";
+import type { Aircraft, CabinLayout, Route } from "@arg/contracts";
 import { applyCommand, setMaintenanceEnabledForTests, stepDay } from "../index";
 // Maintenance is suspended by default (MAINTENANCE_ENABLED); this file exercises it, so switch it on (module scope, this file only).
 setMaintenanceEnabledForTests(true);
@@ -28,6 +28,8 @@ function mini(fleet: Aircraft[], routes: Route[], metaOver: Record<string, Parti
   }
   return { ...base, fleetMeta };
 }
+
+const lessEconomy = (l: CabinLayout): CabinLayout => ({ sections: l.sections.map((x) => (x.cls === "Y" ? { ...x, rows: x.rows - 1 } : x)) });
 
 describe("forecast", () => {
   const demo = plannerDemoFleet(airports, aircraftTypes, 7);
@@ -104,7 +106,7 @@ describe("forecast", () => {
     const base = mini([ac("a1", "B737-800"), ac("a2", "B737-800", { status: "delivery" })], [route("r1", "LAX", "SFO", 14, "B737-800")]);
     const s: SimState = { ...base, fleetMeta: { ...base.fleetMeta, a2: { ...base.fleetMeta["a2"]!, deliveryDay: base.world.day + 20 } } };
     expect(forecastFleet(s, 90).aircraft["a2"]!.deliveryDay).toBe(base.world.day + 20);
-    const r = applyCommand(s, { kind: "refitAircraft", aircraftId: "a1", layout: defaultLayout(T.get("B737-800")!) });
+    const r = applyCommand(s, { kind: "refitAircraft", aircraftId: "a1", layout: lessEconomy(defaultLayout(T.get("B737-800")!)) });
     expect(r.result.ok).toBe(true);
     const w = forecastFleet(r.state, 60).aircraft["a1"]!.windows[0]!;
     expect(w).toMatchObject({ kind: "refit", underway: true });

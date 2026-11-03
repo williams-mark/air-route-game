@@ -9,4 +9,4 @@ export {
   type LayoutEffects, type EffectsContext, type ClassMetrics,
 } from "./effects";
 export { suggestLayouts, type LayoutPreset } from "./presets";
-export { applyRefit, refitQuote, REFIT_PARAMS, type CabinCommand, type RefitResult } from "./refit";
+export { applyRefit, refitQuote, sameLayout, REFIT_PARAMS, type CabinCommand, type RefitResult } from "./refit";

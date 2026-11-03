@@ -61,6 +61,66 @@ describe("save / load", () => {
   });
 });
 
+describe("damaged saves never break the running game", () => {
+  const damaged = (b: RealSimBridge, mutate: (save: any) => void) => {
+    const save = JSON.parse(stringifySave(b.serialize()));
+    mutate(save);
+    return JSON.stringify(save);
+  };
+  const cases: Array<[string, (s: any) => void]> = [
+    ["missing orders", (s) => { delete s.state.orders; }],
+    ["route to an unknown airport", (s) => { s.state.world.routes[0].origin = "ZZZ"; }],
+    ["fleet aircraft with wrong-typed layout", (s) => { s.state.world.fleet[0].layout = "wide"; }],
+    ["order referring to missing aircraft", (s) => { s.state.orders = [{ id: "o", typeId: "A320", count: 1, layout: s.state.world.fleet[0].layout, orderDay: 0, discount: 0, unitPriceUsd: 1, depositUsd: 1, aircraftIds: ["nope"], deliveryDays: [5] }]; }],
+    ["missing engine extras", (s) => { delete s.extras.engine; }],
+    ["notices of the wrong type", (s) => { s.extras.notices = "hello"; }],
+    ["pending cards without commands", (s) => { s.extras.pending = [{ id: "x@1", key: "x", day: 1, expiresDay: 9, title: "t", options: [] }]; }],
+    ["ledger rows damaged", (s) => { s.extras.ledger = [{ day: "1" }]; }],
+    ["extras not an object", (s) => { s.extras = 7; }],
+  ];
+  for (const [name, mutate] of cases) {
+    it(`rejects "${name}" and leaves the current game usable`, () => {
+      const target = mk(2015);
+      target.stepDays(30);
+      const before = JSON.stringify(target.simState);
+      const noticesBefore = target.getState().notices;
+      const source = mk(77);
+      source.stepDays(30);
+      const r = loadText(target, damaged(source, mutate));
+      expect(r.ok).toBe(false);
+      expect(r.message.length).toBeGreaterThan(10);
+      expect(JSON.stringify(target.simState)).toBe(before);
+      expect(target.getState().notices).toBe(noticesBefore);
+      expect(() => target.stepDays(10)).not.toThrow();
+      expect(target.getState().day).toBe(40);
+    });
+  }
+
+  it("rolls back if initialisation itself throws", () => {
+    const target = mk(2015);
+    target.stepDays(5);
+    const source = mk(77);
+    source.stepDays(5);
+    const save = source.serialize();
+    const before = target.getState();
+    (target as any).refreshDeliveryDays = () => { throw new Error("boom"); };
+    expect(loadText(target, stringifySave(save)).ok).toBe(false);
+    expect(target.getState()).toBe(before);
+    (target as any).refreshDeliveryDays = RealSimBridge.prototype["refreshDeliveryDays" as never];
+    expect(() => target.stepDays(3)).not.toThrow();
+    expect(target.getState().day).toBe(8);
+  });
+
+  it("an undamaged save still loads after a failed attempt", () => {
+    const target = mk(2015);
+    const good = mk(77);
+    good.stepDays(20);
+    expect(loadText(target, damaged(good, (s) => { delete s.state.orders; })).ok).toBe(false);
+    expect(loadText(target, stringifySave(good.serialize())).ok).toBe(true);
+    expect(target.getState().day).toBe(20);
+  });
+});
+
 describe("rival fare-cut decision cards", () => {
   it("offers match / partial / hold and dispatches updateRoute through decide()", () => {
     const b = mk();

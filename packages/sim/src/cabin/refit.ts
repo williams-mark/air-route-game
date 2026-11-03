@@ -30,6 +30,15 @@ export function refitQuote(type: AircraftType, layout: CabinLayout): RefitQuote 
   return { downtimeDays: REFIT_PARAMS.downtimeDays[k], costUsd: Math.round(cost), seats };
 }
 
+/** True when two layouts have the same sections (class, rows, seats across, pitch), in the same order. */
+export function sameLayout(a: CabinLayout | undefined, b: CabinLayout | undefined): boolean {
+  if (!a || !b || a.sections.length !== b.sections.length) return false;
+  return a.sections.every((s, i) => {
+    const t = b.sections[i]!;
+    return s.cls === t.cls && s.rows === t.rows && s.seatsAcross === t.seatsAcross && s.pitchIn === t.pitchIn;
+  });
+}
+
 export type RefitResult =
   | { ok: true; kind: "refitAircraft"; aircraftId: Id; costUsd: number; downtimeDays: number; returnDay: Day }
   | CommandError;
@@ -46,6 +55,7 @@ export function applyRefit(state: SimState, cmd: CabinCommand): { state: SimStat
   }
   const v = validateLayout(type, cmd.layout);
   if (!v.ok) return { state, result: fail("invalid_layout", v.errors[0]!.message) };
+  if (sameLayout(ac.layout, cmd.layout)) return { state, result: fail("no_change", `${ac.tailNumber} already has this cabin layout; change something before refitting.`) };
   const q = refitQuote(type, cmd.layout);
   if (q.costUsd > state.world.cash) return { state, result: fail("insufficient_cash", `A refit costs $${Math.round(q.costUsd / 1000)}k; you have $${Math.round(state.world.cash / 1000)}k.`) };
   const day = state.world.day;

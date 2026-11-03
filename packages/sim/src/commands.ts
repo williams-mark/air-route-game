@@ -58,7 +58,8 @@ export type CommandErrorCode =
   | "unknown_offer"
   | "offer_expired"
   | "unknown_aircraft"
-  | "aircraft_unavailable";
+  | "aircraft_unavailable"
+  | "no_change";
 
 export interface CommandError {
   ok: false;
@@ -264,6 +265,8 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
   const order: AircraftOrder = {
     id: orderId, typeId: type.id, count: cmd.count, layout, orderDay: state.world.day, discount, unitPriceUsd, depositUsd,
     aircraftIds: aircraft.map((a) => a.id), deliveryDays,
+    // Recurring ownership cost follows the net price paid, as for offer orders.
+    ownershipFactor: unitPriceUsd / (type.listPriceUsdM * 1e6),
   };
   const firstDate = dayToDate(Math.min(...deliveryDays));
   const text = `Ordered ${cmd.count} x ${type.id} at ${(discount * 100).toFixed(0)}% off list ($${(unitPriceUsd / 1e6).toFixed(1)}M each). Deposit $${(depositUsd / 1e6).toFixed(1)}M paid; first delivery ${firstDate.year}-${String(firstDate.month + 1).padStart(2, "0")}.`;
