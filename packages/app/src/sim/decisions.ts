@@ -6,6 +6,7 @@ import { scaleFares } from "../rivals/helpers";
 import { bestFrequency, frequencySweep, projectRoute, routeName, dataWorld } from "../routes/helpers";
 import type { Decision } from "./bridge";
 import { formatMoney } from "./format";
+import { effectText, fareCutEffects } from "./fareCut";
 
 export interface PendingDecision extends Decision {
   /** Subject key; the id is `${key}@${day}`. */
@@ -179,6 +180,7 @@ export class DecisionEngine {
       card: {
         key,
         title: `${name} is running mostly empty`,
+        routeId: route.id,
         context: `Load factor has averaged ${Math.round(lf * 100)}% for ${DECISION_PARAMS.lowWeeksNeeded} weeks on ${route.weeklyFrequency} weekly round trips with ${route.typeId}.`,
         options, commands,
       },
@@ -196,24 +198,25 @@ export class DecisionEngine {
     const matchFares = scaleFares(route.fares, 1 - pct / 100);
     const halfFares = scaleFares(route.fares, 1 - pct / 200);
     const canAdd = route.weeklyFrequency + 1 <= COMMAND_PARAMS.maxWeeklyFrequency;
+    const est = fareCutEffects(route, sim.world.day, pct, canAdd);
     const options: Decision["options"] = [];
     const commands: PendingDecision["commands"] = {};
-    options.push({ id: "match", label: `Match the cut (${pct}%)`, effect: `Economy $${route.fares.Y} to $${matchFares.Y}; keeps share, lowers yield` });
+    options.push({ id: "match", label: `Match the cut (${pct}%)`, effect: `Economy $${route.fares.Y} to $${matchFares.Y}; keeps share, lowers yield${est ? `. ${effectText(est.match)}` : ""}` });
     commands.match = { kind: "updateRoute", id: route.id, patch: { fares: matchFares } };
     options.push({
       id: "partial", label: canAdd ? `Cut ${Math.round(pct / 2)}% and add a frequency` : `Cut ${Math.round(pct / 2)}%`,
-      effect: `Economy $${route.fares.Y} to $${halfFares.Y}${canAdd ? `, ${route.weeklyFrequency} to ${route.weeklyFrequency + 1} a week` : ""}`,
+      effect: `Economy $${route.fares.Y} to $${halfFares.Y}${canAdd ? `, ${route.weeklyFrequency} to ${route.weeklyFrequency + 1} a week` : ""}${est ? `. ${effectText(est.partial)}` : ""}`,
     });
     commands.partial = { kind: "updateRoute", id: route.id, patch: canAdd ? { fares: halfFares, weeklyFrequency: route.weeklyFrequency + 1 } : { fares: halfFares } };
-    options.push({ id: "hold", label: "Hold fares", effect: "Keeps yield; may lose some passengers to them" });
+    options.push({ id: "hold", label: "Hold fares", effect: `Keeps yield; may lose some passengers to them${est ? `. ${effectText(est.hold)}` : ""}` });
     commands.hold = null;
     return {
       key,
       card: {
         key,
         title: `${n.rivalName} cut ${name} fares ${pct}%`,
-        context: `A competitor undercut you in a market you fly. Your economy fare is $${route.fares.Y} on ${route.weeklyFrequency} weekly round trips. Rivals may keep cutting if you ignore it.`,
-        options, commands,
+        context: `A competitor undercut you in a market you fly. Your economy fare is $${route.fares.Y} on ${route.weeklyFrequency} weekly round trips. Rivals may keep cutting if you ignore it. Estimates compare each response with your route before the cut.`,
+        options, commands, routeId: route.id,
       },
     };
   }
@@ -321,7 +324,7 @@ export class DecisionEngine {
         context: best
           ? `${routeName(best.r)} is running at ${Math.round(best.lf * 100)}% load${(sim.routeReports[best.r.id]?.scheduling?.underSupplied ?? 0) > 0 ? " and cannot fly its full schedule" : ""}. The new aircraft could add flights there.`
           : "No route needs the extra capacity right now. It can sit as a spare until you open or expand a route.",
-        options, commands,
+        options, commands, ...(best ? { routeId: best.r.id } : {}),
       },
     };
   }

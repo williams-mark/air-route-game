@@ -5,6 +5,7 @@ import { useUi } from "../store";
 import { useToasts } from "../routes/store";
 import { exportToFile, importFromFile, latestSlot, loadFromSlot, parseSeed, saveToSlot, slotName, type Outcome } from "./saves";
 import { ALL_SLOTS, getStore, MANUAL_SLOTS, type SlotId, type SlotMeta } from "./store";
+import { Modal } from "../shell/Modal";
 import "./save.css";
 
 function useSlots() {
@@ -56,8 +57,6 @@ export function SaveDialog() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<Outcome | null>(null);
   const close = () => setDialog(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => { const prev = document.activeElement as HTMLElement | null; closeRef.current?.focus(); return () => prev?.focus?.(); }, []);
   const byslot = new Map((metas ?? []).map((m) => [m.slot, m]));
 
   const finish = (o: Outcome, closeOnOk: boolean) => {
@@ -73,13 +72,12 @@ export function SaveDialog() {
   const doLoad = async (slot: SlotId) => { setBusy(true); const o = await loadFromSlot(bridge, slot); setBusy(false); finish(o, true); };
 
   return (
-    <div className="scrim" onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }} onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); close(); } }}>
-      <div className="dialog save-dialog" role="dialog" aria-modal="true" aria-label="Save and load">
+    <Modal label="Save and load" className="dialog save-dialog" onClose={close} initialFocus='button[aria-label="Close"]'>
         <div className="dialog-head">
           <div className="seg" role="tablist" aria-label="Save or load">
             {(["save", "load"] as const).map((m) => (<button key={m} role="tab" aria-selected={mode === m} aria-pressed={mode === m} onClick={() => { setDialog(m); setMsg(null); }}>{m === "save" ? "Save game" : "Load game"}</button>))}
           </div>
-          <button ref={closeRef} className="icon-btn" aria-label="Close" onClick={close}>{"✕"}</button>
+          <button className="icon-btn" aria-label="Close" onClick={close}>{"✕"}</button>
         </div>
         <div className="save-body">
           {error && <p className="save-msg bad" role="alert">{error}</p>}
@@ -92,8 +90,7 @@ export function SaveDialog() {
           <p className="save-note">Autosave happens on the first of each month and when you leave the tab. Ctrl+S saves to the last slot you used.</p>
           <p className={`save-msg ${msg && !msg.ok ? "bad" : ""}`} role="status" aria-live="polite">{msg?.message ?? ""}</p>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -114,15 +111,13 @@ export function StartScreen() {
   const [msg, setMsg] = useState<Outcome | null>(null);
   const [showLoad, setShowLoad] = useState(false);
   const latest = metas ? latestSlot(metas) : null;
-  const newRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { newRef.current?.focus(); }, []);
 
   const begin = (o: Outcome) => { setMsg(o); if (o.ok) { setStart(false); setDialog(null); push("good", o.message); } };
   const parsed = parseSeed(seed);
   const [slotBusy, setSlotBusy] = useState(false);
   return (
-    <div className="start" role="dialog" aria-modal="true" aria-label="Start screen">
-      <div className="start-card">
+    <Modal label="Start screen" scrimClassName="start" className="start-card" initialFocus="#start-seed" closeOnEscape={false} closeOnBackdrop={false} onClose={() => undefined}>
+      <>
         <h1>Air Route Game</h1>
         <p className="start-sub">Build an airline on the US West Coast and Hawaii, 2015 to 2025.</p>
         {latest ? (
@@ -133,7 +128,7 @@ export function StartScreen() {
         ) : (<p className="start-none">{metas === null ? "Looking for saved games…" : "No saved game yet."}</p>)}
         <form className="start-new" onSubmit={(e) => { e.preventDefault(); if (parsed === null) { setMsg({ ok: false, message: "Seed must be a whole number from 0 to 999999999." }); return; } bridge.newGame?.(parsed); begin({ ok: true, message: `New game, seed ${parsed}.` }); }}>
           <label htmlFor="start-seed">Seed</label>
-          <input id="start-seed" ref={newRef} inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} aria-invalid={parsed === null} />
+          <input id="start-seed" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} aria-invalid={parsed === null} />
           <button type="submit" className="primary">New game</button>
         </form>
         <p className="start-hint">The same seed always gives the same world and the same rivals.</p>
@@ -148,7 +143,7 @@ export function StartScreen() {
         )}
         {error && <p className="save-msg bad" role="alert">{error}</p>}
         <p className={`save-msg ${msg && !msg.ok ? "bad" : ""}`} role="status" aria-live="polite">{msg?.message ?? ""}</p>
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 }

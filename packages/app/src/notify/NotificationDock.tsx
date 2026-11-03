@@ -6,7 +6,7 @@ import { useUi } from "../store";
 import { useOffersUi } from "../offers/store";
 import { closesIn, KIND_BADGE } from "../offers/format";
 import { IconAlert, IconBell, IconChevron, IconGood, IconInfo, IconTag, IconWarn } from "../shell/icons";
-import { clampPos, cornerPos, unresolvedCount, visibleNotices, type Corner, type Pt, type Rect, type Size } from "./dockLogic";
+import { clampPos, cornerPos, sortDecisions, unresolvedCount, visibleNotices, type Corner, type Pt, type Rect, type Size } from "./dockLogic";
 import { usePlanner } from "../planner/store";
 import { useDock } from "./dockStore";
 import "./dock.css";
@@ -62,6 +62,7 @@ export function NotificationDock() {
   const snoozed = useUi((s) => s.snoozed);
   const snooze = useUi((s) => s.snooze);
   const setView = useUi((s) => s.setView);
+  const select = useUi((s) => s.select);
   const seen = useOffersUi((s) => s.seen);
   const markSeen = useOffersUi((s) => s.markSeen);
   const setTab = useOffersUi((s) => s.setTab);
@@ -158,7 +159,7 @@ export function NotificationDock() {
         <button type="button" className="icon-btn dock-min-btn" aria-label="Minimize notifications (Esc)" title="Minimize (Esc)" onClick={minimizeDock}>{"–"}</button>
       </header>
       <ul className="dock-list">
-        {sim.decisions.map((d) => {
+        {sortDecisions(sim.decisions, snoozed).map((d) => {
           const k = `d:${d.id}`;
           const later = snoozed.includes(d.id);
           const isOpen = open === k && !later;
@@ -180,6 +181,9 @@ export function NotificationDock() {
                       </button>
                     ))}
                   </div>
+                  {d.routeId && bridge.getState().routes.some((r) => r.id === d.routeId) && (
+                    <button type="button" className="link-btn" onClick={() => { setView("routes"); select({ kind: "route", id: d.routeId! }); }}>Show this route in Routes</button>
+                  )}
                   {d.aircraftId && (
                     <button type="button" className="link-btn" onClick={() => { usePlanner.getState().focus(d.aircraftId!); setView("planner"); }}>Plan cover in the planner</button>
                   )}

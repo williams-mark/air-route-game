@@ -233,6 +233,78 @@ for (const theme of themes) {
     await shot(page, theme, "cabin");
   });
 
+  // Modals (B09): Tab and Shift+Tab stay inside, the page behind is inert, focus returns to the opener.
+  const trapCheck = async (name, openFn, openerSel, dialogName) => {
+    await check(theme, `${name}: traps focus, inerts the background, returns focus to the opener`, async () => {
+      await openFn();
+      const dlg = page.getByRole("dialog", { name: dialogName });
+      await dlg.waitFor({ timeout: 4000 });
+      const inside = () => page.evaluate(() => !!document.activeElement?.closest("[role=dialog]"));
+      for (let i = 0; i < 14; i++) { await page.keyboard.press("Tab"); assert(await inside(), `Tab ${i + 1} left the dialog`); }
+      for (let i = 0; i < 14; i++) { await page.keyboard.press("Shift+Tab"); assert(await inside(), `Shift+Tab ${i + 1} left the dialog`); }
+      assert(await page.evaluate(() => document.getElementById("root")?.hasAttribute("inert")), "page behind the dialog is not inert");
+      await page.keyboard.press("Escape");
+      await dlg.waitFor({ state: "detached", timeout: 3000 });
+      assert(!(await page.evaluate(() => document.getElementById("root")?.hasAttribute("inert"))), "inert left behind after close");
+      if (openerSel) assert(await page.evaluate((sel) => document.activeElement === document.querySelector(sel) || !!document.activeElement?.matches(sel), openerSel), "focus did not return to the opener");
+    });
+  };
+  await trapCheck("Save dialog", async () => { await nav(page, "Settings"); await page.getByRole("button", { name: "Save…" }).click(); }, ".view .setting button", "Save and load");
+  await trapCheck("Command palette", async () => { await nav(page, "Map"); await page.keyboard.press("Control+k"); }, null, "Command palette");
+  await trapCheck("Shortcuts overlay", async () => { await nav(page, "Map"); await page.keyboard.press("?"); }, null, "Keyboard shortcuts");
+  await trapCheck("Cabin dialog", async () => { await nav(page, "Orders / Offers"); await page.getByRole("button", { name: /design cabin/i }).first().click(); }, ".order-form button", /cabin/i);
+
+  // Narrow layouts (B07) and the time pill (B08).
+  await check(theme, "narrow widths (633, 390, 360): no horizontal scroll, top bar items do not overlap", async () => {
+    for (const [w, h] of [[633, 615], [390, 844], [360, 740]]) {
+      await page.setViewportSize({ width: w, height: h });
+      for (const v of ["Map", "Routes", "Fleet", "Planner", "Orders / Offers", "Finance", "Rivals", "Settings", "Cabin designer"]) {
+        await nav(page, v);
+        await page.waitForTimeout(150);
+        const m = await page.evaluate(() => {
+          const de = document.documentElement, view = document.querySelector("main.view");
+          const r = (sel) => document.querySelector(sel)?.getBoundingClientRect();
+          const overlap = (a, b) => !!a && !!b && a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+          const bar = [".brand", ".topbar-right"].map(r);
+          const stats = [...document.querySelectorAll(".stats .stat")].filter((e) => e.getClientRects().length).map((e) => e.getBoundingClientRect());
+          const items = [...bar, ...stats];
+          let clash = false; for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) if (overlap(items[i], items[j])) clash = true;
+          const tb = document.querySelector(".topbar");
+          return { doc: de.scrollWidth - de.clientWidth, view: view ? view.scrollWidth - view.clientWidth : 0, clash, topbar: tb.scrollWidth - tb.clientWidth, rects: items.map((i) => i && [Math.round(i.left), Math.round(i.right), Math.round(i.top)]).join(" "), tbw: tb.clientWidth };
+        });
+        assert(m.doc <= 0 && m.view <= 1, `${w}px ${v}: horizontal scroll (doc ${m.doc}, view ${m.view})`);
+        assert(!m.clash && m.topbar <= 1, `${w}px ${v}: top bar items overlap or overflow (${m.rects}; topbar ${m.tbw}, overflow ${m.topbar})`);
+      }
+      await shot(page, theme, `narrow-${w}`);
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+  });
+
+  await check(theme, "time pill and notification pill never cover content at 1280x720 and 125% scale", async () => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.evaluate(() => { document.documentElement.style.fontSize = "20px"; });
+    for (const v of ["Routes", "Fleet", "Planner", "Orders / Offers", "Finance", "Rivals", "Settings", "Cabin designer"]) {
+      await nav(page, v);
+      await page.waitForTimeout(250);
+      const hits = await page.evaluate(() => {
+        document.querySelectorAll("main.view, main.view *").forEach((e) => { if (e.scrollHeight > e.clientHeight + 4) e.scrollTop = e.scrollHeight; });
+        const pills = [".time-pill", ".dock-min"].map((x) => document.querySelector(x)).filter(Boolean).map((x) => x.getBoundingClientRect());
+        const vb = document.querySelector("main.view").getBoundingClientRect();
+        const out = [];
+        for (const el of document.querySelectorAll("main.view button, main.view input, main.view select, main.view a, main.view [role=tab], main.view h2, main.view p, main.view td, main.view li")) {
+          const b = el.getBoundingClientRect();
+          if (!b.width || !b.height || b.bottom < vb.top || b.top > vb.bottom) continue;
+          if (pills.some((q) => b.left < q.right && b.right > q.left && b.top < q.bottom && b.bottom > q.top)) out.push(`${el.tagName} "${(el.textContent || "").trim().slice(0, 24)}"`);
+        }
+        return out;
+      });
+      assert(hits.length === 0, `${v}: ${hits[0]} sits under a floating pill`);
+    }
+    await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await nav(page, "Map");
+  });
+
   await check(theme, "plays 90 simulated days at speed 5 without errors", async () => {
     await nav(page, "Map");
     const d0 = await simDay(page);

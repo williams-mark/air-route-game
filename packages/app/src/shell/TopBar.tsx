@@ -15,12 +15,12 @@ export function TopBar() {
   return (
     <header className="topbar">
       <div className="brand" title="Hub: LAX">
-        <strong>{sim.airline.name}</strong>
+        <strong className="brand-name" title={sim.airline.name}>{sim.airline.name}</strong>
         <span className="chip">Hub {sim.airline.hub}</span>
       </div>
 
       <div className="stats" role="group" aria-label="Company status">
-        <div className="stat"><span className="k">Date</span><span className="v" aria-live="off">{formatDay(sim.day)}</span></div>
+        <div className="stat stat-date"><span className="k">Date</span><span className="v" aria-live="off">{formatDay(sim.day)}</span></div>
         <div className="stat"><span className="k">Cash</span><span className="v">{formatMoney(sim.cash)}</span></div>
         <div className="stat">
           <span className="k">Profit, 30 days</span>
@@ -43,7 +43,7 @@ export function TopBar() {
           </button>
         )}
         <button className="icon-btn" aria-label="Open command palette" title="Command palette (Ctrl/Cmd+K)" onClick={() => ui.setPalette(true)}><IconSearch size={18} /></button>
-        <button className="icon-btn" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" onClick={() => ui.setHelp(true)}><IconKeyboard size={18} /></button>
+        <button className="icon-btn hide-narrow" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" onClick={() => ui.setHelp(true)}><IconKeyboard size={18} /></button>
         <button className="icon-btn" aria-label={`Switch to ${ui.theme === "dark" ? "light" : "dark"} theme`} title="Toggle theme" onClick={() => ui.setTheme(ui.theme === "dark" ? "light" : "dark")}>
           {ui.theme === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
         </button>
