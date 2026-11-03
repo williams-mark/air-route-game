@@ -9,3 +9,7 @@
 .rival-head h2 { text-transform: none; letter-spacing: 0; font-size: 1.1rem; color: var(--text); margin: 0 0 .15rem; }
 .rival-head p { margin: 0 0 .7rem; }
 .rival-detail .side-actions { margin-top: .8rem; display: flex; gap: .5rem; }
+
+.market-scroll { max-height: 22rem; overflow: auto; }
+.market-scroll thead th { position: sticky; top: 0; background: var(--panel); }
+.market-filter { width: 100%; margin: 0 0 .5rem; }

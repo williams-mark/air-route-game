@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { airports as dataAirports } from "@arg/data";
 import { AirMap, type AirMapHandle } from "../map/AirMap";
-import { PRESET_LABEL } from "../map/presets";
-import type { CameraPresetId, MapRoute } from "../map/types";
-import { DEV_MIN_AIRPORTS, fixtureAirports, stressRoutes } from "../dev/fixtures";
+import { CAMERA_PRESETS, PRESET_LABEL } from "../map/presets";
+import type { MapRoute } from "../map/types";
+import { uiAirports } from "../dev/airportSource";
+import { stressRoutes } from "../dev/fixtures";
+import { countryName, regionName } from "../routes/geoNames";
 import { useCreation } from "../routes/store";
 import { toMapRoutes, useRouteSummaries } from "../routes/useRoutes";
 import { useUi } from "../store";
@@ -22,7 +23,7 @@ export function MapView() {
     return Number.isFinite(t) ? t : 0;
   });
 
-  const airports = dataAirports.length >= DEV_MIN_AIRPORTS ? dataAirports : fixtureAirports;
+  const airports = uiAirports;
   const summaries = useRouteSummaries();
   const rivalMarkets = useSimSelector((st) => st.rivals.markets);
   const creation = useCreation();
@@ -71,7 +72,7 @@ export function MapView() {
 
       <div className="map-tools">
         <div className="hud seg" role="group" aria-label="Camera presets">
-          {(["california", "northwest", "hawaii", "both"] as CameraPresetId[]).map((p) => (
+          {CAMERA_PRESETS.map((p) => (
             <button key={p} aria-pressed={ui.preset === p && ui.presetNonce > 0} onClick={() => ui.flyTo(p)}>{PRESET_LABEL[p]}</button>
           ))}
         </div>
@@ -98,7 +99,7 @@ export function MapView() {
             <div>{selAirport.name}</div>
             <dl>
               <dt>City</dt><dd>{selAirport.city}</dd>
-              <dt>Region</dt><dd>{selAirport.region}</dd>
+              <dt>Region</dt><dd>{[regionName(selAirport), countryName(selAirport.country)].filter((x, i, arr) => arr.indexOf(x) === i).join(", ")}</dd>
               <dt>Longest runway</dt><dd>{selAirport.runwayM.toLocaleString()} m</dd>
               <dt>Metro population</dt><dd>{selAirport.metroPopulation.toLocaleString()}</dd>
               <dt>Slots / hour</dt><dd>{selAirport.slotsPerHour}</dd>
@@ -127,7 +128,7 @@ export function MapView() {
           </>
         )}
       </aside>)}
-      <div className="credit">Geometry: US Census via us-atlas. Demo data, not final.</div>
+      <div className="credit">Geometry: US Census (us-atlas) and Natural Earth (world-atlas). Demo data, not final.</div>
     </div>
   );
 }

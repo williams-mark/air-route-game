@@ -2,6 +2,7 @@
 // Coordinates are approximate real airport locations; economic fields are rough placeholders
 // and must never be treated as sourced data (see CLAUDE.md data rules).
 import type { Airport } from "@arg/contracts";
+import { distanceKm } from "../map/geo";
 import type { MapRoute, ProfitTier } from "../map/types";
 
 export const DEV_MIN_AIRPORTS = 12;
@@ -51,7 +52,10 @@ export function stressRoutes(airports: Airport[], n: number): MapRoute[] {
   const out: MapRoute[] = [];
   let guard = n * 20;
   while (out.length < n && guard-- > 0 && airports.length > 1) {
-    const o = airports[Math.floor(rnd() * airports.length)]!, d = airports[Math.floor(rnd() * airports.length)]!;
+    // Mostly regional routes (within 2500 km), about 4% long haul, so the stress picture resembles a real network.
+    const o = airports[Math.floor(rnd() * airports.length)]!;
+    let d = airports[Math.floor(rnd() * airports.length)]!;
+    if (rnd() > 0.04) for (let k = 0; k < 40 && distanceKm(o.lon, o.lat, d.lon, d.lat) > 2500; k++) d = airports[Math.floor(rnd() * airports.length)]!;
     const id = `${o.id}-${d.id}`;
     if (o.id === d.id || seen.has(id) || seen.has(`${d.id}-${o.id}`)) continue;
     seen.add(id);

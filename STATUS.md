@@ -14,6 +14,15 @@ lane/qa-save: data 15, sim 224, app 94; typecheck, test, build pass.
 - Planner header: "N current, M upcoming" (current = short all along). Aircraft picker and route sandbox show nominal and usable range (`usableRangeKm`).
 - Open: sandbox frequency sweep and best-type search are still the standalone model; network re-price omits cabin service multipliers; QA.md not refreshed.
 
+## lane/world-app (app side of the US + Europe expansion)
+- Fleet view sorts (type, status, tail, age; asc/desc) live in the UI store; comparators in views/fleetSort.ts (tested).
+- Map: land.json now holds all US states plus Europe (focus) and world context from world-atlas 50m (about 1.0 MB raw, +316 KB gzip vs 35 KB / 9 KB before; script `pnpm --filter @arg/app exec node scripts/build-geo.mjs`). Western Aleutians (lon > 0) are dropped from land and Aleutian airports are drawn at lon - 360 (displayLon) so arcs stay continuous.
+- Presets: West Coast, United States, Europe, Alaska, Hawaii, World (fit all airports); last camera remembered in localStorage `arg-camera`; palette entries "Map: show ...".
+- LOD (map/lod.ts): markers chosen by rank, screen spacing and a zoom budget; labels are decluttered from that set; hit-testing only sees drawn markers. Hubs now scale (up to 24) and keep one per land mass.
+- Pickers: AirportField searches code/city/name/state/country (accent-folded), filter chips (continent, country, state) appear when the data has more than one option. Names in routes/geoNames.ts fall back to raw codes. Rivals market table is capped, scrolls and filters.
+- Dev stress: `node scripts/dev-stress-airports.mjs <OurAirports airports.csv>` writes gitignored src/dev/stress-airports.local.json (fabricated economics); open `?mock=1&stress=600`. `node scripts/screenshots.mjs --world` takes the world shots.
+- Caveats: far band (zoom < 4.7) still shows hub corridors, so Europe and US presets show corridors until zoomed; Aleutian land is not drawn; sim/route creation do not know stress-only airports.
+
 ## Task table (T1-T18 from the Week-One Build Plan doc)
 | Task | State | Notes |
 | --- | --- | --- |
