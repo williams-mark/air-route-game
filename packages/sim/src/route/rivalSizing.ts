@@ -1,6 +1,7 @@
 import type { Airport } from "@arg/contracts";
 import { runChoice, type ChoiceParams, type Itinerary } from "../demand/choice";
-import { hasSurfaceAlternative, SEGMENTS, type DayMarket, type SegmentMap } from "../demand/market";
+import { outsideFor } from "../demand/fares";
+import { SEGMENTS, type DayMarket, type SegmentMap } from "../demand/market";
 
 /**
  * Size the synthetic rivals on demand that actually flies, not on the potential market.
@@ -25,7 +26,7 @@ export function rivalSizingMarket(
   const probe = runChoice({
     demand,
     itineraries: buildRivals(market),
-    outside: { distanceKm: dist, driveAvailable: hasSurfaceAlternative(a, b) },
+    outside: outsideFor(a, b, dist),
     params,
   });
   const airShare = Math.max(0.05, Math.min(1, probe.totals.captured / total));
@@ -45,6 +46,6 @@ export function carriedShare(a: Airport, b: Airport, dist: number, demand: Segme
     id, carrier: "probe", fare, quality: 0.5, marketDistanceKm: dist,
     legs: [{ id, origin: a.id, destination: b.id, distanceKm: dist, blockMin: ((dist * 1.04) / (840 * 0.93) + 0.65) * 60, weeklyFrequency: 100, weeklySeats: 100 * 400 }],
   };
-  const r = runChoice({ demand, itineraries: [probe], outside: { distanceKm: dist, driveAvailable: hasSurfaceAlternative(a, b) }, params });
+  const r = runChoice({ demand, itineraries: [probe], outside: outsideFor(a, b, dist), params });
   return Math.max(0.05, Math.min(1, r.totals.captured / total));
 }

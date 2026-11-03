@@ -1,5 +1,5 @@
 import type { Command, Route } from "@arg/contracts";
-import { benchmarkFare } from "../demand/choice";
+import { benchmarkFareFor } from "../demand/fares";
 import { startingFare } from "../scenario";
 import { defaultLayout } from "../fleet/layout";
 import { typeCanServe } from "../fleet/scheduler";
@@ -70,7 +70,7 @@ export const randomPlayer: Strategy = {
     if (routes.length > 0 && rng() < 0.5) {
       const r = pick(rng, routes);
       const d = distanceKm(state.airports.find((x) => x.id === r.origin)!, state.airports.find((x) => x.id === r.destination)!);
-      cmds.push({ kind: "updateRoute", id: r.id, patch: { weeklyFrequency: Math.max(1, Math.round(r.weeklyFrequency * range(rng, 0.6, 1.5))), fares: { ...r.fares, Y: Math.max(20, Math.round(benchmarkFare(d) * range(rng, 0.7, 1.4))) } } });
+      cmds.push({ kind: "updateRoute", id: r.id, patch: { weeklyFrequency: Math.max(1, Math.round(r.weeklyFrequency * range(rng, 0.6, 1.5))), fares: { ...r.fares, Y: Math.max(20, Math.round(benchmarkFareFor(state.airports.find((x) => x.id === r.origin)!, state.airports.find((x) => x.id === r.destination)!, d) * range(rng, 0.7, 1.4))) } } });
     }
     if (routes.length > 3 && rng() < 0.1) cmds.push({ kind: "closeRoute", id: pick(rng, routes).id });
     if (rng() < 0.12 && state.world.cash > 60e6) {
@@ -153,7 +153,7 @@ export const fareProbe: Strategy = {
       const a = state.airports.find((x) => x.id === r.origin)!;
       const b = state.airports.find((x) => x.id === r.destination)!;
       const t = state.aircraftTypes.find((x) => x.id === r.typeId)!;
-      const y = Math.max(5, Math.round(benchmarkFare(distanceKm(a, b)) * range(rng, 0.5, 3)));
+      const y = Math.max(5, Math.round(benchmarkFareFor(a, b) * range(rng, 0.5, 3)));
       const fares: Route["fares"] = { Y: y, J: Math.round(y * range(rng, 1, 400)) };
       if (t.widebody) { fares.W = Math.round(y * range(rng, 1, 200)); fares.F = Math.round(y * range(rng, 1, 600)); }
       cmds.push({ kind: "updateRoute", id: r.id, patch: { fares } });

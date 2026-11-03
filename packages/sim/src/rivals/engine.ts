@@ -1,7 +1,8 @@
 import type { Aircraft, AircraftType, Airport, Day, Id, Route, SimEvent } from "@arg/contracts";
 import { canFlyRoute } from "@arg/data";
-import { benchmarkFare, runChoice, type Itinerary } from "../demand/choice";
-import { baseWeeklyDemand, hasSurfaceAlternative, marketOnDay, segmentMap } from "../demand/market";
+import { runChoice, type Itinerary } from "../demand/choice";
+import { benchmarkFareFor, outsideFor } from "../demand/fares";
+import { baseWeeklyDemand, marketOnDay, segmentMap } from "../demand/market";
 import { aircraftEquivalentFor, evaluateRoute, isRangeFeasible, monthlyOwnershipUsd, type CabinInput } from "../finance/ledger";
 import { defaultLayout } from "../fleet/layout";
 import { distanceKm, simRunwayM } from "../geo";
@@ -28,7 +29,7 @@ import type {
 export function sizingDemand(ctx: RivalCtx, a: Airport, b: Airport): number {
   const dist = distanceKm(a, b);
   const m = marketOnDay(a, b, ctx.day);
-  const share = carriedShare(a, b, dist, m.bySegment, benchmarkFare(dist), ROUTE_CHOICE_PARAMS);
+  const share = carriedShare(a, b, dist, m.bySegment, benchmarkFareFor(a, b, dist), ROUTE_CHOICE_PARAMS);
   return baseWeeklyDemand(a, b) * Math.min(1, share / 0.8);
 }
 
@@ -143,7 +144,7 @@ export function evaluateMarket(ctx: RivalCtx, a: Airport, b: Airport, entries: E
   }
   const choice = runChoice({
     demand, itineraries: its,
-    outside: { distanceKm: dist, driveAvailable: hasSurfaceAlternative(a, b) },
+    outside: outsideFor(a, b, dist),
     params: ROUTE_CHOICE_PARAMS,
   });
   const out = new Map<RivalRoute, RouteResult>();
@@ -325,7 +326,7 @@ function planEntry(ctx: RivalCtx, air: RivalAirline, all: Map<string, Entry[]>, 
   const seats = seatsFor(spec, t);
   const wanted = Math.min(spec.maxEntryFrequency, Math.max(spec.minFrequency, Math.ceil(target / seats)));
   const freq = freqOverride ?? wanted;
-  const bench = benchmarkFare(dist);
+  const bench = benchmarkFareFor(a, b, dist);
   let fare = bench * spec.fareFactor;
   const others = otherFares(ctx, all, marketKey(a.id, b.id), air);
   if (air.archetype === "lcc" && others.length > 0) fare = Math.min(fare, Math.min(...others) * 0.94);
@@ -477,7 +478,7 @@ export function createRivals(
       const target = (share * sizingDemand(ctx, a, b)) / RP.targetLoadFactor;
       const t = chooseType(ctx, air, a, b, target);
       if (!t) continue;
-      const bench = benchmarkFare(distanceKm(a, b));
+      const bench = benchmarkFareFor(a, b);
       const freq = Math.min(as.maxFrequency, Math.max(4, Math.ceil(target / seatsFor(as, t))));
       air.routes.push(makeRoute(ctx, air, a, b, t, freq, bench * as.fareFactor));
       acquireForSetup(air, ctx);
@@ -649,7 +650,7 @@ function updatePricing(ctx: RivalCtx, sink: Sink, air: RivalAirline, rt: RivalRo
   const key = marketKey(rt.origin, rt.destination);
   const a = ctx.airports.get(rt.origin)!;
   const b = ctx.airports.get(rt.destination)!;
-  const bench = benchmarkFare(distanceKm(a, b));
+  const bench = benchmarkFareFor(a, b);
   const mySeats = rt.frequency * rt.seatsPerFlight;
   // Competitors with a meaningful share of seats.
   let low: number | null = null;

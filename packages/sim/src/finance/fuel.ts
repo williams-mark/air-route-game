@@ -1,5 +1,6 @@
-import type { Airport, Day } from "@arg/contracts";
+import type { Day } from "@arg/contracts";
 import { fractionalYear } from "../time/calendar";
+import { localFuelPrice, type FuelPlace } from "../world/regions";
 
 /**
  * Jet-A price series, USD per US gallon, 2015-2025, delivered to the aircraft on the US West Coast
@@ -36,12 +37,13 @@ export const JET_A_ANCHORS: ReadonlyArray<readonly [number, number]> = [
   [2026.0, 2.25],
 ];
 
-/** Extra USD/gal for fuel delivered in Hawaii (shipped in). */
+/** Extra USD/gal for fuel delivered in Hawaii (shipped in). Regional multipliers for the rest of the world: world/regions.ts. */
 export const HAWAII_FUEL_PREMIUM = 0.35;
 /** Jet-A kilograms per US gallon (density ~0.804 kg/L x 3.785 L). */
 export const KG_PER_GALLON = 3.04;
 
-export function jetAPriceUsdPerGallon(day: Day, region: Airport["region"] = "CA"): number {
+/** West Coast base series, USD/gal (no regional adjustment). */
+export function baseJetAPriceUsdPerGallon(day: Day): number {
   const y = fractionalYear(day);
   const a = JET_A_ANCHORS;
   let price = a[a.length - 1]![1];
@@ -56,9 +58,17 @@ export function jetAPriceUsdPerGallon(day: Day, region: Airport["region"] = "CA"
       }
     }
   }
-  return price + (region === "HI" ? HAWAII_FUEL_PREMIUM : 0);
+  return price;
 }
 
-export function jetAPriceUsdPerKg(day: Day, region: Airport["region"] = "CA"): number {
-  return jetAPriceUsdPerGallon(day, region) / KG_PER_GALLON;
+/**
+ * Jet-A price at a place on a day. `place` is an airport (US state or European country rules of world/regions.ts) or a bare state code
+ * ("CA", "HI"). CA, OR, WA and unknown places are the base series; HI adds 0.35 USD/gal exactly as before.
+ */
+export function jetAPriceUsdPerGallon(day: Day, place: FuelPlace = "CA"): number {
+  return localFuelPrice(baseJetAPriceUsdPerGallon(day), day, place);
+}
+
+export function jetAPriceUsdPerKg(day: Day, place: FuelPlace = "CA"): number {
+  return jetAPriceUsdPerGallon(day, place) / KG_PER_GALLON;
 }
