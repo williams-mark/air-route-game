@@ -42,3 +42,8 @@ With `MAINTENANCE_ENABLED = false` the per-hour maintenance cost and all A-D dow
 
 ## Order discount now has an economic effect (lane/qa-save)
 Regular orders set `ownershipFactor = net / list`, so the 8-40% volume discount lowers recurring ownership cost as offer orders already did. 12 x 10y bots afterwards: bankruptcies 8/12, exploits 0, crashes 0; passive median 658M (was 616M), greedy 399M (was 285M); best year x1.34, best route margin 66%. No parameter recalibrated.
+
+## Whole US and Europe world (lane/world-sim)
+496 airports, 15 active rivals at the start, region profiles on. `pnpm --filter @arg/sim bots` (12 games x 10y, default seeds): bankruptcies 8/12 (same as before), exploits 0, crashes 0; passive 292 / 719M (before: 335 / 658M), greedy 337 / 767M (before: 399 / 285M-399M); random, yolo, fareProbe, orderChurn all bankrupt; best year x1.34, best route margin 62-70%. Passive spread is wider because the larger rival field varies more by seed; both ends stay near the earlier band (target ~335-660M). Not recalibrated: no West Coast parameter was touched, and CA/HI market and economics outputs are byte-identical.
+Rival margins: 15-17% (2015) falling to 4-12% by 2023-24, inside the 5-15% target.
+**Performance** (`pnpm --filter @arg/sim perf`): 10-year headless run before 20 s (52 airports, 7 rivals), after about 26.6 s (496 airports, 15 rivals, 7.3 ms/day), 1.33x, inside the 2x target. Pair-demand cache, closure-epoch keyed candidate cache, metro index map and a fast USD formatter in the ledger paid for the larger world. `qa/perf.test.ts` guards it with generous budgets.
