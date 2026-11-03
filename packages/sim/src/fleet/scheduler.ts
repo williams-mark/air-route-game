@@ -85,7 +85,7 @@ export function assign(routes: readonly Route[], fleet: readonly Aircraft[], ctx
   const out: Record<Id, RouteScheduling> = {};
   for (const p of prepared) {
     out[p.route.id] = {
-      scheduledFrequency: 0, underSupplied: p.route.weeklyFrequency, aircraftIds: [], substitutedFrequency: 0, blockHoursPerWeek: 0,
+      scheduledFrequency: 0, underSupplied: p.route.weeklyFrequency, aircraftIds: [], substitutedFrequency: 0, blockHoursPerWeek: 0, roundTripsByAircraft: {},
     };
   }
 
@@ -114,6 +114,7 @@ export function assign(routes: readonly Route[], fleet: readonly Aircraft[], ctx
       used.set(ac.id, (used.get(ac.id) ?? 0) + k * rt);
       res.scheduledFrequency += k;
       res.blockHoursPerWeek += k * rt;
+      res.roundTripsByAircraft![ac.id] = (res.roundTripsByAircraft![ac.id] ?? 0) + k;
       if (type.id !== p.reqType.id) res.substitutedFrequency += k;
       leftBy.set(p.route.id, left - k);
     }
@@ -153,6 +154,7 @@ export function assign(routes: readonly Route[], fleet: readonly Aircraft[], ctx
         used.set(pick.ac.id, (used.get(pick.ac.id) ?? 0) + k * pick.rt);
         res.scheduledFrequency += k;
         res.blockHoursPerWeek += k * pick.rt;
+        res.roundTripsByAircraft![pick.ac.id] = (res.roundTripsByAircraft![pick.ac.id] ?? 0) + k;
         if (pass !== "requested") res.substitutedFrequency += k;
         left -= k;
       }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CabinClass, Fares, Route } from "@arg/contracts";
 import { aircraftTypes, airportById } from "@arg/data";
 import { AircraftPicker } from "../aircraft/AircraftPicker";
-import { routeBlock } from "../aircraft/availability";
+import { rangeNote, routeBlock, usableRangeKm } from "../aircraft/availability";
 import { usePickerMemory } from "../aircraft/memory";
 import { dayToDate } from "@arg/sim";
 import { useUi } from "../store";
@@ -12,7 +12,7 @@ import { FrequencyBars } from "./charts";
 import { FareFields, FrequencyField, Stat, useDebounced } from "./editor";
 import {
   bestFrequency, bestType, eligibleTypes, faresToText, frequencySweep, marketFares, marketInfo, parseFares, projectRoute, rivalPresence, routeName,
-  validateRouteDraft, type RouteDraft,
+  operatingMix, previewNewRoute, substitutionText, validateRouteDraft, type RouteDraft,
 } from "./helpers";
 import { pct, usd, usdSigned } from "./fmt";
 import { useCreation, useToasts } from "./store";
@@ -93,9 +93,18 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const dDraft = useDebounced(draft, 220);
   const settling = dDraft !== draft;
   const week = useMemo(() => (typeId ? projectRoute({ ...dDraft, id: "draft" }, wkDay) : null), [dDraft, wkDay, typeId]);
-  const ev = week?.evaluation;
+  // With a live sim the headline figures use the player's own fleet (substitutes included), rivals and hub network; otherwise the standalone model.
+  const sim = bridge.getSim?.() ?? null;
+  const livePrevAll = useMemo(() => (sim && typeId ? previewNewRoute(sim, dDraft) : null), [dDraft, typeId, sim?.world.day]); // eslint-disable-line react-hooks/exhaustive-deps
+  // No aircraft could fly it today: keep the standalone "planned, not yet operating" projection (what it would earn once you have the aircraft) instead of an idle-route loss.
+  const planned = !!livePrevAll && !livePrevAll.ownershipIncluded && livePrevAll.operatedFraction === 0;
+  const livePrev = planned ? null : livePrevAll;
+  const ev = livePrev ? { ...(week?.evaluation ?? livePrev.figures), ...livePrev.figures } : week?.evaluation;
+  const operating = livePrev ? operatingMix(livePrev.scheduling, sim!.world.fleet) : [];
+  const substituted = substitutionText(typeId, operating);
   const sweep = useMemo(() => (typeId ? frequencySweep(dDraft, wkDay) : []), [dDraft.origin, dDraft.destination, dDraft.typeId, dDraft.fares, wkDay, typeId]); // eslint-disable-line react-hooks/exhaustive-deps
   const best = useMemo(() => bestFrequency(sweep), [sweep]);
+  const selectedType = aircraftTypes.find((t) => t.id === typeId);
   const issue = typeId ? validateRouteDraft(draft, routes) : { code: "no_type", message: "No aircraft type in the database can fly this pair." };
 
   const open = () => {
@@ -104,6 +113,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
     if (res && !res.ok) { push("alert", res.error.message); return; }
     const r: Route | undefined = bridge.getState().routes.find((x) => x.origin === originId && x.destination === destinationId);
     push("good", `Opened ${routeName(draft)}: ${freq}/wk with ${typeId}.`);
+    if (res && res.ok && res.warnings && res.warnings.length > 0) push("alert", res.warnings.join(" "));
     end();
     if (r) selectUi({ kind: "route", id: res && res.ok && res.routeId ? res.routeId : r.id });
   };
@@ -137,6 +147,12 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
             <AircraftPicker label="Aircraft type" value={typeId} onChange={setTypeId} year={year.year} types={aircraftTypes}
               block={(t) => routeBlock(t, a, b, year.year)} memoryKey="route" />
             <div className="af-sub">{types.filter((t) => t.available).length} of {aircraftTypes.length} types can fly this pair now.</div>
+            {selectedType && (
+              <div className="af-sub" title={rangeNote(selectedType)}>
+                This route is {Math.round(market.distanceKm).toLocaleString()} km. {selectedType.id} nominal range {selectedType.rangeKm.toLocaleString()} km, usable {usableRangeKm(selectedType).toLocaleString()} km
+                after reserves and planning margin, so a type with a longer nominal range than the route can still be too short.
+              </div>
+            )}
           </div>
         )}
         <FrequencyField value={freq} onChange={setFreq} />
@@ -144,9 +160,12 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
       </section>
 
       <section className="rp-sec" aria-labelledby="rp-proj">
-        <h3 id="rp-proj">Projection <span className="hint">({MONTHS[year.month]} {year.year} demand)</span></h3>
+        <h3 id="rp-proj">Projection <span className="hint">({MONTHS[year.month]} {year.year} demand{livePrev ? "; your fleet, rivals and network" : ""})</span></h3>
+        {substituted && <p className="rp-note" role="status"><b>{substituted}.</b> Seats and costs below use the aircraft that would actually fly it.</p>}
+        {planned && <p className="rp-note" role="status"><b>Planned, not yet operating.</b> None of your aircraft is free to fly this pair, so the figures below assume {typeId} aircraft are available (standalone model, own fleet ignored). Order or free up aircraft before it earns this.</p>}
+        {livePrev && !livePrev.ownershipIncluded && livePrev.operatedFraction > 0 && livePrev.operatedFraction < 1 && <p className="rp-note" role="status">Your fleet could fly {Math.round(livePrev.operatedFraction * 100)}% of the planned round trips; the figures below are for what it can fly.</p>}
         <div className="rp-proj" aria-live="polite" aria-busy={settling}>
-          <div><span className="k">{settling ? "Updating…" : "Profit / week"}</span><span className={`big ${!ev ? "" : ev.profit >= 0 ? "pos" : "neg"}`}>{ev ? usdSigned(ev.profit) : "–"}</span></div>
+          <div><span className="k">{settling ? "Updating…" : livePrev && !livePrev.ownershipIncluded ? "Route profit / week" : "Profit / week"}</span><span className={`big ${!ev ? "" : ev.profit >= 0 ? "pos" : "neg"}`}>{ev ? usdSigned(ev.profit) : "–"}</span></div>
           <div><span className="k">Load factor</span><span className="big">{ev ? pct(ev.loadFactor) : "–"}</span></div>
           <div><span className="k">Market share</span><span className="big">{week ? pct(week.snapshot.playerShare) : "–"}</span></div>
         </div>

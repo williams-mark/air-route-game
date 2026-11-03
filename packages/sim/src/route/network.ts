@@ -3,7 +3,7 @@ import { marketOnDay } from "../demand/market";
 import { distanceKm } from "../geo";
 import { evaluateRoute, LEDGER_PARAMS, type LedgerLine, type RouteEvaluation } from "../finance/ledger";
 import {
-  cabinsFor, DEFAULT_ROUTE_MODEL_CONFIG, evaluateHubConnection, networkContribution, type RouteWeek,
+  DEFAULT_ROUTE_MODEL_CONFIG, evaluateWithFleet, fleetGroups, evaluateHubConnection, networkContribution, type RouteWeek,
 } from "./routeModel";
 
 /** One through market served by two of the player's routes (e.g. SAN-HNL via LAX). Weekly figures. */
@@ -40,6 +40,8 @@ export interface NetworkInput {
   weeks: Readonly<Record<Id, RouteWeek | undefined>>;
   /** Aircraft flying each route (first provides the cabin layout); empty/undefined for a notional fleet. */
   fleet: Readonly<Record<Id, Aircraft[] | undefined>>;
+  /** Round trips per week each aircraft flies on each route (route id, then aircraft id); weights mixed fleets. Optional. */
+  flights?: Readonly<Record<Id, Readonly<Record<Id, number>> | undefined>>;
   operatedFraction: Readonly<Record<Id, number | undefined>>;
 }
 
@@ -113,6 +115,7 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
     const conn = evaluateHubConnection({
       origin: c.a, hub: c.hub, destination: c.b, leg1: c.r1, leg2: c.r2, types, day,
       fleet1: input.fleet[c.r1.id], fleet2: input.fleet[c.r2.id],
+      flights1: input.flights?.[c.r1.id], flights2: input.flights?.[c.r2.id],
       operatedFraction1: input.operatedFraction[c.r1.id] ?? 1, operatedFraction2: input.operatedFraction[c.r2.id] ?? 1,
       week1: input.weeks[c.r1.id], week2: input.weeks[c.r2.id],
       reservedSeats1: reserved[c.r1.id] ?? 0, reservedSeats2: reserved[c.r2.id] ?? 0,
@@ -143,9 +146,8 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
     const a = airports.get(route.origin)!, b = airports.get(route.destination)!;
     const fleet = input.fleet[routeId];
     const fraction = input.operatedFraction[routeId] ?? 1;
-    const re = evaluateRoute({
-      origin: a, destination: b, aircraft: type, day, weeklyFrequency: route.weeklyFrequency,
-      cabins: cabinsFor(route, type, fleet?.[0], distanceKm(a, b)),
+    const re = evaluateWithFleet({
+      route, a, b, requested: type, groups: fleetGroups(type, fleet ?? [], types, input.flights?.[routeId]), day,
       weeklyPassengers: base.passengersPerWeek + 2 * cr.passengersOneWay,
       operatedFraction: fraction, ownership: !fleet || fleet.length === 0 ? "fractional" : "excluded",
     });
