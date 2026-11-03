@@ -153,3 +153,14 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 .rp-acswap .rp-alert svg { color: var(--sev-warn); }
 .rp-acswap .link-btn { padding-left: 0; color: var(--accent); }
 .row-act { font-size: .74rem; padding: .15rem .5rem; }
+
+/* Airport picker filters */
+.af-filters { margin: .35rem 0 .2rem; display: grid; gap: .3rem; }
+.af-chips { display: flex; flex-wrap: wrap; gap: .25rem; max-height: 5.4rem; overflow: auto; }
+.af-chip { font: inherit; font-size: .72rem; padding: .12rem .5rem; border-radius: 999px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text-dim); cursor: pointer; white-space: nowrap; }
+.af-chip:hover { color: var(--text); }
+.af-chip.on { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.af-clear { justify-self: start; font-size: .72rem; }
+.af-list li.af-more { display: block; cursor: default; color: var(--text-dim); font-size: .74rem; text-align: center; }
+.af-none { font-size: .76rem; color: var(--text-dim); margin-top: .2rem; }
+.af-list li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

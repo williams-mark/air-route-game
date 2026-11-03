@@ -17,8 +17,9 @@ const argv = process.argv.slice(2);
 const onlyCabin = argv.includes("--cabin");
 const onlySaveUi = argv.includes("--saveui");
 const onlyUifix = argv.includes("--uifix");
-const doMock = !onlyCabin && !onlySaveUi && !onlyUifix && (argv.includes("--mock") || !argv.includes("--real"));
-const doReal = !onlyCabin && !onlySaveUi && !onlyUifix && (argv.includes("--real") || !argv.includes("--mock"));
+const onlyWorld = argv.includes("--world");
+const doMock = !onlyCabin && !onlySaveUi && !onlyUifix && !onlyWorld && (argv.includes("--mock") || !argv.includes("--real"));
+const doReal = !onlyCabin && !onlySaveUi && !onlyUifix && !onlyWorld && (argv.includes("--real") || !argv.includes("--mock"));
 const PORT = 5199;
 const url = `http://localhost:${PORT}/`;
 
@@ -33,8 +34,8 @@ const browser = await chromium.launch({
   args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--enable-webgl"],
 });
 const views = [
-  { name: "1-far-both", center: null, preset: "All" },
-  { name: "2-mid-california", preset: "California" },
+  { name: "1-far-both", center: null, preset: "World" },
+  { name: "2-mid-california", preset: "West Coast" },
   { name: "3-near-la", jump: { center: [-118.15, 33.95], zoom: 9.4 } },
   { name: "4-mid-hawaii", preset: "Hawaii" },
 ];
@@ -305,7 +306,28 @@ async function uifixShots(theme) {
   if (problems.length) console.log("[uifix problems]", theme, problems.slice(0, 6));
 }
 
+/** World-scale map: US, Europe, Alaska, World presets with the dev stress data (node scripts/dev-stress-airports.mjs first). */
+async function worldShots(theme) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const problems = [];
+  page.on("console", (m) => { if (m.type() === "error") problems.push(m.text()); });
+  page.on("pageerror", (e) => problems.push(e.message));
+  await page.goto(`${url}?mock=1&stress=${process.env.STRESS ?? 900}&theme=${theme}&t=420&paused=1`);
+  await page.waitForFunction(() => window.__argMap && window.__argMap.loaded(), null, { timeout: 20000 });
+  await page.waitForTimeout(1200);
+  for (const [name, label, extra] of [["world", "World"], ["us", "United States"], ["europe", "Europe"], ["alaska", "Alaska"], ["west", "West Coast"], ["hawaii", "Hawaii"], ["europe-close", "Europe", { zoom: 5.6 }]]) {
+    await page.getByRole("button", { name: label, exact: true }).click();
+    await page.waitForTimeout(2600);
+    if (extra?.zoom) { await page.evaluate((z) => window.__argMap.jumpTo({ zoom: z }), extra.zoom); await page.waitForTimeout(900); }
+    await page.screenshot({ path: path.join(outDir, `world-${theme}-${name}.png`) });
+    console.log("saved world", theme, name);
+  }
+  await page.close();
+  if (problems.length) console.log("[world problems]", theme, problems.slice(0, 6));
+}
+
 try {
+  if (onlyWorld) for (const theme of ["dark", "light"]) await worldShots(theme);
   if (onlyUifix) for (const theme of ["dark", "light"]) await uifixShots(theme);
   if (onlySaveUi) for (const theme of ["dark", "light"]) await saveUiShots(theme);
   if (doReal) for (const theme of ["dark", "light"]) await realShots(theme);

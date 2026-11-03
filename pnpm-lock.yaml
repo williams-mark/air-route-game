@@ -69,6 +69,9 @@ importers:
       topojson-server:
         specifier: ^3.0.1
         version: 3.0.1
+      topojson-simplify:
+        specifier: 3.0.3
+        version: 3.0.3
       us-atlas:
         specifier: ^3.0.1
         version: 3.0.1
@@ -78,6 +81,9 @@ importers:
       vite-plugin-singlefile:
         specifier: ^2.3.4
         version: 2.3.4(rollup@4.67.4)(vite@5.4.21(@types/node@25.9.9))
+      world-atlas:
+        specifier: 2.0.2
+        version: 2.0.2
 
   packages/contracts: {}
 
@@ -993,6 +999,10 @@ packages:
     resolution: {integrity: sha512-/VS9j/ffKr2XAOjlZ9CgyyeLmgJ9dMwq6Y0YEON8O7p/tGGk+dCWnrE03zEdu7i4L7YsFZLEPZPzCvcB7lEEXw==}
     hasBin: true
 
+  topojson-simplify@3.0.3:
+    resolution: {integrity: sha512-V+pBjLVzSQ3+hSOxBiV01OVXgFiCmMO8ia3huxKEyIMTC1ApQHBcdXdOqcQ6U2JJJD31TZduwY6KyF15R8sUgg==}
+    hasBin: true
+
   tslib@2.9.1:
     resolution: {integrity: sha512-a4Ux9VKuIMHsOS7ENbEq6hK2ZGYIT27Rtl0E4eD9KqwxhKiQeMZE/9xb3IdYwWaSOyIBQLExhQgXDTYoiCxnWA==}
 
@@ -1096,6 +1106,9 @@ packages:
     resolution: {integrity: sha512-hUrmaWBdVDcxvYqnyh09zunKzROWjbZTiNy8dBEjkS7ehEDQibXJ7XvlmtbwuTclUiIyN+CyXQD4Vmko8fNm8w==}
     engines: {node: '>=8'}
     hasBin: true
+
+  world-atlas@2.0.2:
+    resolution: {integrity: sha512-IXfV0qwlKXpckz1FhwXVwKRjiIhOnWttOskm5CtxMsjgE/MXAYRHWJqgXOpM8IkcPBoXnyTU5lFHcYa5ChG0LQ==}
 
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
@@ -2006,6 +2019,11 @@ snapshots:
     dependencies:
       commander: 2.20.3
 
+  topojson-simplify@3.0.3:
+    dependencies:
+      commander: 2.20.3
+      topojson-client: 3.1.0
+
   tslib@2.9.1: {}
 
   typescript@5.9.3: {}
@@ -2103,6 +2121,8 @@ snapshots:
     dependencies:
       siginfo: 2.0.0
       stackback: 0.0.2
+
+  world-atlas@2.0.2: {}
 
   yallist@3.1.1: {}
 

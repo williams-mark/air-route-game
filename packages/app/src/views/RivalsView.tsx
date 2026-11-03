@@ -1,11 +1,19 @@
+import { useState } from "react";
 import { aircraftTypes } from "@arg/data";
+import { uiAirports } from "../dev/airportSource";
+import { fold } from "../routes/airportSearch";
 import { useUi } from "../store";
 import { useSimSelector } from "../sim/useSim";
 import { formatDate } from "../sim/format";
 import { ARCHETYPE_LABEL, fareBandText, marketsOf } from "../rivals/helpers";
 import "../rivals/rivals.css";
 
+const MARKET_CAP = 60;
+const cityOf = new Map(uiAirports.map((a) => [a.id, fold(a.city)]));
+
 export default function RivalsView() {
+  const [mq, setMq] = useState("");
+  const [allMarkets, setAllMarkets] = useState(false);
   const rivals = useSimSelector((s) => s.rivals);
   const playerRoutes = useSimSelector((s) => s.routes);
   const selected = useUi((s) => s.selectedRival);
@@ -15,7 +23,10 @@ export default function RivalsView() {
   const sel = rivals.list.find((r) => r.id === selected) ?? null;
   const mine = new Set(playerRoutes.map((r) => (r.origin < r.destination ? `${r.origin}-${r.destination}` : `${r.destination}-${r.origin}`)));
   const typeName = (id: string) => aircraftTypes.find((t) => t.id === id)?.name ?? id;
-  const markets = sel ? marketsOf(rivals, sel.id) : [];
+  const allOfRival = sel ? marketsOf(rivals, sel.id) : [];
+  const q = fold(mq.trim());
+  const filtered = q ? allOfRival.filter(({ market: m }) => [m.origin, m.destination].some((c) => fold(c).includes(q) || (cityOf.get(c) ?? "").includes(q))) : allOfRival;
+  const markets = allMarkets || q ? filtered : filtered.slice(0, MARKET_CAP);
 
   return (
     <div className="page">
@@ -49,6 +60,11 @@ export default function RivalsView() {
               ) : markets.length === 0 ? (
                 <p className="hint">No routes are visible.</p>
               ) : (
+                <>
+                {allOfRival.length > 12 && (
+                  <input type="search" className="market-filter" placeholder="Filter markets by code or city" aria-label="Filter markets" value={mq} onChange={(e) => setMq(e.target.value)} />
+                )}
+                <div className="market-scroll">
                 <table className="comp-table">
                   <thead><tr><th scope="col">Market</th><th scope="col" className="num">Seats/wk</th><th scope="col">Aircraft</th><th scope="col">Fare band</th></tr></thead>
                   <tbody>
@@ -60,6 +76,12 @@ export default function RivalsView() {
                     ))}
                   </tbody>
                 </table>
+                </div>
+                <p className="hint" role="status">
+                  Showing {markets.length} of {allOfRival.length} markets.
+                  {!allMarkets && !q && filtered.length > MARKET_CAP && <> <button className="row-link" onClick={() => setAllMarkets(true)}>Show all</button></>}
+                </p>
+                </>
               )}
               <div className="side-actions">
                 <button onClick={() => { showCompetitors(true); setView("map"); }}>Show competitors on the map</button>

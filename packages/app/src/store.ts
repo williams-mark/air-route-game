@@ -76,7 +76,7 @@ export const useUi = create<UiState>((set) => ({
   theme: initial,
   view: "map",
   selection: null,
-  preset: "both",
+  preset: "world",
   presetNonce: 0,
   autoPause: initialAutoPause,
   uiScale: initialScale,

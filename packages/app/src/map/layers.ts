@@ -3,7 +3,7 @@ import type { Layer } from "@deck.gl/core";
 import type { Airport } from "@arg/contracts";
 import type { MapColors } from "./colors";
 import { aircraftAt, type AggEdge, type MapModel, type RouteGeo } from "./model";
-import { greatCircle } from "./geo";
+import { routePath } from "./geo";
 import type { ProfitTier, Rgba } from "./types";
 
 export type ZoomBand = "far" | "mid" | "near";
@@ -34,6 +34,8 @@ export interface LayerInput {
   dark: boolean;
   /** Airport ids whose label survived screen-space decluttering (null = show all). */
   labelIds: Set<string> | null;
+  /** Airport ids that survived level-of-detail selection (null = apply the simple hub rule). */
+  markerIds?: Set<string> | null;
   /** Show every airport even in the far band (route creation: all airports are clickable). */
   allAirports?: boolean;
 }
@@ -43,7 +45,7 @@ const aggWidth = (freq: number) => Math.max(3, Math.min(18, 2 + Math.sqrt(freq) 
 
 /** Layers that only change with zoom band, data, theme or selection (not with simTime). */
 export function buildStaticLayers(inp: LayerInput): Layer[] {
-  const { model, colors: c, band, selectedRoute, selectedAirport, dark, labelIds, allAirports } = inp;
+  const { model, colors: c, band, selectedRoute, selectedAirport, dark, labelIds, allAirports, markerIds } = inp;
   const layers: Layer[] = [];
   const alpha = dark ? 205 : 225;
   const far = band === "far";
@@ -82,13 +84,14 @@ export function buildStaticLayers(inp: LayerInput): Layer[] {
     );
   }
 
-  const shown: Airport[] = far && !allAirports ? model.airports.filter((a) => model.hubs.has(a.id)) : model.airports;
+  const shown: Airport[] = markerIds ? model.airports.filter((a) => markerIds.has(a.id)) : far && !allAirports ? model.airports.filter((a) => model.hubs.has(a.id)) : model.airports;
+  const selAp = selectedAirport ? model.byId.get(selectedAirport) : undefined;
   const showGlyph = band === "near";
   const isHub = (a: Airport) => model.hubs.has(a.id);
 
   layers.push(
     new ScatterplotLayer<Airport>({
-      id: "airport-select", data: shown.filter((a) => a.id === selectedAirport), getPosition: (a) => [a.lon, a.lat],
+      id: "airport-select", data: selAp ? [selAp] : [], getPosition: (a) => [a.lon, a.lat],
       getRadius: showGlyph ? 18 : 12, radiusUnits: "pixels", filled: false, stroked: true, getLineColor: c.airportHub,
       getLineWidth: 2.5, lineWidthUnits: "pixels", updateTriggers: { getLineColor: [c], getRadius: [band] },
     }),
@@ -143,10 +146,10 @@ export const labelText = (a: Airport, band: ZoomBand) => (band === "near" ? `${a
 
 /** Greedy screen-space label declutter: higher-priority airports claim space first. */
 export function declutterLabels(
-  airports: Airport[], hubRank: Map<string, number>, band: ZoomBand,
+  airports: Airport[], rank: ReadonlyMap<string, number>, band: ZoomBand,
   project: (lon: number, lat: number) => { x: number; y: number }, width: number, height: number,
 ): Set<string> {
-  const order = [...airports].sort((a, b) => (hubRank.get(a.id) ?? 999) - (hubRank.get(b.id) ?? 999) || b.slotsPerHour - a.slotsPerHour);
+  const order = [...airports].sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9) || b.slotsPerHour - a.slotsPerHour);
   const boxes: [number, number, number, number][] = [];
   const keep = new Set<string>();
   const offX = band === "near" ? 20 : band === "far" ? 12 : 9;
@@ -176,7 +179,7 @@ export function buildGhostLayers(ghost: Ghost, c: MapColors): Layer[] {
   const layers: Layer[] = [];
   const ends = [ghost.a, ghost.b].filter((x): x is Airport => !!x);
   if (ghost.a && ghost.b) {
-    const path = greatCircle(ghost.a.lon, ghost.a.lat, ghost.b.lon, ghost.b.lat, 48);
+    const path = routePath(ghost.a.lon, ghost.a.lat, ghost.b.lon, ghost.b.lat, 48);
     const dashes = dashPath(path);
     layers.push(
       new PathLayer<[number, number][]>({
@@ -209,7 +212,7 @@ export function buildRivalEdges(markets: Array<{ origin: string; destination: st
   for (const m of markets) {
     const a = airports.get(m.origin), b = airports.get(m.destination);
     if (!a || !b) continue;
-    out.push({ a, b, path: greatCircle(a.lon, a.lat, b.lon, b.lat, 32), carriers: m.carriers.map((c) => c.name), seats: m.totalWeeklySeats });
+    out.push({ a, b, path: routePath(a.lon, a.lat, b.lon, b.lat, 32), carriers: m.carriers.map((c) => c.name), seats: m.totalWeeklySeats });
   }
   return out;
 }

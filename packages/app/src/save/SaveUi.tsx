@@ -119,7 +119,7 @@ export function StartScreen() {
     <Modal label="Start screen" scrimClassName="start" className="start-card" initialFocus="#start-seed" closeOnEscape={false} closeOnBackdrop={false} onClose={() => undefined}>
       <>
         <h1>Air Route Game</h1>
-        <p className="start-sub">Build an airline on the US West Coast and Hawaii, 2015 to 2025.</p>
+        <p className="start-sub">Build an airline across the United States and Europe, 2015 to 2025.</p>
         {latest ? (
           <button className="start-primary" disabled={slotBusy} onClick={async () => { setSlotBusy(true); begin(await loadFromSlot(bridge, latest.slot)); setSlotBusy(false); }}>
             <strong>Continue</strong>

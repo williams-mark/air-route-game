@@ -33,3 +33,24 @@ export function screenBearing(a: [number, number], b: [number, number]): number 
   const dy = b[1] - a[1];
   return (deg(Math.atan2(dx, dy)) + 360) % 360;
 }
+
+/**
+ * Display longitude. Western Aleutian airports sit at +165..+180 on the far side of the date line; draw them at lon - 360
+ * so arcs to Alaska stay short and continuous (the map is centred on the Americas and has no land beyond -180).
+ */
+export const displayLon = (lon: number, lat: number): number => (lon > 165 && lat > 48 ? lon - 360 : lon);
+
+/** Make a [lon, lat] path continuous across the antimeridian, starting from `startLon` (no jump larger than 180 degrees). */
+export function unwrapPath(path: [number, number][], startLon: number): [number, number][] {
+  let ref = startLon;
+  return path.map(([lon, lat]) => {
+    const l = lon + 360 * Math.round((ref - lon) / 360);
+    ref = l;
+    return [l, lat] as [number, number];
+  });
+}
+
+/** Great-circle path between two display positions, continuous across the antimeridian. */
+export function routePath(lon1: number, lat1: number, lon2: number, lat2: number, n: number): [number, number][] {
+  return unwrapPath(greatCircle(lon1, lat1, lon2, lat2, n), lon1);
+}

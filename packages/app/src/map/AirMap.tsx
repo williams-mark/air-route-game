@@ -7,8 +7,9 @@ import { readMapColors } from "./colors";
 import { applyStyleColors, buildStyle } from "./style";
 import type { RivalMapEdge } from "./layers";
 import { bandOf, buildAircraftLayer, buildGhostLayers, buildRivalEdges, buildRivalLayer, buildStaticLayers, declutterLabels, type Ghost, type ZoomBand } from "./layers";
-import { buildModel, type AggEdge, type RouteGeo } from "./model";
-import { PRESET_BOUNDS } from "./presets";
+import { buildModel, toDisplay, type AggEdge, type RouteGeo } from "./model";
+import { markerBudget, markerSpacing, selectMarkers } from "./lod";
+import { boundsFor, loadCamera, saveCamera } from "./presets";
 import type { CameraPresetId, MapRoute, Theme } from "./types";
 
 export interface AirMapHandle {
@@ -41,8 +42,8 @@ export interface AirMapProps {
 
 interface Tip { x: number; y: number; text: string }
 
-function fitCamera(map: MLMap, preset: CameraPresetId, padding: Required<NonNullable<AirMapProps["padding"]>>) {
-  const [w, s, e, n] = PRESET_BOUNDS[preset];
+function fitCamera(map: MLMap, preset: CameraPresetId, airports: readonly Airport[], padding: Required<NonNullable<AirMapProps["padding"]>>) {
+  const [w, s, e, n] = boundsFor(preset, airports);
   return map.cameraForBounds([[w, s], [e, n]], { padding })!;
 }
 
@@ -60,7 +61,9 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
   padRef.current = pad;
   const [band, setBand] = useState<ZoomBand>("far");
   const [ready, setReady] = useState(false);
-  const [labelIds, setLabelIds] = useState<Set<string> | null>(null);
+  const [lod, setLod] = useState<{ markers: Set<string>; labels: Set<string> } | null>(null);
+  const airportsRef = useRef(airports);
+  airportsRef.current = airports;
   const [tip, setTip] = useState<Tip | null>(null);
 
   const model = useMemo(() => buildModel(airports, routes), [airports, routes]);
@@ -75,7 +78,7 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
   useEffect(() => {
     const c = readMapColors();
     const map = new maplibregl.Map({
-      container: el.current!, style: buildStyle(c), attributionControl: false, minZoom: 2.8, maxZoom: 13,
+      container: el.current!, style: buildStyle(c), attributionControl: false, minZoom: 1.8, maxZoom: 13,
       renderWorldCopies: false, dragRotate: false, pitchWithRotate: false, touchPitch: false, keyboard: false,
       doubleClickZoom: true, bearing: 0, pitch: 0, center: [-138, 36], zoom: 3.4, fadeDuration: 0,
     });
@@ -124,8 +127,9 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
     const updateBand = () => setBand((b) => { const n = bandOf(map.getZoom()); return n === b ? b : n; });
     map.on("zoom", updateBand);
     map.on("load", () => {
-      const cam = fitCamera(map, "both", padRef.current);
-      map.jumpTo(cam);
+      const saved = loadCamera();
+      if (saved) map.jumpTo({ center: saved.center, zoom: Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), saved.zoom)) });
+      else map.jumpTo(fitCamera(map, "world", airportsRef.current, padRef.current));
       updateBand();
       setReady(true);
     });
@@ -145,33 +149,48 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
       }
     };
     window.addEventListener("keydown", onKey);
+    // Remember the camera (debounced) so the next session opens where the player left off.
+    let saveTimer = 0;
+    const remember = () => {
+      window.clearTimeout(saveTimer);
+      saveTimer = window.setTimeout(() => { const c = map.getCenter(); saveCamera({ center: [c.lng, c.lat], zoom: map.getZoom() }); }, 400);
+    };
+    map.on("moveend", remember);
     return () => {
+      window.clearTimeout(saveTimer);
       window.removeEventListener("keydown", onKey);
       map.remove();
       mapRef.current = null;
     };
   }, []);
 
-  // Label declutter after every camera move (cheap: O(n) greedy over airports).
+  // Level of detail after every camera move: pick the markers that fit (biggest first), then declutter their labels.
+  // O(n) per move with a spatial hash, cheap for a few thousand airports.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
     const run = () => {
-      const b = bandOf(map.getZoom());
-      const pool = b === "far" && !showAllAirports ? model.airports.filter((a) => model.hubs.has(a.id)) : model.airports;
-      const c = map.getContainer();
-      setLabelIds(declutterLabels(pool, model.hubRank, b, (lon, lat) => map.project([lon, lat]), c.clientWidth, c.clientHeight));
+      const z = map.getZoom(), b = bandOf(z), c = map.getContainer();
+      const project = (lon: number, lat: number) => map.project([lon, lat]);
+      const priority = new Set(model.served);
+      if (selectedAirportId) priority.add(selectedAirportId);
+      const markers = selectMarkers({
+        airports: model.airports, rank: model.rank, priority, project, width: c.clientWidth, height: c.clientHeight,
+        spacing: showAllAirports ? 10 : markerSpacing(b), budget: showAllAirports ? Infinity : markerBudget(z),
+      });
+      const shown = model.airports.filter((a) => markers.has(a.id));
+      setLod({ markers, labels: declutterLabels(shown, model.rank, b, project, c.clientWidth, c.clientHeight) });
     };
     run();
     map.on("moveend", run);
     return () => { map.off("moveend", run); };
-  }, [ready, model, showAllAirports]);
+  }, [ready, model, showAllAirports, selectedAirportId]);
 
   // Camera presets.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || presetNonce === 0) return;
-    map.flyTo({ ...fitCamera(map, preset, pad), duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1800, essential: true });
+    map.flyTo({ ...fitCamera(map, preset, airportsRef.current, pad), duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1800, essential: true });
   }, [presetNonce, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Theme restyle.
@@ -181,18 +200,18 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
   }, [colors, ready]);
 
   const staticLayers = useMemo(
-    () => buildStaticLayers({ model, colors, band, selectedRoute: selectedRouteId, selectedAirport: selectedAirportId, dark: theme === "dark", labelIds, allAirports: showAllAirports }),
-    [model, colors, band, selectedRouteId, selectedAirportId, theme, labelIds, showAllAirports],
+    () => buildStaticLayers({ model, colors, band, selectedRoute: selectedRouteId, selectedAirport: selectedAirportId, dark: theme === "dark", labelIds: lod?.labels ?? null, markerIds: lod?.markers ?? null, allAirports: showAllAirports }),
+    [model, colors, band, selectedRouteId, selectedAirportId, theme, lod, showAllAirports],
   );
 
   const rivalLayer = useMemo(() => {
     if (!rivalMarkets || rivalMarkets.length === 0) return null;
-    return buildRivalLayer(buildRivalEdges(rivalMarkets, new Map(airports.map((a) => [a.id, a]))), colors);
-  }, [rivalMarkets, airports, colors]);
+    return buildRivalLayer(buildRivalEdges(rivalMarkets, model.byId), colors);
+  }, [rivalMarkets, model, colors]);
 
   useEffect(() => {
     if (!ready) return;
-    const ghostLayers = ghost ? buildGhostLayers(ghost, colors) : [];
+    const ghostLayers = ghost ? buildGhostLayers({ a: ghost.a && toDisplay(ghost.a), b: ghost.b && toDisplay(ghost.b) }, colors) : [];
     overlayRef.current?.setProps({ layers: [...(rivalLayer ? [rivalLayer] : []), ...staticLayers, ...ghostLayers, buildAircraftLayer(model, colors, band, simTime)] });
   }, [ready, staticLayers, rivalLayer, model, colors, band, simTime, ghost]);
 
