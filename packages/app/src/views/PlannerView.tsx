@@ -391,7 +391,7 @@ function AircraftPanel({ state, data, ac }: { state: SimState; data: Data; ac: A
         {!f?.windows.length && !f?.aChecks.length && f?.deliveryDay == null && <li className="pl-dim">Nothing due in this horizon.</li>}
       </ul>
       {refit && ac.layout && (
-        <CabinDialog title={`Refit ${ac.tailNumber} (${type.name})`} type={type} initial={ac.layout} day={day} confirmLabel="Start refit"
+        <CabinDialog requireChange title={`Refit ${ac.tailNumber} (${type.name})`} type={type} initial={ac.layout} day={day} confirmLabel="Start refit"
           quote={(l) => { const q = refitQuote(type, l); return <>Cost {usd(q.costUsd)}, out of service {q.downtimeDays} days.</>; }}
           blocker={(l) => (refitQuote(type, l).costUsd > cash ? "Not enough cash for this refit." : null)}
           onClose={() => setRefit(false)}
