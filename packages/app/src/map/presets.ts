@@ -35,6 +35,14 @@ export function boundsFor(preset: CameraPresetId, airports: readonly Pick<Airpor
   return preset === "world" ? worldBounds(airports) : FIXED[preset];
 }
 
+/** The camera preset that frames a home airport: Hawaii, Alaska, the West Coast, the rest of the US, or Europe. */
+export function presetForAirport(a: Pick<Airport, "country" | "region">): CameraPresetId {
+  if (a.country !== "US") return "europe";
+  if (a.region === "HI") return "hawaii";
+  if (a.region === "AK") return "alaska";
+  return a.region === "CA" || a.region === "OR" || a.region === "WA" ? "west" : "us";
+}
+
 export interface SavedCamera { center: [number, number]; zoom: number }
 const CAMERA_KEY = "arg-camera";
 
