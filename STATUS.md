@@ -1,6 +1,6 @@
 # Build status (update at the end of every work session)
 
-Last updated: Tue 3 Nov 2026 (lane/world-int). See "World integration lane" below; gate results are in that section.
+Last updated: Tue 3 Nov 2026 (lane/world-int). Gate green: install --frozen-lockfile, typecheck, test (data 23, sim 279, app 143), build, e2e 46/46 (23 checks x 2 themes). Soak `--games 8 --det 1`: 8 games x 10 y, 0 violations, cash identity exact over 29144 days, determinism replay byte-identical, 373 s total (mean 42 s/game). See "World integration lane" below.
 
 Last updated: Tue 3 Nov 2026 (lane/qa-ui). On lane/qa-ui typecheck, test (data 15, sim 197, app 97) and build pass, and the Playwright e2e passes (22 checks per theme). `main` itself was last verified before this lane.
 
