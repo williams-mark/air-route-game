@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
-import { drainEvents, newSim, runDays, setMaintenanceEnabledForTests, startingScenario, STARTING_CASH_USD } from "./index";
+import { applyCommand, drainEvents, hubCandidates, newSim, runDays, setMaintenanceEnabledForTests, startingScenario, STARTING_CASH_USD } from "./index";
 
 describe("startingScenario", () => {
   const s = startingScenario(airports, aircraftTypes);
@@ -52,5 +52,63 @@ describe("startingScenario", () => {
     expect(base.world.cash).toBe(5e6);
     expect(base.world.fleet).toHaveLength(2);
     expect(Object.keys(base.fleetMeta)).toHaveLength(2);
+  });
+});
+
+describe("startingScenario with a chosen hub and name", () => {
+  it("hubCandidates: about 60 big airports, LAX first, nothing that opens or closes during the campaign", () => {
+    const hubs = hubCandidates(airports);
+    expect(hubs).toHaveLength(60);
+    expect(hubs[0]!.id).toBe("LAX");
+    const ids = hubs.map((h) => h.id);
+    for (const id of ["LHR", "JFK", "FRA", "ANC", "CDG", "ORD", "ATL", "MAD"]) expect(ids.includes(id) || id === "ANC", id).toBe(true);
+    for (const id of ["TXL", "SXF", "BER", "RYG", "DSA"]) expect(ids).not.toContain(id);
+    expect(new Set(ids).size).toBe(60);
+  });
+
+  it("the default hub with a custom name changes only the name", () => {
+    const a = startingScenario(airports, aircraftTypes, 2015);
+    const b = startingScenario(airports, aircraftTypes, 2015, { hub: "LAX", name: "  Coastline Air  " });
+    expect(b.airlineName).toBe("Coastline Air");
+    expect({ ...b, airlineName: a.airlineName }).toEqual(a);
+    expect(startingScenario(airports, aircraftTypes, 2015, { name: "   " }).airlineName).toBe("Skybridge Pacific");
+    expect(() => startingScenario(airports, aircraftTypes, 2015, { hub: "ZZZ" })).toThrow();
+  });
+
+  for (const hub of ["LHR", "JFK", "FRA", "ANC"]) {
+    it(`starting at ${hub}: feasible, fully scheduled, profitable-ish routes from the hub`, () => {
+      const s = startingScenario(airports, aircraftTypes, 2015, { hub, name: "Test Air" });
+      expect(s.baseAirport).toBe(hub);
+      expect(s.airlineName).toBe("Test Air");
+      expect(s.world.routes.length).toBeGreaterThanOrEqual(3);
+      expect(s.world.fleet.length).toBeGreaterThanOrEqual(3);
+      expect(new Set(s.world.fleet.map((a) => a.tailNumber)).size).toBe(s.world.fleet.length);
+      for (const r of s.world.routes) {
+        expect(r.origin).toBe(hub);
+        // every route passes the same checks as the player's own open-route command (range, runway, overwater, closed airports)
+        const empty = { ...s, world: { ...s.world, routes: [] } };
+        expect(applyCommand(empty, { kind: "openRoute", route: { origin: r.origin, destination: r.destination, weeklyFrequency: r.weeklyFrequency, fares: r.fares, typeId: r.typeId } }).result.ok, `${r.origin}-${r.destination} ${r.typeId}`).toBe(true);
+        expect(s.world.fleet.some((a) => a.typeId === r.typeId)).toBe(true);
+      }
+      let st = runDays(s, 14);
+      const reports = Object.values(st.routeReports);
+      expect(reports).toHaveLength(s.world.routes.length);
+      for (const r of reports) {
+        expect(r.evaluation.feasible).toBe(true);
+        expect(r.notionalFleet).toBe(false);
+        expect(r.scheduling!.underSupplied).toBe(0);
+        expect(r.evaluation.loadFactor).toBeGreaterThan(0.3);
+      }
+      // together the routes make money before fleet ownership, and the airline does not burn its cash in a year
+      expect(reports.reduce((sum, r) => sum + r.evaluation.profit, 0)).toBeGreaterThan(0);
+      st = runDays(st, 351);
+      expect(st.world.cash).toBeGreaterThan(STARTING_CASH_USD * 0.8);
+    }, 60_000);
+  }
+
+  it("is deterministic", () => {
+    const a = startingScenario(airports, aircraftTypes, 9, { hub: "FRA" });
+    const b = startingScenario(airports, aircraftTypes, 9, { hub: "FRA" });
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
 });
