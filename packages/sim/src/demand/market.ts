@@ -30,6 +30,13 @@ export interface MarketParams {
   groundPower: number;
   incomeExponent: number;
   incomeRefUsd: number;
+  /**
+   * Income reference for pairs with both ends in Europe, instead of `incomeRefUsd`. ESTIMATE: European air travel per euro of GDP is
+   * higher than the US-calibrated curve implies (low-cost carriers, short international hops, no domestic car culture), so the same
+   * elasticity is applied to income relative to a European reference. 75,000/40,000 raises intra-European pairs by 2.2x; transatlantic
+   * and US pairs keep `incomeRefUsd`, which fits the biggest city pairs (LON-NYC, LAX-LHR) within about 20% of recalled 2015 traffic.
+   */
+  europeIncomeRefUsd?: number;
   /** tourism factor = 1 + tourismBoost * max(tourismA,tourismB)^tourismPower */
   tourismBoost: number;
   tourismPower: number;
@@ -39,6 +46,11 @@ export interface MarketParams {
   islandHopBoost?: number;
   /** Longest island-to-island hop (km) that gets `islandHopBoost`. */
   islandHopMaxKm?: number;
+  /**
+   * Multiplier on pairs inside one country whose geography makes air the normal way to travel: Norway (fjords and mountains, one of
+   * Europe's busiest domestic air markets per head) and Iceland. ESTIMATES; absent = none.
+   */
+  domesticBoost?: Readonly<Record<string, number>>;
   /** Multi-airport metro catchments (null/undefined: every airport counts its whole metro population). */
   metros?: readonly Metro[] | null;
   /** Compound annual growth of the whole market from day 0 (2015); 0 disables. Pandemic shocks are not modelled. */
@@ -54,11 +66,13 @@ export const DEFAULT_MARKET_PARAMS: MarketParams = {
   groundPower: 3,
   incomeExponent: 1.28,
   incomeRefUsd: 75_000,
+  europeIncomeRefUsd: 40_000,
   tourismBoost: 1.7,
   tourismPower: 3,
   interislandBoost: 12.5,
   islandHopBoost: 4,
   islandHopMaxKm: 700,
+  domesticBoost: { NO: 2.5, IS: 2 },
   metros: DEFAULT_METROS,
   growthPerYear: 0.025,
 };
@@ -144,11 +158,12 @@ function computeBaseWeekly(a: Airport, b: Airport, p: MarketParams, day: Day | u
   // The calibrated US damping distance is `groundSubstitutionKm`; Europe scales it by its (stronger) ratio from world/regions.ts.
   const gKm = p.groundSubstitutionKm * (sf.groundKm / US_GROUND_KM);
   const ground = sf.drive ? dTrue ** p.groundPower / (dTrue ** p.groundPower + gKm ** p.groundPower) : 1;
-  const island = islandBoost(a, b, dTrue, p);
+  const island = islandBoost(a, b, dTrue, p) * (a.country === b.country ? (p.domesticBoost?.[a.country] ?? 1) : 1);
   const ca = catchmentOf(a.id, a.metroPopulation, p.metros, dTrue, undefined, day);
   const cb = catchmentOf(b.id, b.metroPopulation, p.metros, dTrue, undefined, day);
   const pop = ((ca.population / 1e6) * (cb.population / 1e6)) ** p.popExponent;
-  const income = (Math.sqrt(a.gdpPerCapita * b.gdpPerCapita) / p.incomeRefUsd) ** p.incomeExponent;
+  const incomeRef = a.country !== "US" && b.country !== "US" ? (p.europeIncomeRefUsd ?? p.incomeRefUsd) : p.incomeRefUsd;
+  const income = (Math.sqrt(a.gdpPerCapita * b.gdpPerCapita) / incomeRef) ** p.incomeExponent;
   const tourism = 1 + p.tourismBoost * pairTourism(a, b) ** p.tourismPower;
   const dist = (d / 1000) ** -p.distExponent;
   return p.scale * pop * income * tourism * dist * ground * island * ca.share * cb.share;

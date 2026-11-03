@@ -92,9 +92,9 @@ export function localFuelPrice(base: number, day: Day, place: FuelPlace): number
 // ---------------------------------------------------------------------------
 
 /** Landing, passenger and security charges, Europe vs the US calibration (1.0). ESTIMATE: European airport charges are commonly 1.3-1.6x US per departure. */
-export const EUROPE_AIRPORT_FEE_MULTIPLIER = 1.4;
+export const EUROPE_AIRPORT_FEE_MULTIPLIER = 1.3;
 /** Ground handling, Europe vs US. ESTIMATE (regulated third-party handling, higher labour on the ramp). */
-export const EUROPE_HANDLING_MULTIPLIER = 1.2;
+export const EUROPE_HANDLING_MULTIPLIER = 1.15;
 /** Alaska and Hawaii station costs are left at the US value (no data to say otherwise). */
 /**
  * Flight and cabin crew cost multiplier vs the US pay scale in the ledger (pilot 340 USD/h, FA 85 USD/h). ESTIMATE in four wage tiers,
@@ -184,8 +184,8 @@ export const RAIL_QUALITY_BY_COUNTRY: Readonly<Record<string, number>> = {
   FR: 1, ES: 1, IT: 0.9, NL: 0.9, BE: 0.9, DE: 0.7, LU: 0.7, CH: 0.8, AT: 0.7, SE: 0.6, DK: 0.6, GB: 0.6, PT: 0.4, FI: 0.4, NO: 0.4, PL: 0.4, CZ: 0.4,
 };
 export const RAIL_QUALITY_DEFAULT = 0.3;
-/** Eurostar/Thalys: London to Paris, Brussels, Amsterdam. */
-const CHANNEL_RAIL_COUNTRIES = new Set(["FR", "BE", "NL"]);
+/** Eurostar: London to Paris and Brussels (Amsterdam's direct service only began in 2018, not modelled). */
+const CHANNEL_RAIL_COUNTRIES = new Set(["FR", "BE"]);
 /** US Northeast Corridor (Acela and regional rail) airports, and the quality given to pairs among them. ESTIMATE. */
 export const US_NORTHEAST_CORRIDOR = new Set(["BOS", "PVD", "JFK", "LGA", "EWR", "PHL", "BWI", "DCA", "HPN", "ISP"]);
 export const US_NEC_RAIL_QUALITY = 0.6;

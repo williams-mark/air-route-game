@@ -1,4 +1,5 @@
 import type { AircraftType, Airport, CabinClass, Day } from "@arg/contracts";
+import { canFlyOverwater, isOverwaterRoute } from "@arg/data";
 import { distanceKm, simRunwayM } from "../geo";
 import { maintenanceEnabled } from "../fleet/maintenance";
 import { jetAPriceUsdPerGallon, KG_PER_GALLON } from "./fuel";
@@ -167,6 +168,9 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
     if (ap.runwayM < need) {
       reasons.push(`runway: ${ap.id} has ${ap.runwayM} m, ${aircraft.id} needs ${Math.round(need)} m`);
     }
+  }
+  if (isOverwaterRoute(origin, destination) && !canFlyOverwater(aircraft, origin, destination, dist)) {
+    reasons.push(`overwater: ${aircraft.id} may not fly ${Math.round(dist)} km over water here (twin-engine diversion limit)`);
   }
   if (seatsPerFlight > aircraft.maxSeats) reasons.push(`seats: ${seatsPerFlight} exceeds max ${aircraft.maxSeats}`);
   if (seatsPerFlight <= 0) reasons.push("seats: no seats configured");

@@ -34,11 +34,12 @@ function allRoutesFeasible(r: RivalsState): string[] {
 }
 
 describe("rivals: set-up", () => {
-  it("creates five fictional airlines with sensible, feasible networks", () => {
+  // The field grew from five West Coast airlines to the whole-US and Europe field (lane/world-sim); the five originals keep their order and Pacific scope.
+  it("creates the fictional field with sensible, feasible networks: the five original West Coast airlines first", () => {
     const r = scenario().rivals!;
-    expect(r.airlines.map((a) => a.name)).toEqual(["Pacific Crown", "Kestrel Air", "Golden State Express", "Islander", "Sierra Jet"]);
+    expect(r.airlines.slice(0, 5).map((a) => a.name)).toEqual(["Pacific Crown", "Kestrel Air", "Golden State Express", "Islander", "Sierra Jet"]);
     expect(new Set(r.airlines.map((a) => a.archetype))).toEqual(new Set(["legacy", "lcc", "regional", "interisland"]));
-    for (const air of r.airlines) {
+    for (const air of r.airlines.slice(0, 5)) {
       expect(air.routes.length, air.name).toBeGreaterThanOrEqual(8);
       expect(air.fleet.length, air.name).toBeGreaterThan(3);
       expect(air.cash).toBeGreaterThan(0);

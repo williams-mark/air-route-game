@@ -11,7 +11,8 @@
     "build": "echo 'no build'",
     "bots": "vite-node src/bots/cli.ts",
     "soak": "vite-node src/qa/soak.ts",
-    "perf": "vite-node src/qa/perf.ts"
+    "perf": "vite-node src/qa/perf.ts",
+    "rivals": "vite-node src/qa/rivalsReport.ts"
   },
   "dependencies": {
     "@arg/contracts": "workspace:*",

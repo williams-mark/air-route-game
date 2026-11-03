@@ -136,7 +136,7 @@ export const DEFAULT_CHOICE_PARAMS: ChoiceParams = {
   driveKmh: 95,
   driveUsdPerKm: 0.14,
   driveVotFactor: 0.8,
-  rail: { circuity: 1.1, kmh: 230, accessH: 0.5, airportCreditH: 1.9, fixedUsd: 10, usdPerKm: 0.1 },
+  rail: { circuity: 1.1, kmh: 250, accessH: 0.8, airportCreditH: 1.3, fixedUsd: 10, usdPerKm: 0.1 },
   benchmarkSpeedKmh: 800,
   benchmarkOverheadH: 0.6,
   recapturePasses: 3,
@@ -239,9 +239,10 @@ export function outsideUtility(seg: Segment, ctx: OutsideContext, p: ChoiceParam
   if (p.rail && ctx.rail && ctx.rail > 0) {
     const r = p.rail;
     const km = ctx.distanceKm * r.circuity;
-    const hours = Math.max(0.2, km / r.kmh + r.accessH - r.airportCreditH);
+    // Quality scales the average speed (a slow conventional line vs a 300 km/h corridor); the option itself is always available.
+    const hours = Math.max(0.2, km / (r.kmh * (0.5 + 0.5 * Math.min(1, ctx.rail))) + r.accessH - r.airportCreditH);
     const gc = r.fixedUsd + r.usdPerKm * km + sp.vot * hours;
-    rail = ctx.rail * Math.exp(-gc / sp.theta);
+    rail = Math.exp(-gc / sp.theta);
   }
   return Math.log(noTravel + drive + rail);
 }

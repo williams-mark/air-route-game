@@ -1,4 +1,5 @@
 import type { Aircraft, AircraftType, Airport, Id, Route } from "@arg/contracts";
+import { canFlyOverwater, isOverwaterRoute } from "@arg/data";
 import { blockHours, isRangeFeasible } from "../finance/ledger";
 import { distanceKm, simRunwayM } from "../geo";
 import type { RouteScheduling } from "../state";
@@ -37,11 +38,11 @@ export interface ScheduleResult {
   aircraft: Record<Id, AircraftLoad>;
 }
 
-/** Can this type fly the pair nonstop (range with reserves, both runways)? */
+/** Can this type fly the pair nonstop (range with reserves, both runways, and the overwater/ETOPS limit of the data package)? */
 export function typeCanServe(a: Airport, b: Airport, type: AircraftType): boolean {
   const km = distanceKm(a, b);
   const need = simRunwayM(type, km);
-  return isRangeFeasible(km, type) && a.runwayM >= need && b.runwayM >= need;
+  return isRangeFeasible(km, type) && a.runwayM >= need && b.runwayM >= need && (!isOverwaterRoute(a, b) || canFlyOverwater(type, a, b, km));
 }
 
 export function weeklyCapacityHours(type: AircraftType): number {
