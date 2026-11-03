@@ -110,6 +110,11 @@ export function isRangeFeasible(distKm: number, aircraft: AircraftType): boolean
   return distKm * P.routeExtension + P.reserveKm <= aircraft.rangeKm;
 }
 
+/** Longest great-circle sector the sim accepts for a type: nominal range less the fuel reserve, divided by the routing extension. */
+export function maxRouteKm(aircraft: AircraftType): number {
+  return Math.max(0, (aircraft.rangeKm - P.reserveKm) / P.routeExtension);
+}
+
 /** Allocate passengers across cabins proportionally to seats x fill weight, capping at seats. */
 export function allocateCabins(cabins: CabinInput[], pax: number): number[] {
   const out = cabins.map(() => 0);
@@ -251,6 +256,56 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
     costs,
     profit,
     margin: revenue > 0 ? profit / revenue : costs > 0 ? -1 : 0,
+    revenuePerPassenger: pax > 0 ? revenue / pax : 0,
+    costPerPassenger: pax > 0 ? costs / pax : 0,
+    breakEvenLoadFactor: revenue > 0 && lf > 0 ? Math.min(2, (costs / revenue) * lf) : null,
+  };
+}
+
+/**
+ * Combine evaluations of the same route flown by several aircraft groups (each evaluated with its own type, layout and
+ * share of the round trips). Money, flights, seats, passengers and aircraft-equivalents add up; the per-route station
+ * overhead is charged once, not once per group.
+ */
+export function mergeEvaluations(parts: readonly RouteEvaluation[]): RouteEvaluation {
+  if (parts.length === 1) return parts[0]!;
+  const first = parts[0]!;
+  const sum = (f: (e: RouteEvaluation) => number) => parts.reduce((s, e) => s + f(e), 0);
+  const feasible = parts.every((e) => e.feasible);
+  const flights = sum((e) => e.flightsPerWeek);
+  const seatsWeek = sum((e) => e.seatsPerWeek);
+  const pax = sum((e) => e.passengersPerWeek);
+  const keys: string[] = [];
+  for (const e of parts) for (const l of e.lines) if (!keys.includes(l.key)) keys.push(l.key);
+  const lines: LedgerLine[] = keys.map((key) => {
+    const ls = parts.map((e) => e.lines.find((l) => l.key === key)).filter((l): l is LedgerLine => !!l);
+    let weekly = ls.reduce((s, l) => s + l.weekly, 0);
+    if (key === "overhead") weekly -= (ls.length - 1) * P.routeFixedOverheadUsdPerWeek;
+    const one = ls[0]!;
+    return {
+      key, label: one.label, group: one.group, weekly,
+      formula: `mixed fleet, ${parts.length} aircraft variants: ${ls.map((l) => l.formula).join(" | ")}`,
+    };
+  });
+  const revenue = lines.filter((l) => l.group === "revenue").reduce((s, l) => s + l.weekly, 0);
+  const costs = lines.filter((l) => l.group === "cost").reduce((s, l) => s + l.weekly, 0);
+  const lf = seatsWeek > 0 ? pax / seatsWeek : 0;
+  const aircraftEq = sum((e) => e.aircraftEquivalent);
+  return {
+    ...first,
+    feasible,
+    infeasibleReasons: [...new Set(parts.flatMap((e) => e.infeasibleReasons))],
+    blockHours: flights > 0 ? sum((e) => e.blockHours * e.flightsPerWeek) / flights : first.blockHours,
+    flightsPerWeek: flights,
+    seatsPerFlight: flights > 0 ? seatsWeek / flights : first.seatsPerFlight,
+    seatsPerWeek: seatsWeek,
+    passengersPerWeek: pax,
+    loadFactor: lf,
+    aircraftEquivalent: aircraftEq,
+    aircraftNeeded: Math.ceil(aircraftEq - 1e-9),
+    lines, revenue, costs,
+    profit: revenue - costs,
+    margin: revenue > 0 ? (revenue - costs) / revenue : costs > 0 ? -1 : 0,
     revenuePerPassenger: pax > 0 ? revenue / pax : 0,
     costPerPassenger: pax > 0 ? costs / pax : 0,
     breakEvenLoadFactor: revenue > 0 && lf > 0 ? Math.min(2, (costs / revenue) * lf) : null,

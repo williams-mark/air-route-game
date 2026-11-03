@@ -10,7 +10,7 @@ import { useUi } from "../store";
 import { usePlanner } from "../planner/store";
 import { IconAlert } from "../shell/icons";
 import { pct, usdSigned } from "./fmt";
-import { projectRoute, routeName } from "./helpers";
+import { livePreview, operatingMix, projectRoute, routeName, substitutionText } from "./helpers";
 import { useSwapRequest, useToasts } from "./store";
 
 /** Fleet counts by type: owned = in the fleet (not on order or stored), free = owned and flying no route. */
@@ -29,7 +29,7 @@ export function ownedByType(fleet: ReadonlyArray<{ typeId: string; status: strin
 
 /** "Aircraft" section of the route inspector: current type, who flies it, and a guided swap of the route's typeId. */
 export function RouteAircraft({ route }: { route: Route }) {
-  const { day, fleet } = useSim();
+  const { day, fleet, reports } = useSim();
   const push = useToasts((s) => s.push);
   const setView = useUi((s) => s.setView);
   const swap = useSwapRequest();
@@ -42,11 +42,9 @@ export function RouteAircraft({ route }: { route: Route }) {
   const name = routeName(route);
   const type = aircraftTypes.find((t) => t.id === route.typeId);
   const flying = fleet.filter((f) => f.routes.includes(name));
-  const mix = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const f of flying) m.set(f.typeId, (m.get(f.typeId) ?? 0) + 1);
-    return [...m.entries()].sort((x, y) => y[1] - x[1]);
-  }, [flying]);
+  const sched = reports[route.id]?.scheduling ?? null;
+  const operating = useMemo(() => operatingMix(sched, fleet), [sched, fleet]);
+  const substituted = substitutionText(route.typeId, operating);
   const { owned, onOrder } = useMemo(() => ownedByType(fleet), [fleet]);
 
   useEffect(() => {
@@ -55,9 +53,14 @@ export function RouteAircraft({ route }: { route: Route }) {
   useEffect(() => { setNewId(route.typeId); }, [route.typeId]);
 
   const nextType = aircraftTypes.find((t) => t.id === newId);
-  const cur = useMemo(() => projectRoute(route, wkDay)?.evaluation, [route, wkDay]);
-  const proj = useMemo(() => (nextType ? projectRoute({ ...route, typeId: nextType.id }, wkDay)?.evaluation : undefined), [route, nextType, wkDay]);
   const changed = newId !== route.typeId;
+  // With a live sim, "now" is the route report and "with X" the same model with the type changed (fleet, scheduler substitution, rivals, hub traffic).
+  const sim = bridge.getSim?.() ?? null;
+  const preview = useMemo(() => (changed && sim ? livePreview(sim, route.id, { typeId: newId }) : null), [changed, newId, route.id, route.weeklyFrequency, reports[route.id]?.day]); // eslint-disable-line react-hooks/exhaustive-deps
+  const standCur = useMemo(() => (sim ? undefined : projectRoute(route, wkDay)?.evaluation), [route, wkDay, !sim]); // eslint-disable-line react-hooks/exhaustive-deps
+  const standProj = useMemo(() => (nextType ? projectRoute({ ...route, typeId: nextType.id }, wkDay)?.evaluation : undefined), [route, nextType, wkDay]);
+  const cur = preview ? preview.current : standCur;
+  const proj = preview ? { ...preview.proposed, feasible: standProj?.feasible ?? preview.proposed.feasible, infeasibleReasons: standProj?.infeasibleReasons ?? [] } : standProj;
   const own = owned.get(newId);
   const ordered = onOrder.get(newId) ?? 0;
   const none = changed && (!own || own.total === 0);
@@ -75,10 +78,10 @@ export function RouteAircraft({ route }: { route: Route }) {
     <section aria-labelledby="rp-ac" className="rp-sec" ref={secRef} id="rp-aircraft">
       <h3 id="rp-ac">Aircraft</h3>
       <dl className="mini rp-dl">
-        <dt>Type</dt><dd>{type?.name ?? route.typeId}{type ? `, ${typicalSeats(type)} seats` : ""}</dd>
+        <dt>Planned type</dt><dd>{type?.name ?? route.typeId}{type ? `, ${typicalSeats(type)} seats` : ""}</dd>
+        {operating.length > 0 && <><dt>Operating</dt><dd>{substituted ? substituted.replace(`Planned ${route.typeId}, flown by `, "") : operating.map((m) => `${m.aircraft} x ${m.typeId}`).join(", ")}{substituted ? " (substituted)" : " (as planned)"}</dd></>}
         <dt>Flown by</dt><dd>{flying.length === 0 ? "No aircraft assigned right now" : flying.slice(0, 6).map((f) => f.tail).join(", ") + (flying.length > 6 ? ` and ${flying.length - 6} more` : "")}</dd>
-        {mix.length > 1 && <><dt>Mixed fleet</dt><dd>{mix.map(([t, n]) => `${n} x ${t}`).join(", ")}</dd></>}
-        <dt>You own</dt><dd>{owned.get(route.typeId) ? `${owned.get(route.typeId)!.total} ${route.typeId} (${owned.get(route.typeId)!.free} free)` : `None${onOrder.get(route.typeId) ? `, ${onOrder.get(route.typeId)} on order` : ""}`}</dd>
+        <dt>You own ({route.typeId})</dt><dd>{owned.get(route.typeId) ? `${owned.get(route.typeId)!.total} ${route.typeId} (${owned.get(route.typeId)!.free} free)` : `None${onOrder.get(route.typeId) ? `, ${onOrder.get(route.typeId)} on order` : ""}`}{substituted ? "; the route is flown by substitutes" : ""}</dd>
       </dl>
       {!changing ? (
         <div className="rp-actions">
@@ -96,10 +99,10 @@ export function RouteAircraft({ route }: { route: Route }) {
                 <div className="k">Profit / week</div><div>{cur ? usdSigned(cur.profit) : "–"}</div>
                 <div className={proj ? (proj.profit >= (cur?.profit ?? 0) ? "pos" : "neg") : ""}>{proj ? usdSigned(proj.profit) : "–"}</div>
                 <div className="k">Load factor</div><div>{cur ? pct(cur.loadFactor) : "–"}</div><div>{proj ? pct(proj.loadFactor) : "–"}</div>
-                <div className="k">Seats / flight</div><div>{cur ? cur.seatsPerFlight : "–"}</div><div>{proj ? proj.seatsPerFlight : "–"}</div>
+                <div className="k">Seats / flight</div><div>{cur ? Math.round(cur.seatsPerFlight) : "–"}</div><div>{proj ? Math.round(proj.seatsPerFlight) : "–"}</div>
                 <div className="k">Aircraft needed</div><div>{cur ? cur.aircraftEquivalent.toFixed(1) : "–"}</div><div>{proj ? proj.aircraftEquivalent.toFixed(1) : "–"}</div>
               </div>
-              <p className="rp-note">At {route.weeklyFrequency} per week, projected from the route model.
+              <p className="rp-note">At {route.weeklyFrequency} per week, {preview ? "from the live route model with only the type changed (your aircraft, rivals, hub traffic)." : "projected from the route model."}
                 {own ? ` You own ${own.total} ${newId}, ${own.free} free (${own.total - own.free} assigned).` : ""}</p>
               {none && (
                 <div className="rp-alert" role="alert"><IconAlert size={16} /><div>

@@ -16,6 +16,7 @@ import {
   aircraftEquivalentFor,
   blockHours,
   evaluateRoute,
+  mergeEvaluations,
   type CabinInput,
   type RouteEvaluation,
 } from "../finance/ledger";
@@ -120,6 +121,68 @@ export function cabinsFor(route: Pick<Route, "fares">, type: AircraftType, aircr
   return cabins;
 }
 
+/** Aircraft actually flying a route, grouped by type and cabin layout. `share` is the fraction of the round trips each group flies. */
+export interface FleetGroup {
+  type: AircraftType;
+  /** A representative aircraft (provides the layout); undefined for the notional fleet of the requested type. */
+  aircraft: Aircraft | undefined;
+  share: number;
+  count: number;
+}
+
+/**
+ * Group the aircraft that fly a route by (type, layout), weighted by the round trips each one operates (`flights`, aircraft id
+ * to round trips per week; default one each). Aircraft of unknown type are ignored. With no usable aircraft the result is a single
+ * notional group of the requested type, so a route always has at least one group.
+ */
+export function fleetGroups(
+  requested: AircraftType,
+  fleet: readonly Aircraft[],
+  types: ReadonlyMap<string, AircraftType>,
+  flights?: Readonly<Record<string, number>>,
+): FleetGroup[] {
+  const byKey = new Map<string, { type: AircraftType; aircraft: Aircraft; weight: number; count: number }>();
+  const weightOf = (ac: Aircraft) => Math.max(0, flights?.[ac.id] ?? 1);
+  const anyWeight = fleet.some((ac) => weightOf(ac) > 0);
+  for (const ac of fleet) {
+    const type = types.get(ac.typeId);
+    if (!type) continue;
+    const w = anyWeight ? weightOf(ac) : 1;
+    if (w <= 0) continue;
+    const key = `${ac.typeId}|${JSON.stringify(ac.layout)}`;
+    const cur = byKey.get(key);
+    if (cur) { cur.weight += w; cur.count += 1; } else byKey.set(key, { type, aircraft: ac, weight: w, count: 1 });
+  }
+  const total = [...byKey.values()].reduce((x, g) => x + g.weight, 0);
+  if (byKey.size === 0 || total <= 0) return [{ type: requested, aircraft: undefined, share: 1, count: 0 }];
+  return [...byKey.values()].map((g) => ({ type: g.type, aircraft: g.aircraft, share: g.weight / total, count: g.count }));
+}
+
+/** Seats per flight averaged over the groups by the flights each flies. */
+export function averageSeats(route: Pick<Route, "fares">, groups: readonly FleetGroup[], dist: number): number {
+  return groups.reduce((s, g) => s + g.share * cabinsFor(route, g.type, g.aircraft, dist).reduce((x, c) => x + c.seats, 0), 0);
+}
+
+/**
+ * Evaluate a route with the ledger for each fleet group (own type, layout, costs) and merge. No cabin-lane effects: used by the
+ * network model, which re-prices a route with extra passengers aboard.
+ */
+export function evaluateWithFleet(args: {
+  route: Route; a: Airport; b: Airport; requested: AircraftType; groups: readonly FleetGroup[]; day: Day;
+  weeklyPassengers: number; operatedFraction: number; ownership: "fractional" | "excluded";
+}) {
+  const { route, a, b, groups } = args;
+  const dist = distanceKm(a, b);
+  const seats = groups.map((g) => g.share * cabinsFor(route, g.type, g.aircraft, dist).reduce((x, c) => x + c.seats, 0));
+  const totalSeats = seats.reduce((x, y) => x + y, 0);
+  return mergeEvaluations(groups.map((g, i) => evaluateRoute({
+    origin: a, destination: b, aircraft: g.type, day: args.day, weeklyFrequency: route.weeklyFrequency * g.share,
+    cabins: cabinsFor(route, g.type, g.aircraft, dist),
+    weeklyPassengers: totalSeats > 0 ? (args.weeklyPassengers * seats[i]!) / totalSeats : 0,
+    operatedFraction: args.operatedFraction, ownership: args.ownership,
+  })));
+}
+
 function makeLeg(id: string, o: string, d: string, dist: number, speedKmh: number, freq: number, seats: number): Leg {
   return {
     id, origin: o, destination: d, distanceKm: dist,
@@ -175,8 +238,10 @@ export interface RouteWeek {
 
 export interface RouteWeekOptions {
   config?: RouteModelConfig;
-  /** Fleet aircraft of the route's type (first provides the cabin layout). */
+  /** Aircraft flying the route, whatever their type. Capacity, speed, quality and operating costs come from each aircraft's own type and layout. */
   fleetAircraft?: Aircraft[];
+  /** Round trips per week each aircraft operates on this route (aircraft id to count); weights the mix. Default: equal weights. */
+  fleetFlights?: Readonly<Record<string, number>>;
   /** Multiplier on all demand (noise, events). */
   demandScale?: number;
   /** Fraction of frequency that fleet capacity allows (computed across routes by the caller). */
@@ -205,30 +270,40 @@ export function simulateRouteWeek(
   if (!a || !b || !type || a.id === b.id) return null;
 
   const fleet = opts.fleetAircraft ?? [];
-  // Cabin lane: layout quality feeds the choice model's quality term (0.5 for the default layout).
-  const layout = fleet[0]?.layout;
-  const fx = layout && layout.sections.length > 0 ? layoutEffects(type, layout) : null;
   const dist = distanceKm(a, b);
-  let cabins = cabinsFor(route, type, fleet[0], dist);
-  const seatsPerFlight = cabins.reduce((s, c) => s + c.seats, 0);
   const fraction = Math.max(0, Math.min(1, opts.operatedFraction ?? 1));
   const demandScale = opts.demandScale ?? 1;
+
+  // Each group of aircraft (same type and layout) flies its share of the round trips with its own capacity, speed, quality and costs.
+  const all = fleetGroups(type, fleet, types, opts.fleetFlights).map((g) => {
+    const layout = g.aircraft?.layout;
+    const fx = layout && layout.sections.length > 0 ? layoutEffects(g.type, layout) : null;
+    const cabins = cabinsFor(route, g.type, g.aircraft, dist);
+    const feasible = evaluateRoute({
+      origin: a, destination: b, aircraft: g.type, day, weeklyFrequency: route.weeklyFrequency, cabins,
+      weeklyPassengers: 0, ownership: "excluded",
+    }).feasible;
+    return { g, layout, fx, cabins, feasible, seats: cabins.reduce((s, c) => s + c.seats, 0) };
+  });
+  // Groups that cannot fly the pair carry nothing; if none can, the first is kept so the evaluation reports why.
+  const usable = all.filter((x) => x.feasible);
+  const feasibleAny = usable.length > 0;
+  const shareSum = usable.reduce((s, x) => s + x.g.share, 0);
+  const groups = (feasibleAny ? usable : all.slice(0, 1)).map((x) => ({ ...x, share: feasibleAny ? x.g.share / shareSum : 1 }));
+  const avgSeats = groups.reduce((s, x) => s + x.share * x.seats, 0);
+  const speed = groups.reduce((s, x) => s + x.share * x.g.type.cruiseKmh, 0);
+  const quality = groups.reduce((s, x) => s + x.share * (x.fx ? x.fx.qualityIndex : 0.5), 0);
 
   const market = marketOnDay(a, b, day, cfg.market);
   const demand = segmentMap((s) => market.bySegment[s] * demandScale);
 
-  // Player itinerary: only if the type can actually fly the pair (else evaluation is infeasible anyway).
-  const feasibleProbe = evaluateRoute({
-    origin: a, destination: b, aircraft: type, day, weeklyFrequency: route.weeklyFrequency, cabins,
-    weeklyPassengers: 0, ownership: "excluded",
-  });
-  const flownFreq = feasibleProbe.feasible ? route.weeklyFrequency * fraction : 0;
+  const flownFreq = feasibleAny ? route.weeklyFrequency * fraction : 0;
   const player: Itinerary = {
     id: `player:${route.id}`,
     carrier: "player",
-    legs: [makeLeg(`player:${route.id}`, a.id, b.id, dist, type.cruiseKmh, flownFreq, seatsPerFlight)],
+    legs: [makeLeg(`player:${route.id}`, a.id, b.id, dist, speed, flownFreq, avgSeats)],
     fare: route.fares.Y,
-    quality: fx ? fx.qualityIndex : 0.5,
+    quality,
     marketDistanceKm: dist,
   };
 
@@ -245,18 +320,23 @@ export function simulateRouteWeek(
   });
   const mine = choice.itineraries[0]!;
   // Cabin lane: premium cabins fill by the market's business/premium demand; crew and catering follow the cabin mix.
-  if (fx && layout && flownFreq > 0) {
-    const paxPerFlight = mine.passengers / (flownFreq * 1);
-    const ratios = cabinFillRatios(type, layout, paxPerFlight, { shares: market.shares, routeKm: dist });
-    cabins = cabins.map((c) => ({ ...c, fillRatio: ratios[c.cls] }));
-  }
-  const evaluation = evaluateRoute({
-    origin: a, destination: b, aircraft: type, day, weeklyFrequency: route.weeklyFrequency, cabins,
-    cabinCost: fx ? { paxServices: fx.serviceCostMultiplier, crewSeats: fx.crewSeatEquivalent } : undefined,
-    weeklyPassengers: 2 * mine.passengers,
-    operatedFraction: fraction,
-    ownership: (opts.chargeOwnership ?? fleet.length === 0) ? "fractional" : "excluded",
-  });
+  const ownership = (opts.chargeOwnership ?? fleet.length === 0) ? "fractional" : "excluded";
+  const evaluation = mergeEvaluations(groups.map((x) => {
+    const paxShare = avgSeats > 0 ? (x.share * x.seats) / avgSeats : 1;
+    let cabins = x.cabins;
+    if (x.fx && x.layout && flownFreq > 0) {
+      const paxPerFlight = (mine.passengers / flownFreq) * (avgSeats > 0 ? x.seats / avgSeats : 1);
+      const ratios = cabinFillRatios(x.g.type, x.layout, paxPerFlight, { shares: market.shares, routeKm: dist });
+      cabins = cabins.map((c) => ({ ...c, fillRatio: ratios[c.cls] }));
+    }
+    return evaluateRoute({
+      origin: a, destination: b, aircraft: x.g.type, day, weeklyFrequency: route.weeklyFrequency * x.share, cabins,
+      cabinCost: x.fx ? { paxServices: x.fx.serviceCostMultiplier, crewSeats: x.fx.crewSeatEquivalent } : undefined,
+      weeklyPassengers: 2 * mine.passengers * paxShare,
+      operatedFraction: fraction,
+      ownership,
+    });
+  }));
 
   const captured = choice.totals.captured;
   const connPax = choice.itineraries.reduce((s, r, i) => s + (i > 0 && r.id.startsWith("conn:") ? r.passengers : 0), 0);
@@ -303,6 +383,9 @@ export interface HubConnectionInput {
   /** Aircraft flying each leg (first provides the cabin layout); optional. */
   fleet1?: Aircraft[];
   fleet2?: Aircraft[];
+  /** Round trips per week each aircraft flies on the legs (aircraft id to count); weights mixed fleets. */
+  flights1?: Readonly<Record<string, number>>;
+  flights2?: Readonly<Record<string, number>>;
   /** Fraction of scheduled frequency flown on each leg. */
   operatedFraction1?: number;
   operatedFraction2?: number;
@@ -378,29 +461,29 @@ export function evaluateHubConnection(input: HubConnectionInput): HubConnection 
   const f2 = input.operatedFraction2 ?? 1;
   const demandScale = input.demandScale ?? 1;
 
-  const opts = (fleet: Aircraft[] | undefined, frac: number): RouteWeekOptions => ({
-    config: cfg, fleetAircraft: fleet, operatedFraction: frac, demandScale, chargeOwnership: !fleet || fleet.length === 0,
+  const opts = (fleet: Aircraft[] | undefined, flights: Readonly<Record<string, number>> | undefined, frac: number): RouteWeekOptions => ({
+    config: cfg, fleetAircraft: fleet, fleetFlights: flights, operatedFraction: frac, demandScale, chargeOwnership: !fleet || fleet.length === 0,
   });
-  const w1 = input.week1 ?? simulateRouteWeek(leg1, airports, types, day, opts(input.fleet1, f1));
-  const w2 = input.week2 ?? simulateRouteWeek(leg2, airports, types, day, opts(input.fleet2, f2));
+  const w1 = input.week1 ?? simulateRouteWeek(leg1, airports, types, day, opts(input.fleet1, input.flights1, f1));
+  const w2 = input.week2 ?? simulateRouteWeek(leg2, airports, types, day, opts(input.fleet2, input.flights2, f2));
   if (!w1 || !w2) return null;
 
-  const cab1 = cabinsFor(leg1, t1, input.fleet1?.[0], distanceKm(a, h));
-  const cab2 = cabinsFor(leg2, t2, input.fleet2?.[0], distanceKm(h, b));
-  const seats1 = leg1.weeklyFrequency * f1 * cab1.reduce((s, c) => s + c.seats, 0);
-  const seats2 = leg2.weeklyFrequency * f2 * cab2.reduce((s, c) => s + c.seats, 0);
+  const grp1 = fleetGroups(t1, input.fleet1 ?? [], types, input.flights1);
+  const grp2 = fleetGroups(t2, input.fleet2 ?? [], types, input.flights2);
+  const seats1 = leg1.weeklyFrequency * f1 * averageSeats(leg1, grp1, distanceKm(a, h));
+  const seats2 = leg2.weeklyFrequency * f2 * averageSeats(leg2, grp2, distanceKm(h, b));
   const left1 = Math.max(0, seats1 - w1.playerPassengersOneWay - (input.reservedSeats1 ?? 0));
   const left2 = Math.max(0, seats2 - w2.playerPassengersOneWay - (input.reservedSeats2 ?? 0));
   const d1 = distanceKm(a, h);
   const d2 = distanceKm(h, b);
   const dist = distanceKm(a, b);
-  const speed = (t: AircraftType) => t.cruiseKmh;
+  const speedOf = (groups: FleetGroup[]) => groups.reduce((s, g) => s + g.share * g.type.cruiseKmh, 0);
 
   const market = marketOnDay(a, b, day, cfg.market);
   const demand = segmentMap((s) => market.bySegment[s] * demandScale);
   const throughFare = input.connectingFare ?? benchmarkFare(dist) * 0.92;
-  const mk = (id: string, o: string, d: string, dd: number, t: AircraftType, route: Route, frac: number, seats: number): Leg => ({
-    ...makeLeg(id, o, d, dd, speed(t), route.weeklyFrequency * frac, 1),
+  const mk = (id: string, o: string, d: string, dd: number, groups: FleetGroup[], route: Route, frac: number, seats: number): Leg => ({
+    ...makeLeg(id, o, d, dd, speedOf(groups), route.weeklyFrequency * frac, 1),
     weeklySeats: seats,
   });
   const player: Itinerary = {
@@ -410,8 +493,8 @@ export function evaluateHubConnection(input: HubConnectionInput): HubConnection 
     quality: 0.5,
     marketDistanceKm: dist,
     legs: [
-      mk(`player:${leg1.id}`, a.id, h.id, d1, t1, leg1, f1, left1),
-      mk(`player:${leg2.id}`, h.id, b.id, d2, t2, leg2, f2, left2),
+      mk(`player:${leg1.id}`, a.id, h.id, d1, grp1, leg1, f1, left1),
+      mk(`player:${leg2.id}`, h.id, b.id, d2, grp2, leg2, f2, left2),
     ],
   };
   const rivals = buildRivals(a, b, dist, rivalSizingMarket(a, b, dist, market, demand, cfg.choice, (m) => buildRivals(a, b, dist, m, cfg)), cfg);
@@ -424,13 +507,12 @@ export function evaluateHubConnection(input: HubConnectionInput): HubConnection 
   const c = choice.itineraries[0]!.passengers;
 
   const share1 = d1 / (d1 + d2);
-  const cost = (w: RouteWeek, route: Route, type: AircraftType, cabins: CabinInput[], fleet: Aircraft[] | undefined, frac: number, pax: number) =>
-    evaluateRoute({
-      origin: airports.get(route.origin)!, destination: airports.get(route.destination)!, aircraft: type, day,
-      weeklyFrequency: route.weeklyFrequency, cabins, weeklyPassengers: 2 * pax, operatedFraction: frac,
-      ownership: !fleet || fleet.length === 0 ? "fractional" : "excluded",
+  const cost = (w: RouteWeek, route: Route, type: AircraftType, groups: FleetGroup[], fleet: Aircraft[] | undefined, frac: number, pax: number) =>
+    evaluateWithFleet({
+      route, a: airports.get(route.origin)!, b: airports.get(route.destination)!, requested: type, groups, day,
+      weeklyPassengers: 2 * pax, operatedFraction: frac, ownership: !fleet || fleet.length === 0 ? "fractional" : "excluded",
     }).costs;
-  const mkLeg = (w: RouteWeek, route: Route, type: AircraftType, cabins: CabinInput[], fleet: Aircraft[] | undefined, frac: number, seats: number, share: number): HubLegLoad => {
+  const mkLeg = (w: RouteWeek, route: Route, type: AircraftType, cabins: FleetGroup[], fleet: Aircraft[] | undefined, frac: number, seats: number, share: number): HubLegLoad => {
     const local = w.playerPassengersOneWay;
     return {
       routeId: route.id,
@@ -459,7 +541,7 @@ export function evaluateHubConnection(input: HubConnectionInput): HubConnection 
     connectingPassengers: c,
     throughFare,
     leg1ProrateShare: share1,
-    legs: [mkLeg(w1, leg1, t1, cab1, input.fleet1, f1, seats1, share1), mkLeg(w2, leg2, t2, cab2, input.fleet2, f2, seats2, 1 - share1)],
+    legs: [mkLeg(w1, leg1, t1, grp1, input.fleet1, f1, seats1, share1), mkLeg(w2, leg2, t2, grp2, input.fleet2, f2, seats2, 1 - share1)],
     snapshot,
   };
 }

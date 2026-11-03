@@ -1,6 +1,6 @@
 import type { AircraftType, Airport } from "@arg/contracts";
 import { canFlyRoute, distanceKm, USABLE_RANGE_FRACTION } from "@arg/data";
-import { COMMAND_PARAMS, defaultLayout, layoutSeats } from "@arg/sim";
+import { COMMAND_PARAMS, LEDGER_PARAMS, defaultLayout, layoutSeats, maxRouteKm } from "@arg/sim";
 
 export type Availability = "future" | "current" | "ended";
 
@@ -22,11 +22,25 @@ export function orderBlock(t: AircraftType, year: number): string | null {
   return null;
 }
 
+/**
+ * Longest sector a type can be given in the game, in km: nominal range less the fuel reserve, with the routing extension, and the
+ * planning rule that only 85% of nominal range is usable. This is what route creation enforces, so it is lower than the nominal figure.
+ */
+export const usableRangeKm = (t: Pick<AircraftType, "rangeKm">): number =>
+  Math.floor(Math.min(maxRouteKm(t as AircraftType), t.rangeKm * USABLE_RANGE_FRACTION));
+
+/** One line explaining nominal versus usable range, for tooltips and notes. */
+export function rangeNote(t: Pick<AircraftType, "rangeKm">): string {
+  return `Nominal range ${t.rangeKm.toLocaleString()} km is the published figure. Usable is about ${usableRangeKm(t).toLocaleString()} km: ` +
+    `the game plans on ${Math.round(USABLE_RANGE_FRACTION * 100)}% of nominal for payload and weather, and the sim holds back ${LEDGER_PARAMS.reserveKm} km of fuel ` +
+    `for alternates and holding and flies ${Math.round((LEDGER_PARAMS.routeExtension - 1) * 100)}% beyond the great-circle distance.`;
+}
+
 /** Why a type cannot fly a-b in `year`, or null. Uses canFlyRoute; the reason text is derived from range/runway. */
 export function routeBlock(t: AircraftType, a: Airport, b: Airport, year: number): string | null {
   if (!canFlyRoute(t, a, b)) {
     const km = distanceKm(a, b);
-    if (km > t.rangeKm * USABLE_RANGE_FRACTION) return `Range too short (${Math.round(km).toLocaleString()} km route)`;
+    if (km > usableRangeKm(t)) return `Range too short: route is ${Math.round(km).toLocaleString()} km, usable range ${usableRangeKm(t).toLocaleString()} km (nominal ${t.rangeKm.toLocaleString()} km)`;
     return "Runway or overwater limits";
   }
   const av = availabilityOf(t, year);

@@ -3,6 +3,7 @@ import type {
 } from "@arg/contracts";
 import { monthlyOwnershipUsd } from "./finance/ledger";
 import { simulateRouteWeek } from "./route/routeModel";
+import { evaluateLiveRoutes } from "./route/liveModel";
 import { makeRng, mixSeed } from "./rng";
 import { checkCostUsd, checkEndDay, dueCheck, initialMeta, MAINTENANCE_PARAMS, maintenanceEnabled, resetAfterCheck } from "./fleet/maintenance";
 import { assign } from "./fleet/scheduler";
@@ -32,6 +33,9 @@ export type {
 
 export * from "./state";
 export * from "./route/network";
+export * from "./route/liveModel";
+export { fleetGroups, averageSeats, evaluateWithFleet } from "./route/routeModel";
+export type { FleetGroup } from "./route/routeModel";
 export * from "./commands";
 export * from "./scenario";
 export * from "./offers";
@@ -196,48 +200,20 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     say(`${ac.tailNumber} (${ac.typeId}) enters ${kind} check for ${down} days ($${(cost / 1e6).toFixed(2)}M).`);
   }
 
-  // 4. Schedule the active fleet onto routes.
-  const schedule = assign(world.routes, fleet, ctx);
-  const fleetById = new Map(fleet.map((ac) => [ac.id, ac]));
-  const ownedTypes = new Set(fleet.filter((ac) => ac.status !== "delivery").map((ac) => ac.typeId));
-
-  let revenue = 0;
-  let routeCosts = 0;
-  const reports: Record<Id, RouteReport> = {};
-  const weeks: Record<Id, NonNullable<ReturnType<typeof simulateRouteWeek>>> = {};
-  const routeFleet: Record<Id, Aircraft[]> = {};
-  const routeFraction: Record<Id, number> = {};
+  // 4. Schedule the active fleet onto routes and simulate every route (with hub connecting traffic): the shared live model.
+  const live = evaluateLiveRoutes({
+    routes: world.routes, fleet, airports, types, day, notionalFleet: params.notionalFleet, rivals: state.rivals, prefs: ctx.prefs,
+    noise: () => 1 + (rng() - 0.5) * params.demandNoise,
+  });
+  const { schedule, reports } = live;
+  const revenue = live.revenue;
+  const routeCosts = live.routeCosts;
   for (const route of world.routes) {
-    const notional = params.notionalFleet && !ownedTypes.has(route.typeId);
-    const sched = schedule.routes[route.id];
-    const fraction = notional || !sched ? 1 : sched.scheduledFrequency / route.weeklyFrequency;
-    const flying = sched ? sched.aircraftIds.map((id) => fleetById.get(id)!).filter(Boolean) : [];
-    const layoutSource = flying.length > 0 ? flying : fleet.filter((ac) => ac.typeId === route.typeId && ac.status !== "delivery");
-    const noise = 1 + (rng() - 0.5) * params.demandNoise;
-    const week = simulateRouteWeek(route, airports, types, day, {
-      fleetAircraft: notional ? [] : layoutSource,
-      operatedFraction: fraction,
-      demandScale: noise,
-      chargeOwnership: notional,
-      rivalItineraries: rivalItinerariesFor(state.rivals, airports.get(route.origin)!, airports.get(route.destination)!, types),
-    });
-    if (!week) continue;
-    weeks[route.id] = week;
-    routeFleet[route.id] = notional ? [] : layoutSource;
-    routeFraction[route.id] = fraction;
-    revenue += week.evaluation.revenue / 7;
-    routeCosts += week.evaluation.costs / 7;
-    reports[route.id] = {
-      routeId: route.id,
-      day,
-      evaluation: week.evaluation,
-      market: week.snapshot,
-      operatedFraction: fraction,
-      notionalFleet: notional,
-      scheduling: notional ? null : sched ?? null,
-    };
+    const rep = reports[route.id];
+    if (!rep) continue;
+    const sched = rep.scheduling;
     const prev = state.routeReports[route.id]?.scheduling;
-    if (!notional && sched) {
+    if (sched) {
       const before = prev?.underSupplied ?? 0;
       if (sched.underSupplied > 0 && before === 0) {
         say(`${route.origin}-${route.destination} is under-supplied: ${sched.scheduledFrequency} of ${route.weeklyFrequency} weekly round trips can be flown.`);
@@ -245,15 +221,6 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
         say(`${route.origin}-${route.destination} is back to its full ${route.weeklyFrequency}/wk schedule.`);
       }
     }
-  }
-
-  // 4b. Hub connecting passengers (SAN-HNL via LAX ...): extra revenue and cost on the legs, load factors updated.
-  const net = evaluateNetwork({ routes: world.routes, airports, types, day, weeks, fleet: routeFleet, operatedFraction: routeFraction });
-  revenue += net.deltaRevenue / 7;
-  routeCosts += net.deltaCosts / 7;
-  for (const [id, evaluation] of Object.entries(net.evaluations)) {
-    const rep = reports[id];
-    if (rep) reports[id] = { ...rep, evaluation, connecting: net.connecting[id] };
   }
 
   // 5. Utilisation: flight hours and cycles from the schedule, calendar counters, ageing.

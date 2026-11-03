@@ -22,6 +22,8 @@ export interface RouteScheduling {
   substitutedFrequency: number;
   /** Block hours per week this route uses across the fleet. */
   blockHoursPerWeek: number;
+  /** Round trips per week each assigned aircraft flies on this route (aircraft id to count). Absent in older saves. */
+  roundTripsByAircraft?: Record<Id, number>;
 }
 
 /** Latest per-route result, for the UI "why" ledger. Weekly figures; the daily P&L is weekly / 7. */
@@ -33,6 +35,8 @@ export interface RouteReport {
   operatedFraction: number;
   /** True when the player owns no aircraft of the route's type, so ownership is notionally leased. */
   notionalFleet: boolean;
+  /** Demand noise factor applied to this report's day (1 = none). Lets forecasts reuse the same day. Absent in older saves. */
+  demandScale?: number;
   /** Scheduler outcome; null in notional-fleet mode (no real aircraft to schedule). */
   scheduling: RouteScheduling | null;
   /** Connecting (hub) passengers carried on this route and already included in `evaluation`; absent when there are none. */

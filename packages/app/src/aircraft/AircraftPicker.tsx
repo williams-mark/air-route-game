@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { AircraftType } from "@arg/contracts";
 import { aircraftTypes } from "@arg/data";
-import { AVAIL_LABEL, availabilityOf, typicalSeats } from "./availability";
+import { AVAIL_LABEL, availabilityOf, rangeNote, typicalSeats, usableRangeKm } from "./availability";
 import { buildTree, pathOf } from "./families";
 import { usePickerMemory } from "./memory";
 import { IconChevron } from "../shell/icons";
@@ -78,7 +78,7 @@ export function AircraftPicker({ label, value, onChange, year, types = aircraftT
   const summary = selected ? (
     <>
       <span className="ap-sum-name">{selected.name}</span>
-      <span className="ap-sum-meta">{typicalSeats(selected)} seats (max {selected.maxSeats}) {"·"} {selected.rangeKm.toLocaleString()} km {"·"} {usd(selected.listPriceUsdM)}</span>
+      <span className="ap-sum-meta">{typicalSeats(selected)} seats (max {selected.maxSeats}) {"·"} <abbr title={rangeNote(selected)}>{selected.rangeKm.toLocaleString()} km nominal, {usableRangeKm(selected).toLocaleString()} usable</abbr> {"·"} {usd(selected.listPriceUsdM)}</span>
     </>
   ) : <span className="ap-sum-name">No aircraft type available</span>;
 
@@ -138,7 +138,8 @@ export function AircraftPicker({ label, value, onChange, year, types = aircraftT
                   title={reason ?? undefined} onClick={() => { if (!reason) pick(t); }}>
                   <span className="ap-var-top"><b>{t.name.replace(t.manufacturer, "").trim() || t.name}</b><span className={`ap-badge ap-${av}`}>{AVAIL_LABEL[av]}</span></span>
                   <span className="ap-var-spec">{typicalSeats(t)} seats typical, {t.maxSeats} max</span>
-                  <span className="ap-var-spec">Range {t.rangeKm.toLocaleString()} km</span>
+                  <span className="ap-var-spec" title={rangeNote(t)}>Range {t.rangeKm.toLocaleString()} km nominal</span>
+                  <span className="ap-var-spec" title={rangeNote(t)}>Usable {usableRangeKm(t).toLocaleString()} km with reserves</span>
                   <span className="ap-var-price">{usd(t.listPriceUsdM)} list</span>
                   {o !== undefined && <span className={`ap-own ${o.total === 0 ? "none" : ""}`}>{o.total === 0 ? "None owned" : `${o.total} owned, ${o.free} free`}</span>}
                   {reason && <span className="ap-why">{reason}</span>}

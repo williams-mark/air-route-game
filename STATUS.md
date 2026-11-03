@@ -4,6 +4,12 @@ Last updated: Mon 2 Nov 2026 (UTC morning). `main` passes typecheck, test (data 
 Last updated: Mon 2 Nov 2026 (UTC morning). `main` passes typecheck, test and build. lane/orwa: data 15, sim 191, app 82 tests.
 lane/qa-save: data 15, sim 224, app 94; typecheck, test, build pass.
 
+## lane/qa-forecast (SQA B02, B04, B11, suggestion 7)
+- Route inspector previews, the seasonal chart and the type-swap comparison now run the live model (`previewRoutePatch`, `seasonalRouteProfit`, see MODEL.md "Route forecasts"); route sandbox headline uses `previewNewRoute` (own fleet, rivals, network) and falls back to the standalone projection, labelled "Planned, not yet operating", when no aircraft could fly it.
+- Substituted aircraft: capacity and costs follow the aircraft that fly (weighted by round trips); inspector shows "Planned A321, flown by 2 x B737-800" with a banner; open-route warnings are toasted.
+- Planner header: "N current, M upcoming" (current = short all along). Aircraft picker and route sandbox show nominal and usable range (`usableRangeKm`).
+- Open: sandbox frequency sweep and best-type search are still the standalone model; network re-price omits cabin service multipliers; QA.md not refreshed.
+
 ## Task table (T1-T18 from the Week-One Build Plan doc)
 | Task | State | Notes |
 | --- | --- | --- |

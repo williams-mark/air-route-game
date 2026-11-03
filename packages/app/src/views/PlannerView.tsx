@@ -83,7 +83,7 @@ export default function PlannerView() {
       <header className="pl-head">
         <div>
           <h1>Fleet planner</h1>
-          <p>{data.items.length} aircraft, {data.gaps.filter((g) => !g.structural).length} upcoming coverage {data.gaps.filter((g) => !g.structural).length === 1 ? "issue" : "issues"} in the next {horizon} days. The scheduler assigns aircraft by default; pins, spares and fallback types steer it.</p>
+          <p>{data.items.length} aircraft. Coverage in the next {horizon} days: {data.gaps.filter((g) => g.structural).length} current (short all along), {data.gaps.filter((g) => !g.structural).length} upcoming (a check or delivery opens a gap); all {data.gaps.length} are in the Issues tab. The scheduler assigns aircraft by default; pins, spares and fallback types steer it.</p>
         </div>
         <div className="pl-controls">
           <div className="seg" role="group" aria-label="Horizon">

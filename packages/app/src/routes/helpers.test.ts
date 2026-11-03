@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { aircraftTypes, airportById } from "@arg/data";
-import { dayToDate } from "@arg/sim";
+import { dayToDate, runDays, startingScenario } from "@arg/sim";
 import {
   bestFrequency, bestType, eligibleTypes, fareHint, FREQ_SWEEP_MAX, frequencySweep, marketFares, midMonthDay, parseFares,
-  profitTier, rivalPresence, seasonalProfit, suggestAirports, validateRouteDraft, type RouteDraft, type SweepPoint,
+  livePreview, liveSeasonal, operatingMix, profitTier, rivalPresence, seasonalProfit, substitutionText, suggestAirports, validateRouteDraft, type RouteDraft, type SweepPoint,
 } from "./helpers";
+import { rangeNote, routeBlock, usableRangeKm } from "../aircraft/availability";
 import { airports } from "@arg/data";
 
 const lax = airportById.get("LAX")!;
@@ -124,5 +125,49 @@ describe("validateRouteDraft", () => {
     expect(validateRouteDraft(ok, [{ ...ok, id: "SFO-LAX", origin: "SFO", destination: "LAX" }])?.code).toBe("duplicate_route");
     const small = aircraftTypes.reduce((m, x) => (x.rangeKm < m.rangeKm ? x : m));
     expect(validateRouteDraft({ ...ok, destination: "HNL", typeId: small.id }, [])?.code).toBe("cannot_fly");
+  });
+});
+
+describe("substituted aircraft wording", () => {
+  const sched = (ids: string[], trips: Record<string, number>) => ({
+    scheduledFrequency: 0, underSupplied: 0, aircraftIds: ids, substitutedFrequency: 0, blockHoursPerWeek: 0, roundTripsByAircraft: trips,
+  });
+  const fleet = [{ id: "a", typeId: "B737-800" }, { id: "b", typeId: "B737-800" }, { id: "c", typeId: "A321" }];
+  it("names the planned type and the types actually flying it", () => {
+    const mix = operatingMix(sched(["a", "b"], { a: 10, b: 5 }), fleet);
+    expect(mix).toEqual([{ typeId: "B737-800", aircraft: 2, roundTrips: 15 }]);
+    expect(substitutionText("A321", mix)).toBe("Planned A321, flown by 2 x B737-800");
+  });
+  it("is silent when the requested type flies it, and lists a mixed fleet", () => {
+    expect(substitutionText("A321", operatingMix(sched(["c"], { c: 7 }), fleet))).toBeNull();
+    expect(substitutionText("A321", operatingMix(sched(["a", "c"], { a: 3, c: 9 }), fleet))).toBe("Planned A321, flown by 1 x A321 and 1 x B737-800");
+    expect(operatingMix(null, fleet)).toEqual([]);
+  });
+});
+
+describe("usable range", () => {
+  it("is below nominal and explained", () => {
+    const e175 = aircraftTypes.find((t) => t.id === "E175")!;
+    expect(usableRangeKm(e175)).toBeLessThan(e175.rangeKm);
+    expect(usableRangeKm(e175)).toBeLessThan(3857); // the route the SQA report saw rejected
+    expect(rangeNote(e175)).toContain("4,074");
+    expect(routeBlock(e175, { ...lax, lat: lax.lat } as typeof lax, hnl, 2015)).toContain("usable range");
+  });
+});
+
+describe("live route forecasts", () => {
+  const sim = runDays(startingScenario(airports, aircraftTypes, 2015), 12);
+  it("an unchanged preview shows exactly the live route profit, a $1 fare change a small delta", () => {
+    const r = sim.world.routes[0]!;
+    const live = sim.routeReports[r.id]!.evaluation.profit;
+    expect(livePreview(sim, r.id, {})!.proposed.profit).toBe(live);
+    const p = livePreview(sim, r.id, { fares: { ...r.fares, Y: r.fares.Y + 1 } })!;
+    expect(p.delta.profit).not.toBe(0);
+    expect(Math.abs(p.delta.profit)).toBeLessThan(0.1 * Math.abs(live) + 10_000);
+  });
+  it("seasonal profit comes from the live model", () => {
+    const r = sim.world.routes[0]!;
+    expect(liveSeasonal(sim, r.id, sim.world.day)).toHaveLength(12);
+    expect(liveSeasonal(null, r.id, sim.world.day)).toBeNull();
   });
 });

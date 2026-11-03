@@ -7,7 +7,7 @@ import { bridge, useSim } from "../sim/useSim";
 import { IconAlert } from "../shell/icons";
 import { MonthBars } from "./charts";
 import { FareFields, FrequencyField, Stat, useDebounced } from "./editor";
-import { CABINS, CABIN_NAME, FREQ_MAX, faresToText, parseFares, profitTier, projectRoute, routeName, seasonalProfit } from "./helpers";
+import { CABINS, CABIN_NAME, FREQ_MAX, faresToText, liveSeasonal, livePreview, operatingMix, parseFares, profitTier, projectRoute, routeName, seasonalProfit, substitutionText } from "./helpers";
 import { pct, usd, usdSigned } from "./fmt";
 import { useToasts } from "./store";
 import { RouteAircraft } from "./RouteAircraft";
@@ -28,7 +28,7 @@ function LedgerRow({ line, sign }: { line: LedgerLine; sign: 1 | -1 }) {
 }
 
 export function RouteInspector({ route }: { route: Route }) {
-  const { day, reports } = useSim();
+  const { day, reports, fleet } = useSim();
   const select = useUi((s) => s.select);
   const push = useToasts((s) => s.push);
   const [freq, setFreq] = useState(route.weeklyFrequency);
@@ -52,16 +52,29 @@ export function RouteInspector({ route }: { route: Route }) {
   const week = report ? { evaluation: report.evaluation, snapshot: report.market } : projected;
   const sched = report?.scheduling ?? null;
   const ev = week?.evaluation;
-  const months = useMemo(() => seasonalProfit(route, wkDay), [route, wkDay]);
+  // Forecasts run the same model as the daily report (assigned aircraft, real rivals, hub traffic, ownership treatment); the mock bridge has no sim and keeps the standalone projection.
+  const sim = bridge.getSim?.() ?? null;
+  const live = sim !== null;
+  const months = useMemo(() => liveSeasonal(sim, route.id, wkDay) ?? seasonalProfit(route, wkDay), [route, wkDay, live]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mix = useMemo(() => operatingMix(sched, fleet), [sched, fleet]);
+  const substituted = substitutionText(route.typeId, mix);
+  const ownedOfType = fleet.some((f) => f.typeId === route.typeId && f.status !== "delivery" && f.status !== "stored");
+  const stand = fleet.find((f) => f.status === "active" && f.typeId !== route.typeId);
 
   const parsed = parseFares(fares);
   const draftRoute: Route = useMemo(() => ({ ...route, weeklyFrequency: freq, fares: parsed ?? route.fares }), [route, freq, parsed?.Y, parsed?.W, parsed?.J, parsed?.F]); // eslint-disable-line react-hooks/exhaustive-deps
   const debounced = useDebounced(draftRoute, 220);
   const settling = debounced !== draftRoute;
-  const proj = useMemo(() => projectRoute(debounced, wkDay)?.evaluation, [debounced, wkDay]);
   const dirty = freq !== route.weeklyFrequency || JSON.stringify(parsed) !== JSON.stringify(route.fares);
+  // Preview = the live model with the change applied; "current" is the route report above, so an unchanged route previews to exactly its live profit.
+  const preview = useMemo(
+    () => (dirty ? livePreview(sim, route.id, { weeklyFrequency: debounced.weeklyFrequency, fares: debounced.fares }) : null),
+    [dirty, live, route.id, debounced, report?.day], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const standalone = useMemo(() => (!live && dirty ? projectRoute(debounced, wkDay)?.evaluation : undefined), [live, dirty, debounced, wkDay]);
+  const proj = preview ? preview.proposed : standalone ? { profit: standalone.profit, loadFactor: standalone.loadFactor } : undefined;
   const canApply = dirty && !!parsed && freq >= 1 && freq <= FREQ_MAX && !settling;
-  const delta = proj && ev ? proj.profit - ev.profit : 0;
+  const delta = preview ? preview.delta.profit : proj && ev ? proj.profit - ev.profit : 0;
 
   const apply = () => {
     if (!parsed) return;
@@ -91,7 +104,7 @@ export function RouteInspector({ route }: { route: Route }) {
       <header className="rp-head">
         <div>
           <h2 id="rp-title"><span className={`dot tier-${tier}`} aria-hidden="true" />{routeName(route)}</h2>
-          <p>{a?.city} to {b?.city} {"·"} {Math.round(ev.distanceKm).toLocaleString()} km {"·"} {type?.name ?? route.typeId} {"·"} {tierWord}</p>
+          <p>{a?.city} to {b?.city} {"·"} {Math.round(ev.distanceKm).toLocaleString()} km {"·"} {substituted ?? (type?.name ?? route.typeId)} {"·"} {tierWord}</p>
         </div>
         <button ref={headRef} className="icon-btn" aria-label="Close route inspector" title="Close (Esc)" onClick={() => select(null)}>{"✕"}</button>
       </header>
@@ -100,11 +113,21 @@ export function RouteInspector({ route }: { route: Route }) {
           <div className="rp-alert" role="alert"><IconAlert size={16} /><div><b>This aircraft cannot operate the route</b><ul>{ev.infeasibleReasons.map((r) => <li key={r}>{r}</li>)}</ul></div></div>
         )}
         <section aria-label="Key figures" className="rp-stats">
-          <Stat label="Profit / week" value={usdSigned(ev.profit)} tone={ev.profit >= 0 ? "pos" : "neg"} sub={`${pct(ev.margin)} margin`} />
+          <Stat label="Route profit / week" value={usdSigned(ev.profit)} tone={ev.profit >= 0 ? "pos" : "neg"}
+            sub={`${pct(ev.margin)} margin, ${report && !report.notionalFleet ? "before aircraft ownership and overhead" : "incl. notional aircraft cost"}`} />
           <Stat label="Load factor" value={pct(ev.loadFactor)} sub={`${Math.round(ev.passengersPerWeek).toLocaleString()} of ${Math.round(ev.seatsPerWeek).toLocaleString()} seats`} />
           <Stat label="Break-even load" value={ev.breakEvenLoadFactor === null ? "n/a" : pct(ev.breakEvenLoadFactor)} sub={ev.breakEvenLoadFactor !== null && ev.loadFactor > ev.breakEvenLoadFactor ? "Above break-even" : "Below break-even"} />
           <Stat label="Market share" value={pct(week.snapshot.playerShare)} sub={`of ${Math.round(week.snapshot.weeklyDemand).toLocaleString()} potential pax/wk`} />
         </section>
+        {(substituted || (!report && !ownedOfType && route.typeId)) && (
+          <div className="rp-alert" role="status"><IconAlert size={16} /><div>
+            <b>{substituted ?? `Planned ${route.typeId}, no ${route.typeId} in your fleet yet`}</b>
+            <ul><li>
+              {substituted
+                ? `You own no ${route.typeId}${ownedOfType ? " that is free" : ""}, so the scheduler is substituting. Seats, fuel, crew and fees below use the aircraft actually flying.`
+                : `The scheduler will substitute ${stand ? `another aircraft such as your ${stand.typeId}` : "whatever it can find"} until you have one.`}
+            </li></ul></div></div>
+        )}
         {sched && sched.underSupplied > 0 && (
           <div className="rp-alert" role="status"><IconAlert size={16} /><div><b>Under-supplied: {sched.scheduledFrequency} of {route.weeklyFrequency} round trips a week can be flown</b>
             <ul><li>Not enough free aircraft of this type. Order more, or lower the frequency.</li></ul></div></div>
@@ -114,7 +137,7 @@ export function RouteInspector({ route }: { route: Route }) {
           <h3 id="rp-sched">Schedule and fares</h3>
           <dl className="mini rp-dl">
             <dt>Frequency</dt><dd>{route.weeklyFrequency} per week each way ({ev.flightsPerWeek} flights)</dd>
-            <dt>Aircraft</dt><dd>{route.typeId}, {ev.seatsPerFlight} seats, {sched ? `${sched.aircraftIds.length} assigned` : `${ev.aircraftEquivalent.toFixed(1)} needed`}</dd>
+            <dt>Aircraft</dt><dd>{substituted ?? route.typeId}, {Math.round(ev.seatsPerFlight)} seats per flight, {sched ? `${sched.aircraftIds.length} assigned` : `${ev.aircraftEquivalent.toFixed(1)} needed`}</dd>
             {CABINS.slice().reverse().map((c) => cabinFare(c) !== undefined && (<Fragment key={c}><dt>{CABIN_NAME[c]}</dt><dd>{usd(cabinFare(c)!)}</dd></Fragment>))}
           </dl>
         </section>
@@ -133,7 +156,7 @@ export function RouteInspector({ route }: { route: Route }) {
         </section>
 
         <section aria-labelledby="rp-season" className="rp-sec">
-          <h3 id="rp-season">Seasonal profit, {year.year} <span className="hint">(per month)</span></h3>
+          <h3 id="rp-season">Seasonal route profit, {year.year} <span className="hint">(per month{live ? "; today's fleet, rivals and costs, no daily noise" : ""})</span></h3>
           <MonthBars months={months} label={`Monthly profit for ${routeName(route)} in ${year.year}.`} />
         </section>
 
@@ -143,8 +166,12 @@ export function RouteInspector({ route }: { route: Route }) {
           <FareFields text={fares} onChange={setFares} km={ev.distanceKm} />
           <div className="rp-proj" aria-live="polite" aria-busy={settling}>
             <div>
-              <span className="k">Projected profit / week</span>
-              <span className={`big ${!proj ? "" : proj.profit >= 0 ? "pos" : "neg"}`}>{proj ? usdSigned(proj.profit) : "–"}</span>
+              <span className="k">Route profit / week now</span>
+              <span className={`big ${ev.profit >= 0 ? "pos" : "neg"}`}>{usdSigned(ev.profit)}</span>
+            </div>
+            <div>
+              <span className="k">With your change</span>
+              <span className={`big ${!dirty || !proj ? "" : proj.profit >= 0 ? "pos" : "neg"}`}>{dirty && proj ? usdSigned(proj.profit) : "–"}</span>
             </div>
             <div>
               <span className="k">{settling ? "Updating…" : "Change"}</span>
@@ -152,9 +179,19 @@ export function RouteInspector({ route }: { route: Route }) {
             </div>
             <div>
               <span className="k">Load factor</span>
-              <span className="big">{proj ? pct(proj.loadFactor) : "–"}</span>
+              <span className="big">{dirty && proj ? pct(proj.loadFactor) : pct(ev.loadFactor)}</span>
             </div>
           </div>
+          {dirty && preview && (
+            <p className="rp-note">
+              {preview.otherRoutesDelta !== 0 && Math.abs(preview.otherRoutesDelta) >= 1
+                ? `Other routes: ${usdSigned(preview.otherRoutesDelta)} a week (connecting passengers and shared aircraft), so the company effect is ${usdSigned(preview.delta.profit + preview.otherRoutesDelta)}. `
+                : "No effect on your other routes. "}
+              {preview.ownershipTreatmentChanges ? "This change moves the route between owned and notional aircraft, so lease cost enters or leaves the route figure. " : ""}
+              Route profit is operating contribution: {preview.ownershipIncluded ? "it includes a notional lease charge for aircraft you do not own" : "aircraft ownership and corporate overhead are charged to the company, not to the route"}.
+              Everything but your change is held as in the {MONTHS_LONG[dayToDate(preview.day).month]} {dayToDate(preview.day).year} report: aircraft flying it, rivals, date and costs.
+            </p>
+          )}
           {!parsed && <p className="rp-err" role="alert">Economy fare is required; other cabins must be positive numbers or blank.</p>}
           <div className="rp-actions">
             <button type="button" className="primary" disabled={!canApply} onClick={apply}>Apply changes</button>

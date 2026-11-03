@@ -2,7 +2,10 @@
 // Projections call @arg/sim (simulateRouteWeek / evaluateRoute) with real @arg/data inputs; nothing here has side effects.
 import type { AircraftType, Airport, CabinClass, Day, Fares, Id, Route } from "@arg/contracts";
 import { aircraftTypes, airports, canFlyRoute, distanceKm } from "@arg/data";
-import { benchmarkFare, daysInMonth, dayToDate, pairMarket, simulateRouteWeek, type RouteWeek } from "@arg/sim";
+import {
+  benchmarkFare, daysInMonth, dayToDate, pairMarket, previewNewRoute, previewRoutePatch, seasonalRouteProfit, simulateRouteWeek,
+  type RoutePatch, type RoutePreview, type RouteReport, type RouteWeek, type SimState,
+} from "@arg/sim";
 import type { ProfitTier } from "../map/types";
 
 export interface World {
@@ -29,6 +32,47 @@ export const routeName = (r: Pick<Route, "origin" | "destination">) => `${r.orig
 /** Full weekly picture for a route on `day`, or null for unknown airports/types. */
 export function projectRoute(route: Route, day: Day, world: World = dataWorld): RouteWeek | null {
   return simulateRouteWeek(route, world.airports, world.types, day);
+}
+
+// --- Live forecasts --------------------------------------------------------
+
+/** The sim behind the bridge, or null for the mock bridge (which has no fleet, rivals or network to be consistent with). */
+export type LiveSim = SimState | null | undefined;
+
+/** "What if" for a saved route, in the live context (fleet, rivals, hub traffic, date, costs). Null without a live sim. */
+export function livePreview(sim: LiveSim, routeId: string, patch: RoutePatch): RoutePreview | null {
+  return sim ? previewRoutePatch(sim, routeId, patch) : null;
+}
+export { previewNewRoute };
+
+/** Monthly profit for a saved route from the live model (null without a sim, so callers fall back to `seasonalProfit`). */
+export function liveSeasonal(sim: LiveSim, routeId: string, day: Day, patch: RoutePatch = {}): MonthProfit[] | null {
+  if (!sim || !sim.world.routes.some((r) => r.id === routeId)) return null;
+  return seasonalRouteProfit(sim, routeId, day, patch).map((m) => ({ month: m.month, label: MONTH_LABELS[m.month]!, profit: m.monthly }));
+}
+
+export interface OperatingType { typeId: string; aircraft: number; roundTrips: number }
+/** Which types actually fly a route, from the scheduler's per-aircraft round trips, most flights first. */
+export function operatingMix(sched: RouteReport["scheduling"], fleet: ReadonlyArray<{ id: string; typeId: string }>): OperatingType[] {
+  if (!sched) return [];
+  const typeOf = new Map(fleet.map((f) => [f.id, f.typeId]));
+  const by = new Map<string, OperatingType>();
+  for (const id of sched.aircraftIds) {
+    const typeId = typeOf.get(id);
+    if (!typeId) continue;
+    const trips = sched.roundTripsByAircraft?.[id] ?? 0;
+    const cur = by.get(typeId) ?? { typeId, aircraft: 0, roundTrips: 0 };
+    cur.aircraft += 1; cur.roundTrips += trips;
+    by.set(typeId, cur);
+  }
+  return [...by.values()].sort((x, y) => y.roundTrips - x.roundTrips || (x.typeId < y.typeId ? -1 : 1));
+}
+
+/** "Planned A321, flown by 2 x 737-800" when anything other than the requested type flies the route; null when it is as planned. */
+export function substitutionText(requested: string, mix: readonly OperatingType[]): string | null {
+  if (mix.length === 0 || mix.every((m) => m.typeId === requested)) return null;
+  const parts = mix.map((m) => `${m.aircraft} x ${m.typeId}`);
+  return `Planned ${requested}, flown by ${parts.join(" and ")}`;
 }
 
 // --- Frequency sweep -------------------------------------------------------
