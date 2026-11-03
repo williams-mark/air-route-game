@@ -13,7 +13,7 @@ import { carriedShare } from "../route/rivalSizing";
 import { dayToDate } from "../time/calendar";
 import {
   ARCHETYPES, ENTRANT_NAME_POOL, RIVAL_PARAMS as RP, SCHEDULED_ENTRANTS, SCOPES, STARTING_RIVALS,
-  EUROPE_LCC_TYPES, EUROPE_LEGACY_TYPES, US_LEGACY_TYPES,
+  EUROPE_LCC_TYPES,
   type ArchetypeSpec, type EntrantSpec,
 } from "./config";
 import type {
@@ -418,7 +418,8 @@ function baseCandidates(ctx: RivalCtx, air: RivalAirline, a: Airport): Cand[] {
   return out;
 }
 
-function candidatePairs(ctx: RivalCtx, air: RivalAirline, limit = 14): { a: Airport; b: Airport; demand: number }[] {
+/** Entry candidates for an airline: the pruned per-base lists merged, minus what it already flies or recently left, best potential first. */
+export function candidatePairs(ctx: RivalCtx, air: RivalAirline, limit = 14): { a: Airport; b: Airport; demand: number }[] {
   const have = new Set(air.routes.map((r) => marketKey(r.origin, r.destination)));
   const out: { a: Airport; b: Airport; demand: number }[] = [];
   const seen = new Set<string>();

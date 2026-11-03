@@ -5,7 +5,7 @@ import { makeContext, stepRivalsWeek } from "./engine";
 
 export * from "./types";
 export * from "./config";
-export { createRivals, rivalItinerariesFor, marketKey, canServe, evaluateMarket, makeContext, weeklyFixed } from "./engine";
+export { createRivals, rivalItinerariesFor, marketKey, canServe, evaluateMarket, makeContext, weeklyFixed, scopeOf, inScope, candidatePairs, CANDIDATE_TOP_K } from "./engine";
 export { rivalReports, rivalNews, rivalIndustry } from "./reports";
 
 /** Called at the end of `stepDay` for the day just simulated. Acts on days divisible by 7; returns the same state otherwise. */

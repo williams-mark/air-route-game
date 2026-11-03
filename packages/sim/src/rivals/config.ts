@@ -272,6 +272,6 @@ export const RIVAL_PARAMS = {
   /** Extra optimism of a startup (founders overestimate their markets). */
   startupOptimism: 0.1,
   /** Random startup chance per year (checked annually from 2018 while fewer than `maxActive` rivals are active). */
-  randomEntrantChancePerYear: 0.1, randomEntrantFromYear: 2018, maxActive: 8, entrantCash: 70_000_000,
+  randomEntrantChancePerYear: 0.1, randomEntrantFromYear: 2018, maxActive: 20, entrantCash: 70_000_000,
   newsLimit: 900,
 } as const;

@@ -98,4 +98,28 @@ describe("validateSimState / parseSave on damaged saves", () => {
     st.world.fleet[0].layout = { sections: [{ cls: "Y", rows: 20, seatsAcross: 6, pitchIn: 30 }] };
     expect(validateSimState(st)).toEqual([]);
   });
+
+  it("loads a version-1 save (small world, no country/landmass) and keeps playing in the larger world", () => {
+    const st = run(startingScenario(airports, aircraftTypes, 2015), 30);
+    const old = JSON.parse(JSON.stringify(st)) as typeof st;
+    const inSave = new Set(old.airports.map((a) => a.id));
+    // Make it look like a v1 save: only the West Coast airports, without the fields v2 added.
+    old.airports = old.airports.filter((a) => ["CA", "HI", "OR", "WA"].includes(a.region)).map((a) => {
+      const { country: _c, landmass: _l, ...rest } = a as unknown as Record<string, unknown>;
+      return rest as unknown as (typeof old.airports)[number];
+    });
+    const save = { ...makeSave(old, { appVersion: "t", savedAt: "2026-01-01T00:00:00Z" }), version: 1 };
+    const parsed = parseSave(JSON.stringify(save));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.save.version).toBe(SAVE_VERSION);
+    const ap = parsed.save.state.airports;
+    expect(ap.every((a) => a.country && a.landmass)).toBe(true);
+    expect(ap.find((a) => a.id === "LAX")!.country).toBe("US");
+    expect(ap.find((a) => a.id === "HNL")!.landmass).toBe("US-HI");
+    expect(ap.length).toBeGreaterThanOrEqual(inSave.size);
+    expect(ap.some((a) => a.id === "FRA")).toBe(true);
+    const next = run(parsed.save.state, 10);
+    expect(next.world.day).toBe(parsed.save.state.world.day + 10);
+  });
 });
