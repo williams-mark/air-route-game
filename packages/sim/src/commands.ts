@@ -155,7 +155,7 @@ export function routeFeasibilityError(a: Airport, b: Airport, type: AircraftType
     return { code: "runway_too_short", message: `${short.id} runway is ${short.runwayM} m; the ${type.name} needs ${Math.round(need)} m on this sector.` };
   }
   if (isOverwaterRoute(a, b) && !canFlyOverwater(type, a, b, dist)) {
-    return { code: "overwater_limit", message: `${a.id}-${b.id} crosses ${Math.round(dist)} km of open water; the ${type.name} may not be scheduled on it (twin-engine diversion limit).` };
+    return { code: "overwater_limit", message: `${a.id}-${b.id} (${Math.round(dist)} km) counts as an overwater route (water or no diversion airports on the way, e.g. the Atlantic, Alaska to the lower 48); the ${type.name} may not be scheduled on it (twin-engine diversion limit).` };
   }
   return null;
 }

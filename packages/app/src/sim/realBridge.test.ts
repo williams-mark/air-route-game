@@ -18,6 +18,22 @@ describe("RealSimBridge", () => {
     expect(s.airline).toEqual({ name: "Skybridge Pacific", hub: "LAX" });
   });
 
+  it("newGame with a hub and name starts a game there, and dispatches the new error codes with clear messages", () => {
+    const b = make();
+    b.newGame(7, { hub: "FRA", name: "Rhein Test" });
+    b.dispatch({ kind: "setSpeed", speed: 0 });
+    const s = b.getState();
+    expect(s.airline).toEqual({ name: "Rhein Test", hub: "FRA" });
+    expect(s.routes.length).toBeGreaterThanOrEqual(3);
+    expect(s.routes.every((r) => r.origin === "FRA")).toBe(true);
+    expect(s.notices.some((n) => /Rhein Test/.test(n.text))).toBe(true);
+    const closed = b.dispatch({ kind: "openRoute", route: { origin: "FRA", destination: "BER", weeklyFrequency: 7, fares: { Y: 120 }, typeId: "B737-800" } });
+    expect(closed).toMatchObject({ ok: false, error: { code: "airport_closed" } });
+    expect(closed && !closed.ok && closed.error.message).toMatch(/BER/);
+    const water = b.dispatch({ kind: "openRoute", route: { origin: "ANC", destination: "BIS", weeklyFrequency: 7, fares: { Y: 300 }, typeId: "E175" } });
+    expect(water).toMatchObject({ ok: false, error: { code: "overwater_limit" } });
+  });
+
   it("advances date and changes cash over 30 days, with one snapshot per advance", () => {
     const b = make();
     b.dispatch({ kind: "setSpeed", speed: 5 });
