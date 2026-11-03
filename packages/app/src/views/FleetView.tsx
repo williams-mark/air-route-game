@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { aircraftTypes } from "@arg/data";
 import { maintenanceEnabled, refitQuote } from "@arg/sim";
 import { CabinDialog } from "../cabin/CabinDialog";
@@ -7,8 +7,9 @@ import { useToasts } from "../routes/store";
 import type { FleetItem } from "../sim/bridge";
 import { formatDate } from "../sim/format";
 import { bridge, useSim, useSimSelector } from "../sim/useSim";
+import { useUi } from "../store";
+import { FLEET_SORT_KEYS, groupLabel, sortFleet } from "./fleetSort";
 
-const ORDER = { maintenance: 0, active: 1, delivery: 2, stored: 3 } as const;
 /** "In check" only exists while the maintenance programme runs; otherwise the hangar holds cabin refits only. */
 const label = (st: FleetItem["status"]) => ({ active: "Active", maintenance: maintenanceEnabled() ? "In check" : "Cabin refit", delivery: "On order", stored: "Stored" })[st];
 const CHECK_NAME = { A: "A check", B: "B check", C: "C check", D: "D check" } as const;
@@ -48,7 +49,10 @@ export default function FleetView() {
   const push = useToasts((s) => s.push);
   const [refitting, setRefitting] = useState<FleetItem | null>(null);
   const refitType = refitting ? aircraftTypes.find((t) => t.id === refitting.typeId) : undefined;
-  const sorted = useMemo(() => [...fleet].sort((x, y) => ORDER[x.status] - ORDER[y.status] || x.typeId.localeCompare(y.typeId) || x.tail.localeCompare(y.tail)), [fleet]);
+  const { key: sortKey, dir: sortDir } = useUi((s) => s.fleetSort);
+  const setFleetSort = useUi((s) => s.setFleetSort);
+  const sorted = useMemo(() => sortFleet(fleet, sortKey, sortDir), [fleet, sortKey, sortDir]);
+  const sortLabel = FLEET_SORT_KEYS.find((k) => k.key === sortKey)!.label;
   const n = (st: FleetItem["status"]) => fleet.filter((a) => a.status === st).length;
   const byType = useMemo(() => {
     const m = new Map<string, number>();
@@ -69,7 +73,31 @@ export default function FleetView() {
         <h1>Fleet</h1>
         <p>{fleet.length - n("delivery")} in the fleet ({byType}). {n("maintenance")} {maintenanceEnabled() ? "in check" : "in cabin refit"}, {n("delivery")} on order.</p>
       </header>
-      <ul className="cards">{sorted.map((a) => <Card key={a.id} a={a} onRefit={setRefitting} />)}</ul>
+      <div className="sort-bar" role="group" aria-label="Sort fleet">
+        <span className="sort-label" id="fleet-sort-label">Sort by</span>
+        {FLEET_SORT_KEYS.map((k) => (
+          <button key={k.key} type="button" className={`sort-btn${sortKey === k.key ? " on" : ""}`} aria-pressed={sortKey === k.key}
+            onClick={() => setFleetSort(k.key, sortKey === k.key ? (sortDir === "asc" ? "desc" : "asc") : "asc")}>
+            {k.label}{sortKey === k.key && <span aria-hidden="true"> {sortDir === "asc" ? "\u2191" : "\u2193"}</span>}
+          </button>
+        ))}
+        <button type="button" className="sort-btn" onClick={() => setFleetSort(sortKey, sortDir === "asc" ? "desc" : "asc")} aria-label={`Sort direction: ${sortDir === "asc" ? "ascending" : "descending"}. Switch.`}>
+          {sortDir === "asc" ? "Ascending" : "Descending"}
+        </button>
+        <span className="sr-only" role="status">Sorted by {sortLabel}, {sortDir === "asc" ? "ascending" : "descending"}</span>
+      </div>
+      <ul className="cards">
+        {sorted.map((a, i) => {
+          const g = groupLabel(a, sortKey);
+          const head = g !== null && (i === 0 || groupLabel(sorted[i - 1]!, sortKey) !== g);
+          return (
+            <Fragment key={a.id}>
+              {head && <li className="group-head" role="presentation">{g}</li>}
+              <Card a={a} onRefit={setRefitting} />
+            </Fragment>
+          );
+        })}
+      </ul>
       {refitting && refitType && refitting.layout && (
         <CabinDialog
           title={`Refit ${refitting.tail} (${refitType.name})`} type={refitType} initial={refitting.layout} day={day} confirmLabel="Start refit" requireChange
