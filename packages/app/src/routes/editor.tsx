@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import type { CabinClass } from "@arg/contracts";
+import type { Airport, CabinClass } from "@arg/contracts";
 import { CABINS, CABIN_NAME, FREQ_MAX, fareHint } from "./helpers";
 
 export function useDebounced<T>(value: T, ms = 220): T {
@@ -37,14 +37,14 @@ export function FrequencyField({ value, onChange, max = FREQ_MAX }: { value: num
   );
 }
 
-export function FareFields({ text, onChange, km }: { text: Record<CabinClass, string>; onChange: (t: Record<CabinClass, string>) => void; km: number }) {
+export function FareFields({ text, onChange, km, from, to }: { text: Record<CabinClass, string>; onChange: (t: Record<CabinClass, string>) => void; km: number; from?: Airport; to?: Airport }) {
   const base = useId();
   return (
     <fieldset className="rp-fares">
       <legend>Fares per cabin <span className="hint">(one way, USD)</span></legend>
       <div className="rp-fare-grid">
         {[...CABINS].reverse().map((c) => {
-          const hint = fareHint(km, c);
+          const hint = fareHint(km, c, from, to);
           return (
             <div className="rp-fare" key={c}>
               <label htmlFor={`${base}-${c}`}>{CABIN_NAME[c]}{c === "Y" ? "" : <span className="hint"> optional</span>}</label>

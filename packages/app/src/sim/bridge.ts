@@ -111,7 +111,7 @@ export interface SimBridge {
   /** Save/load support (real bridge only). */
   serialize?(): SaveFile;
   loadGame?(save: SaveFile): void;
-  newGame?(seed: number): void;
+  newGame?(seed: number, options?: { hub?: string; name?: string }): void;
 }
 
 export const DAYS_PER_SECOND: Record<Speed, number> = { 0: 0, 1: 1, 2: 3, 3: 7, 4: 14, 5: 30 };
@@ -215,7 +215,7 @@ export class MockSimBridge implements SimBridge {
     switch (cmd.kind) {
       case "setSpeed": this.setSpeed(cmd.speed); return;
       case "openRoute": {
-        const err = validateRouteDraft(cmd.route, this.routes);
+        const err = validateRouteDraft(cmd.route, this.routes, undefined, undefined, this.world.day);
         if (err) return { ok: false, error: err };
         const route: Route = { ...cmd.route, id: `${cmd.route.origin}-${cmd.route.destination}` };
         this.routes = [...this.routes, route];
@@ -227,7 +227,7 @@ export class MockSimBridge implements SimBridge {
         const cur = this.routes.find((r) => r.id === cmd.id);
         if (!cur) return { ok: false, error: { code: "unknown_route", message: "That route no longer exists." } };
         const next: Route = { ...cur, ...cmd.patch, id: cur.id };
-        const err = validateRouteDraft(next, this.routes, undefined, cur.id);
+        const err = validateRouteDraft(next, this.routes, undefined, cur.id, this.world.day);
         if (err) return { ok: false, error: err };
         this.routes = this.routes.map((r) => (r.id === cur.id ? next : r));
         this.pushNotice(this.world.day, "info", `Updated ${routeName(next)}: ${next.weeklyFrequency}/wk, economy $${next.fares.Y}.`);

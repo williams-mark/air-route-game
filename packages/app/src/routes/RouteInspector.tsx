@@ -163,7 +163,7 @@ export function RouteInspector({ route }: { route: Route }) {
         <section aria-labelledby="rp-edit" className="rp-sec rp-edit">
           <h3 id="rp-edit">Adjust</h3>
           <FrequencyField value={freq} onChange={setFreq} />
-          <FareFields text={fares} onChange={setFares} km={ev.distanceKm} />
+          <FareFields text={fares} onChange={setFares} km={ev.distanceKm} from={airportById.get(route.origin)} to={airportById.get(route.destination)} />
           <div className="rp-proj" aria-live="polite" aria-busy={settling}>
             <div>
               <span className="k">Route profit / week now</span>

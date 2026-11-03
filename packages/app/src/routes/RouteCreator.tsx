@@ -71,7 +71,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const rival = useMemo(() => rivalPresence(a, b), [a, b]);
   const types = useMemo(() => eligibleTypes(a, b, year.year), [a, b, year.year]);
   const existing = routes.find((r) => (r.origin === originId && r.destination === destinationId) || (r.origin === destinationId && r.destination === originId));
-  const mf = useMemo(() => marketFares(market.distanceKm), [market.distanceKm]);
+  const mf = useMemo(() => marketFares(market.distanceKm, a, b), [market.distanceKm, a, b]);
 
   const [typeId, setTypeId] = useState(() => {
     const last = usePickerMemory.getState().last.route;
@@ -105,7 +105,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const sweep = useMemo(() => (typeId ? frequencySweep(dDraft, wkDay) : []), [dDraft.origin, dDraft.destination, dDraft.typeId, dDraft.fares, wkDay, typeId]); // eslint-disable-line react-hooks/exhaustive-deps
   const best = useMemo(() => bestFrequency(sweep), [sweep]);
   const selectedType = aircraftTypes.find((t) => t.id === typeId);
-  const issue = typeId ? validateRouteDraft(draft, routes) : { code: "no_type", message: "No aircraft type in the database can fly this pair." };
+  const issue = typeId ? validateRouteDraft(draft, routes, undefined, undefined, wkDay) : { code: "no_type", message: "No aircraft type in the database can fly this pair." };
 
   const open = () => {
     if (!parsed) { push("alert", "Economy fare is required; other cabins must be positive numbers or blank."); return; }
@@ -156,7 +156,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
           </div>
         )}
         <FrequencyField value={freq} onChange={setFreq} />
-        <FareFields text={fareText} onChange={setFareText} km={market.distanceKm} />
+        <FareFields text={fareText} onChange={setFareText} km={market.distanceKm} from={a} to={b} />
       </section>
 
       <section className="rp-sec" aria-labelledby="rp-proj">

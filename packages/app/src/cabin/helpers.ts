@@ -1,7 +1,7 @@
 // Pure helpers for the cabin editor (no React). Tested in helpers.test.ts.
 import type { AircraftType, CabinClass, CabinLayout, CabinSection } from "@arg/contracts";
 import {
-  allowedAcross, benchmarkFare, cabinGeometry, distanceKm, CABIN_CLASSES, layoutLengthM, pitchLimits, rowsFitting, SECTION_DIVIDER_M,
+  allowedAcross, benchmarkFareFor, cabinGeometry, distanceKm, CABIN_CLASSES, layoutLengthM, pitchLimits, rowsFitting, SECTION_DIVIDER_M,
   simulateRouteWeek, validateCabinLayout,
 } from "@arg/sim";
 import type { Airport } from "@arg/contracts";
@@ -99,7 +99,7 @@ export function projectRoute(
   const a = ap.get(origin), b = ap.get(destination);
   if (!a || !b || layout.sections.length === 0) return { feasible: false, revenuePerFlight: 0, profitPerFlight: 0, loadFactor: 0, reason: "No route or cabin." };
   const dist = distanceKm(a, b);
-  const fare = Math.round(benchmarkFare(dist));
+  const fare = Math.round(benchmarkFareFor(a, b, dist));
   const route = { id: "proj", origin, destination, weeklyFrequency: 7, fares: { Y: fare }, typeId: type.id };
   const ac = { id: "proj-ac", typeId: type.id, tailNumber: "PROJ", layout, status: "active" as const, ageDays: 0, hoursSinceCheck: { A: 0, B: 0, C: 0, D: 0 } };
   const w = simulateRouteWeek(route, ap, new Map(types.map((t) => [t.id, t])), day, { fleetAircraft: [ac], chargeOwnership: true });

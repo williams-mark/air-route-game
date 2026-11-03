@@ -3,7 +3,7 @@
 import type { AircraftType, Airport, CabinClass, Day, Fares, Id, Route } from "@arg/contracts";
 import { aircraftTypes, airports, canFlyRoute, distanceKm } from "@arg/data";
 import {
-  benchmarkFare, daysInMonth, dayToDate, pairMarket, previewNewRoute, previewRoutePatch, seasonalRouteProfit, simulateRouteWeek,
+  benchmarkFare, benchmarkFareFor, routeFeasibilityError, daysInMonth, dayToDate, pairMarket, previewNewRoute, previewRoutePatch, seasonalRouteProfit, simulateRouteWeek,
   type RoutePatch, type RoutePreview, type RouteReport, type RouteWeek, type SimState,
 } from "@arg/sim";
 import type { ProfitTier } from "../map/types";
@@ -108,13 +108,16 @@ export function bestFrequency(points: readonly SweepPoint[]): SweepPoint | null 
 
 // --- Fares -----------------------------------------------------------------
 
-/** Market fare per cabin for a distance: the model's benchmark economy yield curve times the premium multipliers. */
-export function marketFares(km: number): Required<Fares> {
-  const y = benchmarkFare(km);
+/**
+ * Market fare per cabin for a distance: the model's benchmark economy yield curve times the premium multipliers. Pass the airports so the
+ * regional fare level applies (Europe's yields are below the US curve): the sim's `benchmarkFareFor(a, b)`; without them the US curve is used.
+ */
+export function marketFares(km: number, a?: Airport, b?: Airport): Required<Fares> {
+  const y = a && b ? benchmarkFareFor(a, b, km) : benchmarkFare(km);
   const round = (x: number) => Math.round(x);
   return { Y: round(y), W: round(y * PREMIUM_MULTIPLIER.W), J: round(y * PREMIUM_MULTIPLIER.J), F: round(y * PREMIUM_MULTIPLIER.F) };
 }
-export const fareHint = (km: number, cls: CabinClass): number => marketFares(km)[cls];
+export const fareHint = (km: number, cls: CabinClass, a?: Airport, b?: Airport): number => marketFares(km, a, b)[cls];
 
 /** Parse text inputs into Fares. Y is required (>0); other cabins are dropped when blank. Null if Y is missing or any entry is invalid. */
 export function parseFares(input: Partial<Record<CabinClass, string>>): Fares | null {
@@ -185,7 +188,7 @@ export function bestType(a: Airport, b: Airport, day: Day, freq = 7, world: Worl
   const usable = opts.filter((o) => o.available);
   const pool = usable.length > 0 ? usable : opts;
   let best: { t: AircraftType; p: number } | null = null;
-  const fares: Fares = { Y: marketFares(distanceKm(a, b)).Y };
+  const fares: Fares = { Y: marketFares(distanceKm(a, b), a, b).Y };
   for (const o of pool) {
     const wk = projectRoute({ id: "probe", origin: a.id, destination: b.id, weeklyFrequency: freq, fares, typeId: o.type.id }, day, world);
     const p = wk?.evaluation.profit ?? -Infinity;
@@ -240,7 +243,7 @@ export function rivalPresence(a: Airport, b: Airport): RivalInfo {
   const km = distanceKm(a, b);
   const seats = km > 3000 ? 250 : km > 1200 ? 180 : 140;
   const freq = Math.max(3, Math.ceil(pairMarket(a, b).baseWeekly / 0.8 / seats));
-  const fare = benchmarkFare(km);
+  const fare = benchmarkFareFor(a, b, km);
   const oneStop = km >= 800;
   return { directFrequency: freq, directSeats: seats, fare, oneStop, oneStopFare: oneStop ? fare * 0.85 : null };
 }
@@ -249,7 +252,7 @@ export function rivalPresence(a: Airport, b: Airport): RivalInfo {
 
 export interface CommandError { code: string; message: string }
 
-export function validateRouteDraft(draft: RouteDraft, existing: readonly Route[], world: World = dataWorld, ignoreId?: Id): CommandError | null {
+export function validateRouteDraft(draft: RouteDraft, existing: readonly Route[], world: World = dataWorld, ignoreId?: Id, day: Day = 0): CommandError | null {
   const a = world.airports.get(draft.origin), b = world.airports.get(draft.destination);
   if (!a || !b) return { code: "unknown_airport", message: `Unknown airport ${!a ? draft.origin : draft.destination}.` };
   if (a.id === b.id) return { code: "same_airport", message: "Origin and destination must be different airports." };
@@ -257,6 +260,9 @@ export function validateRouteDraft(draft: RouteDraft, existing: readonly Route[]
   if (dup) return { code: "duplicate_route", message: `You already fly ${routeName(dup)}. Edit it instead.` };
   const t = world.types.get(draft.typeId);
   if (!t) return { code: "unknown_type", message: `Unknown aircraft type ${draft.typeId}.` };
+  // Same rules and wording as the sim's open-route command (closed airport, range, runway, overwater limit).
+  const blocked = routeFeasibilityError(a, b, t, day);
+  if (blocked) return blocked;
   if (!canFlyRoute(t, a, b)) return { code: "cannot_fly", message: `${t.id} cannot fly ${routeName(draft)} (range, runway or overwater limit).` };
   if (!Number.isInteger(draft.weeklyFrequency) || draft.weeklyFrequency < 1 || draft.weeklyFrequency > FREQ_MAX) {
     return { code: "bad_frequency", message: `Frequency must be a whole number from 1 to ${FREQ_MAX} per week.` };
