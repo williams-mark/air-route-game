@@ -5,7 +5,7 @@ import type { Aircraft, AircraftType, Airport } from "@arg/contracts";
 const ap = (
   id: string, name: string, city: string, lat: number, lon: number, region: Airport["region"],
   runwayM: number, metroPopulation: number, gdpPerCapita: number, tourismIndex: number, slotsPerHour: number,
-): Airport => ({ id, name, city, lat, lon, region, runwayM, metroPopulation, gdpPerCapita, tourismIndex, slotsPerHour });
+): Airport => ({ id, name, city, lat, lon, region, country: "US", landmass: region === "HI" ? "US-HI" : "US-CONUS", runwayM, metroPopulation, gdpPerCapita, tourismIndex, slotsPerHour });
 
 export const LAX = ap("LAX", "Los Angeles Intl", "Los Angeles", 33.9425, -118.4081, "CA", 3685, 13_200_000, 78_000, 0.45, 100);
 export const SFO = ap("SFO", "San Francisco Intl", "San Francisco", 37.6213, -122.379, "CA", 3618, 6_500_000, 98_000, 0.5, 80);

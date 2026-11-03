@@ -92,5 +92,5 @@ for k,(city,reg,name,pop,gdp,tour,slots) in T.items():
     r = ap[k]
     assert r["iso_region"] == "US-"+reg
     rw = round(longest[r["ident"]]*0.3048)
-    print(f'  {{ id: "{k}", name: "{name}", city: "{city}", lat: {float(r["latitude_deg"]):.4f}, lon: {float(r["longitude_deg"]):.4f}, region: "{reg}", runwayM: {rw}, metroPopulation: {pop}, gdpPerCapita: {gdp}, tourismIndex: {tour}, slotsPerHour: {slots} }},')
+    print(f'  {{ id: "{k}", name: "{name}", city: "{city}", lat: {float(r["latitude_deg"]):.4f}, lon: {float(r["longitude_deg"]):.4f}, region: "{reg}", country: "US", landmass: "{"US-HI" if reg=="HI" else "US-CONUS"}", runwayM: {rw}, metroPopulation: {pop}, gdpPerCapita: {gdp}, tourismIndex: {tour}, slotsPerHour: {slots} }},')
 print("];")

@@ -31,7 +31,7 @@ describe("airports", () => {
     } as const;
     for (const a of airports) {
       expect(["CA", "HI", "OR", "WA"], a.id).toContain(a.region);
-      const [la0, la1, lo0, lo1] = bounds[a.region];
+      const [la0, la1, lo0, lo1] = bounds[a.region as keyof typeof bounds];
       expect(a.lat, a.id).toBeGreaterThan(la0); expect(a.lat, a.id).toBeLessThan(la1);
       expect(a.lon, a.id).toBeGreaterThan(lo0); expect(a.lon, a.id).toBeLessThan(lo1);
       expect(a.runwayM, a.id).toBeGreaterThan(500);
