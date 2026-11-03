@@ -36,6 +36,12 @@ export function cornerPos(corner: Corner, size: Size, bounds: Rect, margin = 14)
 /** Number shown on the badge: pending decisions plus offers the player has not looked at. */
 export const unresolvedCount = (decisions: number, unseenOffers: number): number => decisions + unseenOffers;
 
+/** Decisions to answer now first (newest first within each group), those put off with "Decide later" after them. Always listed above routine notices. */
+export function sortDecisions<T extends { id: string; day: number }>(decisions: readonly T[], snoozed: readonly string[]): T[] {
+  const later = (d: T) => (snoozed.includes(d.id) ? 1 : 0);
+  return [...decisions].sort((a, b) => later(a) - later(b) || b.day - a.day);
+}
+
 /** Notices still shown after "Clear notices" (ids at or below `clearedUpTo` are hidden). */
 export function visibleNotices<T extends { id: number }>(notices: readonly T[], clearedUpTo: number, limit = 12): T[] {
   return notices.filter((n) => n.id > clearedUpTo).slice(0, limit);

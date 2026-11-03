@@ -1,5 +1,9 @@
 # Build status (update at the end of every work session)
 
+Last updated: Tue 3 Nov 2026 (lane/qa-ui). On lane/qa-ui typecheck, test (data 15, sim 197, app 97) and build pass, and the Playwright e2e passes (22 checks per theme). `main` itself was last verified before this lane.
+
+Legend used below: **implemented** = code exists and works in play; **tested** = unit/e2e/soak coverage exists (stated per item); **known broken** = a reproduced defect, listed under "Known issues". "done" in the table means implemented.
+
 Last updated: Mon 2 Nov 2026 (UTC morning). `main` passes typecheck, test (data 13, sim 197, app 82; on lane/nomaint) and build.
 Last updated: Mon 2 Nov 2026 (UTC morning). `main` passes typecheck, test and build. lane/orwa: data 15, sim 191, app 82 tests.
 lane/qa-save: data 15, sim 224, app 94; typecheck, test, build pass.
@@ -26,10 +30,10 @@ lane/qa-save: data 15, sim 224, app 94; typecheck, test, build pass.
 | T11 route inspector/creation | done | sandbox, inspector, why-ledger lines |
 | T12 fleet/order book/checks | done | orders with delivery delays, A-D checks, scheduler, Fleet/Orders views, cabin layout in order form and refits |
 | T13 offers panel | done (lane/offers) | launch, end-of-life, flash-sale and used offers; Offers tab, popup, badge. See MODEL.md "Offers" |
-| T14 basic rivals | done (lane/saveui UI) | sim + Rivals view, competition block in route inspector, map competitor layer, rival fare-cut decision cards (match / partial + frequency / hold; one at a time) |
+| T14 basic rivals | done: sim and UI wired; tested by sim tests and rivals helper unit tests | sim + Rivals view, competition block in route inspector, map competitor layer, rival fare-cut decision cards (match / partial + frequency / hold; one at a time) |
 | T15 why ledger and hub board | partial | ledger in inspector; hub board not started |
 | T16 save/load, cabin sliders, light polish | done | Cabin sliders done: designer view, order and refit editors (lane/cabin, see MODEL.md "Cabin"); save/load done (lane/saveui): IndexedDB 5 slots + autosave (monthly, tab hide), Ctrl+S, export/import, start screen (skip with ?newgame/?seed/?nostart/?ff/?mock/?paused) |
-| T17 QA and balance bots | done (first pass) | bots + BALANCE.md; soak (30 games), fuzz, Playwright e2e (32/32), QA.md with manual checklist. Open: no player bankruptcy rule; save/load, start screen and rivals UI not in e2e |
+| T17 QA and balance bots | done (first pass) | bots + BALANCE.md; soak (30 games), fuzz, Playwright e2e (22 checks x 2 themes since lane/qa-ui: modal focus, narrow widths, pill overlap added), QA.md with manual checklist. Tested: sim invariants, save round-trip (unit), rivals helpers (unit). Not covered by e2e: save/load, start screen and rivals flows. Independent SQA 2 Nov 2026: 6.5/10, findings in QA.md |
 | T18 deploy and hardening | partly done (lane/ship) | manualChunks vendor split, build:single, deploy.yml, netlify.toml, DEPLOY.md, build stamp in Settings. Nothing deployed yet; needs Mark's Cloudflare secrets |
 
 ## Fleet planner notes (lane/planner)
@@ -44,6 +48,26 @@ lane/qa-save: data 15, sim 224, app 94; typecheck, test, build pass.
 - Balance: removing maintenance raises margins slightly (see BALANCE.md note); re-run bots and soak when re-enabling.
 
 ## Known issues to fix next
+Known broken (reproduced by the independent SQA, 2 Nov 2026; details and locations in QA.md "Open issues"):
+- B01 a damaged save can replace and break the running game (validate, then swap).
+- B02 route-change profit deltas mix preview and live models; fare-cut estimates inherit this and are labelled "est.".
+- B03 no player bankruptcy rule or credit limit: 8 of 12 SQA games and 23 of 30 bot games end with negative cash.
+- B04 substituted aircraft use the requested type's economics. B05 three default cabins fail cabin rules. B06 regular-order discounts have no lasting effect. B10 an unchanged refit charges money. B11 planner header counts 0 issues while the Issues tab shows one.
+Not built yet: first-session tutorial, goals and end-of-campaign review, hub board (T15), why-ledger beyond the inspector, deploy (needs Mark's Cloudflare secrets), Web Worker for the sim (about 0.9 ms/day on the main thread).
+Other notes:
+- Rival bankruptcies are rare (only Ember Air in the seed-2015 baseline); the 2020 pandemic is not modelled; rivals now react to player fares only through the fare-cut cards.
+- Balance lane (packages/sim/BALANCE.md): aircraft order discount has no economic effect (B06); starting fleet is 8 aircraft (3x 737-800, A320, 2x 757, 2x 777).
+- Bundle split into react/maplibre/deckgl/app chunks; the map is the home view so all chunks load up front.
+- Decision cards expire after 45 days. An opened (peeked) notification dock still floats over page content until minimised with Esc or J. Finance cash chart y-axis labels may clip; toasts can overlap page headers on non-map views.
+- Fixed in lane/qa-ui: B07, B08, B09 and the dock-overlap note (see below).
+
+## QA/UI lane notes (lane/qa-ui)
+- Supported minimum width 360 px (desktop is the target). Top bar: two rows below 560 px, date moves to the time pill between 561 and 900 px, sparkline hidden below 900 px, airline name truncates. Settings controls stack below 700 px; the map zoom control moves to the right edge at narrow widths.
+- `--pill-clear` (5.25 rem, shell.css) is the bottom strip reserved under every view for the time pill and the collapsed notification pill; the full-width route panel (narrow) stops above it.
+- `shell/Modal.tsx` + `shell/focusTrap.ts`: the only modal implementation (portal to body, inert background, Tab trap, Escape/backdrop close, focus return). Use it for any new dialog; do not hand-roll `aria-modal`.
+- Notification dock: decision cards carry `routeId` (fare cut, low load, delivery) and link to the route in Routes; unresolved decisions sort above offers and routine notices (`sortDecisions`), "Decide later" ones after the active ones. Fare-cut options show estimated weekly profit change and load (`sim/fareCut.ts`).
+- Screenshots: take your own with Playwright at 1280x720, 633x615, 390x844 in both themes; QA e2e also saves `qa-<theme>-narrow-*.png`.
+
 - Player bankruptcy rule missing (QA.md bug 1): 23 of 30 bot games end with negative cash and nothing happens.
 - Hub board (T15) not built. First-party SQA by the owner is next: follow the checklist in QA.md.
 - Rivals UI not wired (market view of competitors, rival news cards); bankruptcies rare in normal play, so few distressed lots (see RIVALS.md).
@@ -79,13 +103,13 @@ Mon afternoon/evening: keep about 30% free. Tue: unrestricted. Wed: none. Thu: a
 - Route inspector has an Aircraft section with guided type swap (updateRoute typeId, live projection, no-owned-aircraft warning and order link); also Routes table row action and command palette entries.
 - Notification dock (`packages/app/src/notify/`) replaces EventFeed, Decisions and OfferPopup: draggable, minimizable, J toggles, Esc minimizes, corner and reset in Settings; auto-collapses to a pill on non-map views. Toasts are compact at top-center.
 - Time controls are a floating pill at the bottom-right of the main area (class `time-pill`); date/cash/profit stay in the top bar.
-- Screenshots: `node scripts/screenshots.mjs --uifix` (uifix-* files). Known: on non-map views an opened dock can cover the lower-left of page content; e2e speed-rate checks are timing-sensitive.
+- Screenshots: `node scripts/screenshots.mjs --uifix` (uifix-* files). Known: e2e speed-rate checks are timing-sensitive.
 
 ## Session note (post-playtest 1)
 - Merged lane/uifix (aircraft picker tiles, route aircraft swap, notification dock, bottom-right time pill) and lane/planner.
 - Runway rule: widebodies now use a stage-length requirement (`runwayRequiredM` in data, `simRunwayM` in sim) so A330/787 can serve OGG from the mainland; narrowbodies unchanged. 777s still cannot.
 - Heavy-check decision cards link to the planner ("Plan cover in the planner").
-- Open: hub board (T15), player bankruptcy rule, substituted-flight pricing uses requested type, dock may overlap planner's lower-right panel.
+- Open: hub board (T15), player bankruptcy rule, substituted-flight pricing uses requested type.
 
 ## Oregon/Washington lane notes (lane/orwa)
 - Contracts: `Airport.region` is now "CA" | "HI" | "OR" | "WA" (first commit, contracts only).

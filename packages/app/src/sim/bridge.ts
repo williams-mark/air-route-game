@@ -15,6 +15,8 @@ export interface Decision {
   id: string; day: Day; title: string; context: string; options: DecisionOption[];
   /** Set on heavy-check cards: the aircraft concerned, so the card can link to the fleet planner. */
   aircraftId?: Id;
+  /** The route the card is about (fare cuts, low load, deliveries): the dock links to it in the Routes view. */
+  routeId?: Id;
 }
 
 /** One aircraft as the Fleet view shows it. */

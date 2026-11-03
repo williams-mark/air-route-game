@@ -52,3 +52,5 @@ fieldset.sec legend { display: flex; gap: .8rem; align-items: baseline; padding:
 .layout-summary { font-size: .8rem; color: var(--text-dim); }
 .card .card-action { margin-top: .6rem; width: 100%; }
 .cabin-picker { flex: 1 1 24rem; max-width: 40rem; }
+
+@media (max-width: 560px) { .sec-body { grid-template-columns: minmax(0, 1fr); } .sec-body input, .sec-body select { min-width: 0; max-width: 100%; } }

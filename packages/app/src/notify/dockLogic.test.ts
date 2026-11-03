@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { clampPos, cornerPos, parseSaved, unresolvedCount, visibleNotices } from "./dockLogic";
+import { clampPos, cornerPos, parseSaved, sortDecisions, unresolvedCount, visibleNotices } from "./dockLogic";
+
+describe("sortDecisions", () => {
+  const ds = [{ id: "a", day: 1 }, { id: "b", day: 5 }, { id: "c", day: 3 }];
+  it("puts decisions to answer now first, newest first, and snoozed ones last", () => {
+    expect(sortDecisions(ds, []).map((d) => d.id)).toEqual(["b", "c", "a"]);
+    expect(sortDecisions(ds, ["b"]).map((d) => d.id)).toEqual(["c", "a", "b"]);
+  });
+  it("does not mutate its input", () => {
+    const copy = [...ds];
+    sortDecisions(ds, ["a"]);
+    expect(ds).toEqual(copy);
+  });
+});
 
 const bounds = { left: 68, top: 56, right: 1440, bottom: 900 };
 const size = { w: 360, h: 300 };

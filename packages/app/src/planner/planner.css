@@ -8,7 +8,7 @@
   --pl-active: #2f9e7a; --pl-idle: #aab6c3; --pl-check-B: #c9981f; --pl-check-C: #d9701c; --pl-check-D: #c92f40; --pl-check-R: #7a4fc9; --pl-ink: #ffffff; --pl-band: #f6f8fa; --pl-group: #e6ebf0;
 }
 
-.planner { display: flex; flex-direction: column; gap: .8rem; padding: 1rem 1.2rem 1.6rem; min-height: 100%; }
+.planner { display: flex; flex-direction: column; gap: .8rem; padding: 1rem 1.2rem calc(var(--pill-clear) + 1rem); min-height: 100%; }
 .pl-head { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
 .pl-head h1 { margin: 0 0 .15rem; font-size: 1.3rem; }
 .pl-head p { margin: 0; max-width: 62ch; color: var(--text-dim); font-size: .84rem; }
