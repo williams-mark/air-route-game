@@ -13,7 +13,7 @@ export function seedRoutes(): Route[] {
     // Demo network: narrowbodies unless the pair needs a widebody (keeps the starting network plausible).
     const t = bestType(a, b, 0, fr.weeklyFrequency, dataWorld, (x) => !x.widebody) ?? bestType(a, b, 0, fr.weeklyFrequency);
     if (!t) return;
-    const m = marketFares(km);
+    const m = marketFares(km, a, b);
     const k = 0.92 + ((i * 7) % 9) / 40; // deterministic spread around the market fare
     const fares: Route["fares"] = { Y: Math.round(m.Y * k) };
     if (km > 1500) { fares.W = Math.round(m.W * k); fares.J = Math.round(m.J * k); }

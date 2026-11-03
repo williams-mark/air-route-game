@@ -162,9 +162,9 @@ export class RealSimBridge implements SimBridge {
     Object.assign(this as unknown as Record<string, unknown>, saved);
   }
 
-  /** Start a fresh game with `seed`. */
-  newGame(seed: number): void {
-    this.reset(startingScenario(dataAirports, dataTypes, seed), 1, true);
+  /** Start a fresh game with `seed`, optionally at another home airport and under another airline name (see sim `startingScenario`). */
+  newGame(seed: number, options: { hub?: string; name?: string } = {}): void {
+    this.reset(startingScenario(dataAirports, dataTypes, seed, options), 1, true);
   }
 
   // --- Driver --------------------------------------------------------------

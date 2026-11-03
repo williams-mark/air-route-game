@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CabinClass, Fares, Route } from "@arg/contracts";
+import type { Airport, CabinClass, Fares, Route } from "@arg/contracts";
 import { aircraftTypes, airportById } from "@arg/data";
 import { AircraftPicker } from "../aircraft/AircraftPicker";
 import { rangeNote, routeBlock, usableRangeKm } from "../aircraft/availability";
@@ -71,17 +71,38 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const rival = useMemo(() => rivalPresence(a, b), [a, b]);
   const types = useMemo(() => eligibleTypes(a, b, year.year), [a, b, year.year]);
   const existing = routes.find((r) => (r.origin === originId && r.destination === destinationId) || (r.origin === destinationId && r.destination === originId));
-  const mf = useMemo(() => marketFares(market.distanceKm), [market.distanceKm]);
+  const mf = useMemo(() => marketFares(market.distanceKm, a, b), [market.distanceKm, a, b]);
 
+  const ownedBest = (x: Airport, y: Airport, d: number) => {
+    const owned = new Set((bridge.getSim?.()?.world.fleet ?? []).filter((ac) => ac.status === "active").map((ac) => ac.typeId));
+    return owned.size > 0 ? bestType(x, y, d, 7, undefined, (t) => owned.has(t.id)) : null;
+  };
   const [typeId, setTypeId] = useState(() => {
     const last = usePickerMemory.getState().last.route;
     const lastOk = last ? types.find((o) => o.type.id === last && o.available) : undefined;
-    return lastOk?.type.id ?? bestType(a, b, wkDay)?.id ?? types.find((t) => t.available)?.type.id ?? types[0]?.type.id ?? "";
+    // Default to the most profitable type the airline already owns that can fly the pair; only when it owns none, the best type overall.
+    return lastOk?.type.id ?? ownedBest(a, b, wkDay)?.id ?? bestType(a, b, wkDay)?.id ?? types.find((t) => t.available)?.type.id ?? types[0]?.type.id ?? "";
   });
   const [fareText, setFareText] = useState<Record<CabinClass, string>>(() => faresToText({ Y: mf.Y }));
   const [freq, setFreq] = useState<number>(() => {
-    const t = bestType(a, b, wkDay)?.id;
+    const t = typeId;
     if (!t) return 7;
+    // With a live sim, size it against the real network, fleet and rivals; the standalone sweep (own notional fleet, no rival schedules) can
+    // find every frequency loss-making and fall back to 1 a week, which is a pointless default.
+    const live = bridge.getSim?.() ?? null;
+    if (live && t) {
+      const fares0: Fares = { Y: mf.Y };
+      let best: { f: number; profit: number; full: boolean } | null = null;
+      for (const f of [3, 5, 7, 10, 14, 21, 28, 35]) {
+        const pv = previewNewRoute(live, { origin: originId, destination: destinationId, weeklyFrequency: f, fares: fares0, typeId: t });
+        if (!pv || !pv.figures.feasible || pv.operatedFraction <= 0) continue;
+        const full = pv.operatedFraction >= 0.97;
+        // Network effect counts: a frequency that takes aircraft off the airline's other routes is not a good default.
+        const net = pv.figures.profit + pv.otherRoutesDelta;
+        if (!best || (full && !best.full) || (full === best.full && net > best.profit)) best = { f, profit: net, full };
+      }
+      if (best && best.profit > 0) return best.f;
+    }
     return bestFrequency(frequencySweep({ origin: originId, destination: destinationId, weeklyFrequency: 7, fares: { Y: mf.Y }, typeId: t }, wkDay))?.frequency ?? 7;
   });
   const parsed = parseFares(fareText);
@@ -105,7 +126,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const sweep = useMemo(() => (typeId ? frequencySweep(dDraft, wkDay) : []), [dDraft.origin, dDraft.destination, dDraft.typeId, dDraft.fares, wkDay, typeId]); // eslint-disable-line react-hooks/exhaustive-deps
   const best = useMemo(() => bestFrequency(sweep), [sweep]);
   const selectedType = aircraftTypes.find((t) => t.id === typeId);
-  const issue = typeId ? validateRouteDraft(draft, routes) : { code: "no_type", message: "No aircraft type in the database can fly this pair." };
+  const issue = typeId ? validateRouteDraft(draft, routes, undefined, undefined, wkDay) : { code: "no_type", message: "No aircraft type in the database can fly this pair." };
 
   const open = () => {
     if (!parsed) { push("alert", "Economy fare is required; other cabins must be positive numbers or blank."); return; }
@@ -156,7 +177,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
           </div>
         )}
         <FrequencyField value={freq} onChange={setFreq} />
-        <FareFields text={fareText} onChange={setFareText} km={market.distanceKm} />
+        <FareFields text={fareText} onChange={setFareText} km={market.distanceKm} from={a} to={b} />
       </section>
 
       <section className="rp-sec" aria-labelledby="rp-proj">

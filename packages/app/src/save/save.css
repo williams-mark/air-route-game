@@ -17,8 +17,10 @@
 .start-none, .start-hint { margin: 0; font-size: .82rem; color: var(--text-dim); }
 .start-primary { display: flex; flex-direction: column; align-items: flex-start; gap: .15rem; text-align: left; padding: .8rem 1rem; background: var(--accent); color: var(--bg); border-color: var(--accent); border-radius: 10px; }
 .start-primary span { font-size: .8rem; opacity: .85; }
-.start-new { display: flex; align-items: center; gap: .6rem; }
+.start-new { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .5rem .7rem; }
+.start-new label { font-size: .85rem; color: var(--text-dim); }
+.start-new select, .start-new input.wide { width: 100%; min-width: 0; font: inherit; padding: .4rem .6rem; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); }
 .start-new input { width: 7rem; font: inherit; padding: .4rem .6rem; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font-variant-numeric: tabular-nums; }
 .start-new input[aria-invalid="true"] { border-color: var(--sev-alert); }
-.start-new .primary { margin-left: auto; font-weight: 650; }
+.start-new .primary { grid-column: 1 / -1; justify-self: end; font-weight: 650; }
 .start-row { display: flex; gap: .5rem; flex-wrap: wrap; }

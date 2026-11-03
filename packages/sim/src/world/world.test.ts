@@ -178,9 +178,9 @@ describe("demand: metros from the data package, caching", () => {
     expect(pairMarket(a, b).baseWeekly).toBe(first);
   });
   it("a closed airport's metro share moves to its sibling", () => {
-    // Schoenefeld closed on 26 Oct 2020, Tegel on 9 Nov: in between Tegel is Berlin's only airport.
+    // Schoenefeld closed on 26 Oct 2020, BER opened on 31 Oct, Tegel closed on 9 Nov: from 26 to 30 Oct Tegel is Berlin's only airport.
     const before = catchmentOf("TXL", 4_500_000, DEFAULT_METROS, 800, undefined, dateToDay("2020-10-01")).share;
-    const between = dateToDay("2020-11-01");
+    const between = dateToDay("2020-10-28");
     expect(catchmentOf("SXF", 4_500_000, DEFAULT_METROS, 800, undefined, between).share).toBe(0);
     expect(catchmentOf("TXL", 4_500_000, DEFAULT_METROS, 800, undefined, between).share).toBe(1);
     expect(before).toBeLessThan(1);
@@ -248,8 +248,31 @@ describe("airport closures and openings", () => {
   it("demand for a closed airport is zero and Berlin keeps flying through the sibling in between", () => {
     expect(marketOnDay(ap("TXL"), ap("LHR"), closeTxl - 1).weekly).toBeGreaterThan(0);
     expect(marketOnDay(ap("TXL"), ap("LHR"), closeTxl).weekly).toBe(0);
-    expect(marketOnDay(ap("TXL"), ap("LHR"), dateToDay("2020-11-01")).weekly).toBeGreaterThan(marketOnDay(ap("TXL"), ap("LHR"), dateToDay("2020-09-30")).weekly);
-    expect(marketOnDay(ap("SXF"), ap("LHR"), dateToDay("2020-11-01")).weekly).toBe(0);
+    expect(marketOnDay(ap("TXL"), ap("LHR"), dateToDay("2020-10-28")).weekly).toBeGreaterThan(marketOnDay(ap("TXL"), ap("LHR"), dateToDay("2020-09-30")).weekly);
+    expect(marketOnDay(ap("SXF"), ap("LHR"), dateToDay("2020-10-28")).weekly).toBe(0);
+  });
+  it("Berlin remains served after Nov 2020: BER takes over from TXL and SXF", () => {
+    const beforeOpen = dateToDay("2020-10-30");
+    const afterAll = dateToDay("2020-11-10");
+    expect(ap("BER").country).toBe("DE");
+    expect(ap("BER").landmass).toBe("EU-MAINLAND");
+    expect(marketOnDay(ap("BER"), ap("LHR"), beforeOpen).weekly).toBe(0);
+    expect(marketOnDay(ap("BER"), ap("LHR"), dateToDay("2020-10-31")).weekly).toBeGreaterThan(0);
+    expect(marketOnDay(ap("TXL"), ap("LHR"), afterAll).weekly).toBe(0);
+    expect(marketOnDay(ap("SXF"), ap("LHR"), afterAll).weekly).toBe(0);
+    const berAfter = marketOnDay(ap("BER"), ap("LHR"), afterAll).weekly;
+    // All of Berlin's demand lands on BER: about what TXL+SXF carried in 2019.
+    const old = marketOnDay(ap("TXL"), ap("LHR"), dateToDay("2019-06-01")).weekly + marketOnDay(ap("SXF"), ap("LHR"), dateToDay("2019-06-01")).weekly;
+    expect(berAfter).toBeGreaterThan(old * 0.8);
+    expect(berAfter).toBeLessThan(old * 1.25);
+  });
+  it("a player can open FRA-BER only from the opening day", () => {
+    let s = startingScenario(airports, aircraftTypes, 5);
+    s = { ...s, rivals: null, world: { ...s.world, day: dateToDay("2020-10-20") } };
+    const route = { origin: "FRA", destination: "BER", weeklyFrequency: 7, fares: { Y: 120, J: 400 }, typeId: "B737-800" };
+    expect(applyCommand(s, { kind: "openRoute", route }).result).toMatchObject({ ok: false, error: "airport_closed" });
+    s = { ...s, world: { ...s.world, day: dateToDay("2020-12-01") } };
+    expect(applyCommand(s, { kind: "openRoute", route }).result.ok).toBe(true);
   });
   it("a player route to a closed airport is cancelled on the closing day with a notice; opening one afterwards is refused", () => {
     let s = startingScenario(airports, aircraftTypes, 5);

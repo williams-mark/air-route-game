@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aircraftTypes, airportById } from "@arg/data";
-import { dayToDate, runDays, startingScenario } from "@arg/sim";
+import { benchmarkFareFor, dayToDate, runDays, startingScenario } from "@arg/sim";
 import {
   bestFrequency, bestType, eligibleTypes, fareHint, FREQ_SWEEP_MAX, frequencySweep, marketFares, midMonthDay, parseFares,
   livePreview, liveSeasonal, operatingMix, profitTier, rivalPresence, seasonalProfit, substitutionText, suggestAirports, validateRouteDraft, type RouteDraft, type SweepPoint,
@@ -47,6 +47,14 @@ describe("frequencySweep", () => {
 });
 
 describe("fares", () => {
+  it("market fares follow the region of the pair (benchmarkFareFor), the US curve without airports", () => {
+    const fra = airportById.get("FRA")!, mad = airportById.get("MAD")!;
+    const km = 1420;
+    expect(marketFares(km, fra, mad).Y).toBeLessThan(marketFares(km).Y);
+    expect(marketFares(km, fra, mad).Y).toBe(Math.round(benchmarkFareFor(fra, mad, km)));
+    expect(marketFares(559, lax, sfo).Y).toBe(marketFares(559).Y);
+    expect(fareHint(km, "Y", fra, mad)).toBe(marketFares(km, fra, mad).Y);
+  });
   it("market fares increase with distance and by cabin", () => {
     expect(fareHint(2500, "Y")).toBeGreaterThan(fareHint(500, "Y"));
     const f = marketFares(2500);
@@ -124,7 +132,23 @@ describe("validateRouteDraft", () => {
     expect(validateRouteDraft({ ...ok, fares: { Y: 0 } }, [])?.code).toBe("bad_fare");
     expect(validateRouteDraft(ok, [{ ...ok, id: "SFO-LAX", origin: "SFO", destination: "LAX" }])?.code).toBe("duplicate_route");
     const small = aircraftTypes.reduce((m, x) => (x.rangeKm < m.rangeKm ? x : m));
-    expect(validateRouteDraft({ ...ok, destination: "HNL", typeId: small.id }, [])?.code).toBe("cannot_fly");
+    expect(validateRouteDraft({ ...ok, destination: "HNL", typeId: small.id }, [])?.code).toBe("out_of_range");
+  });
+  it("gives the sim's specific reasons in the expanded world: closed airports, overwater limit, runway", () => {
+    const b738 = "B737-800";
+    // TXL closed on 9 Nov 2020, BER opened on 31 Oct 2020
+    const txl: RouteDraft = { origin: "FRA", destination: "TXL", weeklyFrequency: 7, fares: { Y: 120 }, typeId: b738 };
+    expect(validateRouteDraft(txl, [], undefined, undefined, 0)).toBeNull();
+    expect(validateRouteDraft(txl, [], undefined, undefined, 2200)?.code).toBe("airport_closed");
+    expect(validateRouteDraft({ ...txl, destination: "BER" }, [], undefined, undefined, 100)?.code).toBe("airport_closed");
+    expect(validateRouteDraft({ ...txl, destination: "BER" }, [], undefined, undefined, 2200)).toBeNull();
+    // a twin narrowbody with too little range for the open Atlantic gets a clear message, a widebody twin may fly it
+    const atl = validateRouteDraft({ origin: "BOS", destination: "LHR", weeklyFrequency: 7, fares: { Y: 400 }, typeId: "CRJ700" }, []);
+    expect(atl?.code).toBe("out_of_range");
+    const ak = validateRouteDraft({ origin: "ANC", destination: "BIS", weeklyFrequency: 7, fares: { Y: 400 }, typeId: "E175" }, []);
+    expect(ak?.code).toBe("overwater_limit");
+    expect(ak!.message).toMatch(/overwater route/);
+    expect(validateRouteDraft({ origin: "JFK", destination: "LHR", weeklyFrequency: 7, fares: { Y: 400 }, typeId: "B787-9" }, [])).toBeNull();
   });
 });
 

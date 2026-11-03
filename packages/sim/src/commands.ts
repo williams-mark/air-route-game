@@ -134,6 +134,32 @@ interface Validated {
   warnings: string[];
 }
 
+/**
+ * Why `type` may not fly a-b on `day`, or null when it may: closed or not-yet-open airports, range, runway on this sector, and the
+ * twin-engine overwater limit. The single source of these rules for the open-route command and for UI previews.
+ */
+export function routeFeasibilityError(a: Airport, b: Airport, type: AircraftType, day: Day): { code: "airport_closed" | "out_of_range" | "runway_too_short" | "overwater_limit"; message: string } | null {
+  for (const ap of [a, b]) {
+    if (!airportOpen(ap.id, day)) {
+      const c = closureOf(ap.id);
+      return { code: "airport_closed", message: c ? `${ap.id} (${ap.name}) closed on ${dayLabel(c.day)}${c.replacedBy ? `; its traffic moved to ${c.replacedBy}` : ""}.` : `${ap.id} (${ap.name}) is not open yet.` };
+    }
+  }
+  const dist = distanceKm(a, b);
+  if (!isRangeFeasible(dist, type)) {
+    return { code: "out_of_range", message: `${a.id}-${b.id} is ${Math.round(dist)} km; the ${type.name} (range ${type.rangeKm} km) cannot fly it with reserves.` };
+  }
+  const need = simRunwayM(type, dist);
+  const short = a.runwayM < need ? a : b.runwayM < need ? b : null;
+  if (short) {
+    return { code: "runway_too_short", message: `${short.id} runway is ${short.runwayM} m; the ${type.name} needs ${Math.round(need)} m on this sector.` };
+  }
+  if (isOverwaterRoute(a, b) && !canFlyOverwater(type, a, b, dist)) {
+    return { code: "overwater_limit", message: `${a.id}-${b.id} (${Math.round(dist)} km) counts as an overwater route (water or no diversion airports on the way, e.g. the Atlantic, Alaska to the lower 48); the ${type.name} may not be scheduled on it (twin-engine diversion limit).` };
+  }
+  return null;
+}
+
 function validateRoute(state: SimState, spec: RouteSpec, selfId: Id | null, checkFleet: boolean): Validated | CommandError {
   const a = state.airports.find((x) => x.id === spec.origin);
   const b = state.airports.find((x) => x.id === spec.destination);
@@ -157,25 +183,9 @@ function validateRoute(state: SimState, spec: RouteSpec, selfId: Id | null, chec
   );
   if (dup) return fail("duplicate_route", `${a.id}-${b.id} is already served by route ${dup.id}; update that route instead.`);
 
-  for (const ap of [a, b]) {
-    if (!airportOpen(ap.id, state.world.day)) {
-      const c = closureOf(ap.id);
-      return fail("airport_closed", c ? `${ap.id} (${ap.name}) closed on ${dayLabel(c.day)}${c.replacedBy ? `; its traffic moved to ${c.replacedBy}` : ""}.` : `${ap.id} (${ap.name}) is not open yet.`);
-    }
-  }
+  const blocked = routeFeasibilityError(a, b, type, state.world.day);
+  if (blocked) return fail(blocked.code, blocked.message);
   const dist = distanceKm(a, b);
-  if (!isRangeFeasible(dist, type)) {
-    return fail("out_of_range", `${a.id}-${b.id} is ${Math.round(dist)} km; the ${type.name} (range ${type.rangeKm} km) cannot fly it with reserves.`);
-  }
-  const need = simRunwayM(type, dist);
-  const short = a.runwayM < need ? a : b.runwayM < need ? b : null;
-  if (short) {
-    return fail("runway_too_short", `${short.id} runway is ${short.runwayM} m; the ${type.name} needs ${Math.round(need)} m on this sector.`);
-  }
-
-  if (isOverwaterRoute(a, b) && !canFlyOverwater(type, a, b, dist)) {
-    return fail("overwater_limit", `${a.id}-${b.id} crosses ${Math.round(dist)} km of open water; the ${type.name} may not be scheduled on it (twin-engine diversion limit).`);
-  }
 
   const warnings: string[] = [];
   if (checkFleet) {

@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { airports } from "@arg/data";
+import { hubCandidates, STARTING_AIRLINE } from "@arg/sim";
+import { countryName } from "../routes/geoNames";
+import { presetForAirport } from "../map/presets";
 import { bridge } from "../sim/useSim";
 import { formatDate, formatMoney } from "../sim/format";
 import { useUi } from "../store";
@@ -108,6 +112,9 @@ export function StartScreen() {
   const push = useToasts((s) => s.push);
   const { metas, error } = useSlots();
   const [seed, setSeed] = useState("2015");
+  const [hub, setHub] = useState("LAX");
+  const [airline, setAirline] = useState("");
+  const hubs = useMemo(() => hubCandidates(airports), []);
   const [msg, setMsg] = useState<Outcome | null>(null);
   const [showLoad, setShowLoad] = useState(false);
   const latest = metas ? latestSlot(metas) : null;
@@ -126,11 +133,24 @@ export function StartScreen() {
             <span>{latest.airline} {"·"} {formatDate(latest.day)} {"·"} {slotName(latest.slot)}</span>
           </button>
         ) : (<p className="start-none">{metas === null ? "Looking for saved games…" : "No saved game yet."}</p>)}
-        <form className="start-new" onSubmit={(e) => { e.preventDefault(); if (parsed === null) { setMsg({ ok: false, message: "Seed must be a whole number from 0 to 999999999." }); return; } bridge.newGame?.(parsed); begin({ ok: true, message: `New game, seed ${parsed}.` }); }}>
+        <form className="start-new" onSubmit={(e) => { e.preventDefault(); if (parsed === null) { setMsg({ ok: false, message: "Seed must be a whole number from 0 to 999999999." }); return; } bridge.newGame?.(parsed, { hub, name: airline }); const home = airports.find((x) => x.id === hub); if (home && hub !== "LAX") useUi.getState().flyTo(presetForAirport(home)); begin({ ok: true, message: `New game, seed ${parsed}, ${airline.trim() || STARTING_AIRLINE} at ${hub}.` }); }}>
+          <label htmlFor="start-airline">Airline name</label>
+          <input id="start-airline" className="wide" maxLength={40} value={airline} placeholder={STARTING_AIRLINE} onChange={(e) => setAirline(e.target.value)} />
+          <label htmlFor="start-hub">Home airport</label>
+          <select id="start-hub" value={hub} onChange={(e) => setHub(e.target.value)}>
+            {(["US", "Europe"] as const).map((grp) => (
+              <optgroup key={grp} label={grp === "US" ? "United States" : "Europe"}>
+                {hubs.filter((h) => (h.country === "US") === (grp === "US")).map((h) => (
+                  <option key={h.id} value={h.id}>{h.id} {"·"} {h.city}{h.country === "US" ? `, ${h.region}` : `, ${countryName(h.country)}`}{h.id === "LAX" ? " (default)" : ""}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
           <label htmlFor="start-seed">Seed</label>
           <input id="start-seed" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} aria-invalid={parsed === null} />
           <button type="submit" className="primary">New game</button>
         </form>
+        <p className="start-hint">You start with a few aircraft and routes that suit the home airport.</p>
         <p className="start-hint">The same seed always gives the same world and the same rivals.</p>
         <div className="start-row">
           <button aria-expanded={showLoad} onClick={() => setShowLoad((v) => !v)}>Load slot</button>

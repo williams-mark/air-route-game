@@ -324,9 +324,20 @@ for (const theme of themes) {
     await page.keyboard.press("Space");
   });
 
+  // The rate checks measure the clock, not the decision system: with auto-pause on, a rival decision card (more frequent in the
+  // 496-airport world) pauses the game a few days in and the measurement reads "too slow". Auto-pause is switched off for them
+  // (the switch in Settings) and restored afterwards; the speed-5 check above already runs with it on.
+  const setAutoPause = async (on) => {
+    await nav(page, "Settings");
+    const sw = page.getByRole("switch", { name: /Auto-pause on events/ });
+    if (((await sw.getAttribute("aria-checked")) === "true") !== on) await sw.click();
+    await nav(page, "Map");
+  };
+  await setAutoPause(false);
   for (const sp of [1, 2, 3, 4]) {
     await check(theme, `speed ${sp}: date advances at roughly the expected rate`, async () => {
       await nav(page, "Map");
+      for (const b of await page.getByRole("button", { name: /^(Dismiss|Later|Snooze)/ }).all()) await b.click().catch(() => {});
       await page.keyboard.press(String(sp));
       const rate = { 1: 0.5, 2: 1, 3: 3, 4: 7 }[sp];
       const d0 = await simDay(page);
@@ -334,13 +345,37 @@ for (const theme of themes) {
       await page.waitForTimeout(sp === 1 ? 5000 : 3500);
       const secs = (Date.now() - t0) / 1000;
       const d1 = await simDay(page);
+      const state = (await page.getByRole("button", { name: "Resume" }).count()) === 1 ? "game was paused (decision or alert)" : `speed ${await speedPressed(page)}`;
       await page.keyboard.press("Space");
       const exp = rate * secs;
       assert(d1 > d0, `date did not advance at speed ${sp}`);
       assert(d1 - d0 <= exp * 1.6 + 2, `advanced too fast at speed ${sp}: ${d1 - d0} days in ${secs.toFixed(1)}s (expected about ${exp.toFixed(1)})`);
-      assert(d1 - d0 >= exp * 0.25 - 1, `advanced too slowly at speed ${sp}: ${d1 - d0} days in ${secs.toFixed(1)}s (expected about ${exp.toFixed(1)})`);
+      assert(d1 - d0 >= exp * 0.25 - 1, `advanced too slowly at speed ${sp}: ${d1 - d0} days in ${secs.toFixed(1)}s (expected about ${exp.toFixed(1)}; ${state})`);
     });
   }
+
+  await setAutoPause(true);
+
+  await check(theme, "start screen: choose a home airport and airline name, game starts there with derived routes", async () => {
+    const p2 = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errs = [];
+    p2.on("pageerror", (e) => errs.push(e.message));
+    await p2.addInitScript(() => { try { localStorage.clear(); } catch {} });
+    await p2.goto(`${base}?theme=${theme}`);
+    await p2.locator("#start-hub").waitFor({ timeout: 30000 });
+    assert((await p2.locator("#start-hub option").count()) >= 55, "hub list should offer about 60 airports");
+    await p2.locator("#start-airline").fill("Thames Air");
+    await p2.locator("#start-hub").selectOption("LHR");
+    await p2.getByRole("button", { name: "New game" }).click();
+    await p2.locator(".topbar .brand strong", { hasText: "Thames Air" }).waitFor({ timeout: 15000 });
+    assert(/LHR/.test(await p2.locator(".brand").innerText()), "hub chip should say LHR");
+    await p2.getByRole("button", { name: "Routes", exact: true }).click();
+    await p2.getByRole("heading", { level: 1, name: "Routes" }).waitFor();
+    const txt = await p2.locator("main.view").innerText();
+    assert(/LHR.{1,3}[A-Z]{3}/.test(txt) && !/LAX/.test(txt), `routes should start at LHR: ${txt.slice(0, 200)}`);
+    assert(errs.length === 0, `page errors: ${errs[0]}`);
+    await p2.close();
+  });
 
   await check(theme, "no console errors or page errors during the whole run", async () => {
     // WebGL/SwiftShader GPU stall warnings are logged as errors by Chromium in some builds; list them but fail on anything else.

@@ -36,7 +36,8 @@ export const metros: MetroGroup[] = [
   m("PAR", "Paris", { CDG: 0.662, ORY: 0.298, BVA: 0.04 }),
   m("MIL", "Milan", { MXP: 0.517, LIN: 0.227, BGY: 0.256 }),
   m("ROM", "Rome", { FCO: 0.882, CIA: 0.118 }),
-  m("BER", "Berlin (2015: Tegel and Schonefeld)", { TXL: 0.742, SXF: 0.258 }),
+  // BER opened 2020-10-31 (sim world/closures.ts); shares of open members are renormalised, so before opening TXL:SXF stays 0.742:0.258 and after TXL/SXF close BER carries all of Berlin.
+  m("BER", "Berlin (2015: Tegel and Schonefeld; from 2020 Brandenburg)", { TXL: 0.5194, SXF: 0.1806, BER: 0.3 }),
   m("STO", "Stockholm", { ARN: 0.863, BMA: 0.061, NYO: 0.076 }),
   m("OSL", "Oslo", { OSL: 0.88, TRF: 0.065, RYG: 0.055 }),
   m("BRU", "Brussels", { BRU: 0.772, CRL: 0.228 }),

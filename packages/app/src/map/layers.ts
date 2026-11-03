@@ -41,6 +41,8 @@ export interface LayerInput {
 }
 
 const routeWidth = (freq: number) => Math.max(1.4, Math.min(7, 1 + Math.sqrt(freq) * 0.75));
+/** Above this many player routes the far band draws corridors between hub clusters instead of each route. */
+export const AGG_ROUTE_THRESHOLD = 30;
 const aggWidth = (freq: number) => Math.max(3, Math.min(18, 2 + Math.sqrt(freq) * 1.1));
 
 /** Layers that only change with zoom band, data, theme or selection (not with simTime). */
@@ -49,8 +51,10 @@ export function buildStaticLayers(inp: LayerInput): Layer[] {
   const layers: Layer[] = [];
   const alpha = dark ? 205 : 225;
   const far = band === "far";
+  // A small network is drawn as its real routes even when zoomed far out (LHR-ZRH must not look like LHR-FRA); big ones as hub corridors.
+  const aggregate = far && model.routes.length > AGG_ROUTE_THRESHOLD;
 
-  if (far) {
+  if (aggregate) {
     layers.push(
       new PathLayer<AggEdge>({
         id: "agg-casing", data: model.agg, getPath: (d) => d.path, getColor: c.casing, getWidth: (d) => aggWidth(d.freq) + 3,
