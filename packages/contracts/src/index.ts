@@ -15,7 +15,12 @@ export interface Airport {
   city: string;
   lat: number;
   lon: number;
-  region: "CA" | "HI" | "OR" | "WA";
+  /** Subdivision: US state code ("CA", "TX", "HI") or, outside the US, the ISO 3166-1 alpha-2 country code ("GB", "DE"). */
+  region: string;
+  /** ISO 3166-1 alpha-2 country code ("US", "GB", "DE"). */
+  country: string;
+  /** Contiguous land mass used for surface-alternative and overwater rules ("US-CONUS", "US-HI", "US-AK", "EU-MAINLAND", "GB", "IE", ...). */
+  landmass: string;
   runwayM: number; // longest runway
   metroPopulation: number;
   gdpPerCapita: number;
