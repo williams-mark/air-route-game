@@ -1,7 +1,9 @@
 import type { AircraftType, Airport, CabinClass, Day } from "@arg/contracts";
+import { canFlyOverwater, isOverwaterRoute } from "@arg/data";
 import { distanceKm, simRunwayM } from "../geo";
 import { maintenanceEnabled } from "../fleet/maintenance";
 import { jetAPriceUsdPerGallon, KG_PER_GALLON } from "./fuel";
+import { costFactors } from "../world/regions";
 
 // ---------------------------------------------------------------------------
 // Constants (documented in MODEL.md section 3)
@@ -142,7 +144,13 @@ export function allocateCabins(cabins: CabinInput[], pax: number): number[] {
 }
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
-const usd = (x: number) => `$${Math.round(x).toLocaleString("en-US")}`;
+const usd = (x: number) => {
+  const n = Math.round(x);
+  const neg = n < 0;
+  let t = String(neg ? -n : n);
+  for (let i = t.length - 3; i > 0; i -= 3) t = `${t.slice(0, i)},${t.slice(i)}`;
+  return `$${neg ? "-" : ""}${t}`;
+};
 
 export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
   const { origin, destination, aircraft } = inp;
@@ -161,6 +169,9 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
       reasons.push(`runway: ${ap.id} has ${ap.runwayM} m, ${aircraft.id} needs ${Math.round(need)} m`);
     }
   }
+  if (isOverwaterRoute(origin, destination) && !canFlyOverwater(aircraft, origin, destination, dist)) {
+    reasons.push(`overwater: ${aircraft.id} may not fly ${Math.round(dist)} km over water here (twin-engine diversion limit)`);
+  }
   if (seatsPerFlight > aircraft.maxSeats) reasons.push(`seats: ${seatsPerFlight} exceeds max ${aircraft.maxSeats}`);
   if (seatsPerFlight <= 0) reasons.push("seats: no seats configured");
   if (inp.weeklyFrequency <= 0) reasons.push("frequency: no weekly departures");
@@ -172,7 +183,7 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
   const seatsWeek = flights * seatsPerFlight;
   const pax = feasible ? Math.min(Math.max(0, inp.weeklyPassengers), seatsWeek) : 0;
   const lf = seatsWeek > 0 ? pax / seatsWeek : 0;
-  const fuelGal = jetAPriceUsdPerGallon(inp.day, origin.region);
+  const fuelGal = jetAPriceUsdPerGallon(inp.day, origin);
   const fuelKg = fuelGal / KG_PER_GALLON;
 
   const lines: LedgerLine[] = [];
@@ -199,16 +210,17 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
 
   const pilots = bh > 12 ? 4 : bh > 8 ? 3 : 2;
   const fas = Math.max(2, Math.ceil((inp.cabinCost?.crewSeats ?? seatsPerFlight) / P.seatsPerFlightAttendant));
-  const crewPerFlight = (pilots * P.pilotUsdPerHour + fas * P.faUsdPerHour) * bh;
+  const cf = costFactors(origin, destination);
+  const crewPerFlight = (pilots * P.pilotUsdPerHour + fas * P.faUsdPerHour) * bh * cf.labour;
   add("cost", "crew", "Flight and cabin crew", flights * crewPerFlight,
-    `${r2(flights)} flights x ${r2(bh)} block h x (${pilots} pilots x ${usd(P.pilotUsdPerHour)} + ${fas} FAs x ${usd(P.faUsdPerHour)})`);
+    `${r2(flights)} flights x ${r2(bh)} block h x (${pilots} pilots x ${usd(P.pilotUsdPerHour)} + ${fas} FAs x ${usd(P.faUsdPerHour)})${cf.labour !== 1 ? ` x ${r2(cf.labour)} regional pay level` : ""}`);
 
-  const landing = P.landingFeeBaseUsd + P.landingFeePerSeatUsd * seatsPerFlight;
+  const landing = (P.landingFeeBaseUsd + P.landingFeePerSeatUsd * seatsPerFlight) * cf.airport;
   add("cost", "airport", "Landing and airport fees", flights * landing,
-    `${r2(flights)} landings x (${usd(P.landingFeeBaseUsd)} + ${P.landingFeePerSeatUsd}/seat x ${seatsPerFlight})`);
+    `${r2(flights)} landings x (${usd(P.landingFeeBaseUsd)} + ${P.landingFeePerSeatUsd}/seat x ${seatsPerFlight})${cf.airport !== 1 ? ` x ${r2(cf.airport)} regional charges` : ""}`);
 
-  add("cost", "handling", "Ground handling", flights * P.groundHandlingUsd[kind],
-    `${r2(flights)} turnarounds x ${usd(P.groundHandlingUsd[kind])} (${kind}body)`);
+  add("cost", "handling", "Ground handling", flights * P.groundHandlingUsd[kind] * cf.handling,
+    `${r2(flights)} turnarounds x ${usd(P.groundHandlingUsd[kind])} (${kind}body)${cf.handling !== 1 ? ` x ${r2(cf.handling)} regional handling` : ""}`);
 
   add("cost", "paxServices", "Passenger services", pax * P.passengerServicesUsdPerPax * (inp.cabinCost?.paxServices ?? 1),
     `${r2(pax)} pax x ${usd(P.passengerServicesUsdPerPax)}${inp.cabinCost?.paxServices && inp.cabinCost.paxServices !== 1 ? ` x ${r2(inp.cabinCost.paxServices)} cabin mix` : ""} (catering, check-in, claims)`);

@@ -35,6 +35,10 @@ export interface OutsideContext {
   distanceKm: number;
   /** True when driving is a real alternative (same landmass). */
   driveAvailable: boolean;
+  /** Fare level of the market relative to the US-calibrated benchmark (world/regions.ts `fareLevel`); default 1. */
+  fareLevel?: number;
+  /** 0..1 quality of a high-speed or regular rail alternative (`surfaceAlternative(a, b).rail`); default 0 = none. */
+  rail?: number;
 }
 
 export interface SegmentChoiceParams {
@@ -79,6 +83,14 @@ export interface ChoiceParams {
   driveUsdPerKm: number;
   /** Fraction of VOT that applies to time spent driving. */
   driveVotFactor: number;
+  /**
+   * Rail alternative (Europe's high-speed corridors, the US Northeast Corridor), added to the outside option scaled by the pair's
+   * rail quality. Generalised cost = fixed fare + usd/km x rail km + VOT x (rail km / speed + access hours - airportCreditHours).
+   * `railAirportCreditH` is the time an air trip loses to airports (access, security, bags) that the itinerary time terms do not
+   * count; rail runs city centre to city centre. All ESTIMATES tuned so that a good HSR pair of ~450 km keeps most of the market and
+   * the rail share fades out by ~1,000 km (MODEL.md section 12). Optional so older parameter sets still work.
+   */
+  rail?: { circuity: number; kmh: number; accessH: number; airportCreditH: number; fixedUsd: number; usdPerKm: number };
   /** Air-benchmark used to size the no-travel option. */
   benchmarkSpeedKmh: number;
   benchmarkOverheadH: number;
@@ -124,6 +136,7 @@ export const DEFAULT_CHOICE_PARAMS: ChoiceParams = {
   driveKmh: 95,
   driveUsdPerKm: 0.14,
   driveVotFactor: 0.8,
+  rail: { circuity: 1.1, kmh: 250, accessH: 0.8, airportCreditH: 1.3, fixedUsd: 10, usdPerKm: 0.1 },
   benchmarkSpeedKmh: 800,
   benchmarkOverheadH: 0.6,
   recapturePasses: 3,
@@ -133,7 +146,10 @@ export const DEFAULT_CHOICE_PARAMS: ChoiceParams = {
   capacityShareExponent: 0,
 };
 
-/** Benchmark economy-equivalent one-way fare for a distance (USD): 64 + 0.265 d^0.8. LAX-SFO ~ 105, LAX-HNL ~ 270. */
+/**
+ * Benchmark economy-equivalent one-way fare for a distance (USD): 64 + 0.265 d^0.8. LAX-SFO ~ 105, LAX-HNL ~ 270. This is the US
+ * (California) calibration; for markets elsewhere multiply by `fareLevel(a, b)` (`benchmarkFareFor` in demand/market.ts).
+ */
 export function benchmarkFare(distanceKm: number): number {
   return 64 + 0.265 * Math.max(distanceKm, 0) ** 0.8;
 }
@@ -211,7 +227,7 @@ export function itineraryUtility(
 /** Log-weight of the outside option (driving and/or not travelling) for a segment. */
 export function outsideUtility(seg: Segment, ctx: OutsideContext, p: ChoiceParams = DEFAULT_CHOICE_PARAMS): number {
   const sp = p.segments[seg];
-  const benchGc = benchmarkFare(ctx.distanceKm) + sp.vot * (ctx.distanceKm * 1.04 / p.benchmarkSpeedKmh + p.benchmarkOverheadH);
+  const benchGc = benchmarkFare(ctx.distanceKm) * (ctx.fareLevel ?? 1) + sp.vot * (ctx.distanceKm * 1.04 / p.benchmarkSpeedKmh + p.benchmarkOverheadH);
   const noTravel = Math.exp(-(sp.noTravelMultiplier * benchGc) / sp.theta);
   let drive = 0;
   if (ctx.driveAvailable) {
@@ -219,7 +235,16 @@ export function outsideUtility(seg: Segment, ctx: OutsideContext, p: ChoiceParam
     const gc = p.driveUsdPerKm * road + sp.vot * p.driveVotFactor * (road / p.driveKmh);
     drive = Math.exp(-gc / sp.theta);
   }
-  return Math.log(noTravel + drive);
+  let rail = 0;
+  if (p.rail && ctx.rail && ctx.rail > 0) {
+    const r = p.rail;
+    const km = ctx.distanceKm * r.circuity;
+    // Quality scales the average speed (a slow conventional line vs a 300 km/h corridor); the option itself is always available.
+    const hours = Math.max(0.2, km / (r.kmh * (0.5 + 0.5 * Math.min(1, ctx.rail))) + r.accessH - r.airportCreditH);
+    const gc = r.fixedUsd + r.usdPerKm * km + sp.vot * hours;
+    rail = Math.exp(-gc / sp.theta);
+  }
+  return Math.log(noTravel + drive + rail);
 }
 
 // ---------------------------------------------------------------------------

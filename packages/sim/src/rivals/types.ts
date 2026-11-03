@@ -50,11 +50,28 @@ export interface RivalMemory {
   nextEpisodeDay: Day;
 }
 
+/**
+ * Where a rival may look for markets. Either a list of US `states`, or `countries` (ISO codes; the token "EUROPE" stands for every
+ * non-US country in the data), optionally with `transatlantic`: also long-haul pairs between its home region and the other side
+ * (needs widebodies, `canFlyRoute` decides feasibility). Absent on airlines from older saves: derived from their bases (`scopeOf`).
+ */
+export interface RivalScope {
+  states?: string[];
+  countries?: string[];
+  transatlantic?: boolean;
+}
+
 export interface RivalAirline {
   id: Id;
   name: string;
   archetype: Archetype;
   bases: Id[];
+  /** Home region and market search area (older saves: derived from the bases). */
+  scope?: RivalScope;
+  /** Aircraft type preference, first feasible wins (older saves and unset: the archetype list). */
+  typePrefs?: string[];
+  /** Route cap; unset = the archetype's. */
+  maxRoutes?: number;
   status: "active" | "bankrupt";
   foundedDay: Day;
   bankruptDay: Day | null;

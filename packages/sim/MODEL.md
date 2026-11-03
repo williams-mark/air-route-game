@@ -327,3 +327,32 @@ The scheduler stays automatic; the planner steers it. Code in `packages/sim/src/
 - Substitution (B04): `simulateRouteWeek` groups the aircraft actually flying by (type, layout), weighted by the round trips each flies (`fleetFlights`, from the scheduler's `RouteScheduling.roundTripsByAircraft`); each group is evaluated with its own type (fuel burn, crew, fees, maintenance, seats, speed, quality) and the ledgers merge (`mergeEvaluations`; station overhead counted once). With one type and layout this is the old result. Hub legs and the network re-price use the same grouping (`fleetGroups`, `evaluateWithFleet`).
 - Not changed: network re-pricing still omits the cabin-lane service multipliers (pre-existing); fares/demand/choice parameters untouched, so calibration tests and bots are unchanged.
 - `maxRouteKm(type)` = (range - 370 km reserve) / 1.04; the app shows usable range as min of that and the data planning rule (85% of nominal).
+
+## 12. Regional economics (`world/regions.ts`, `world/closures.ts`, lane/world-sim)
+The sim has no US-West special cases any more: every rule below is keyed by the airport's `country` / `region` (state) / `landmass`, so CA, HI, OR and WA keep their old numbers exactly (the West Coast is the base at 1.0; CA/HI market, route and economics test outputs are byte-identical to before). **Basis legend: [D] derived from data fields, [E] estimate (judgement, order-of-magnitude recall, no source fetched), [H] historical anchor recalled, not verified.** Nothing here is a measured figure; treat every [E] as a tuning knob.
+
+| Constant | Value | Basis |
+|---|---|---|
+| US fuel multiplier by state group (Gulf 0.90, Southeast 0.94, Midwest 0.95, Rocky Mtn 0.97, Northeast 0.97, West Coast 1.0) | see `US_FUEL_MULTIPLIER_BY_STATE` | [E] West Coast jet fuel carries a premium over the Gulf refining hub; the ordering is well known, the sizes are rounded guesses |
+| HI / AK fuel add per gallon | +0.35 USD | [E] shipped-in fuel; HI keeps its old value |
+| Europe fuel multiplier | 0.97, per-country overrides (NO 1.06, IS 1.10, CH 1.06, SE/FI 1.03) | [E] pre-tax jet fuel is traded near one price; small spreads only |
+| EU ETS carbon add per gallon | 0.01 (2015) to 0.27 (2026), ETS countries | [H] free allocation made it near zero in 2015; the rise follows the allowance price path; magnitudes recalled |
+| Europe airport fee multiplier | 1.3 | [E] European charges (incl. passenger and security) run above US landing fees; lowered from first guess 1.4 after Europe margins came out thin |
+| Europe handling multiplier | 1.15 | [E] same, lowered from 1.2 |
+| Labour tiers (high 1.0, midHigh 0.9, mid 0.75, low 0.5) by country | `costFactors` | [E] ordered by GDP per capita [D]; the factors are rough |
+| Fare level | US 1.0; Europe 0.8 x clamp((gdp/40000)^0.3) | [E] intra-European yields per km are lower than US domestic; the GDP term follows the data field [D] |
+| `europeIncomeRefUsd` | 40000 for Europe-Europe pairs | [E] fitted: without it intra-Europe potentials were 3-10x below recalled traffic; afterwards within about 0.7-3x |
+| `domesticBoost` NO 2.5, IS 2 | | [E] fitted for the roadless fjord and island networks |
+| `islandHopBoost` | 4 up to 700 km (HI keeps 12.5) | [E] other island groups (Balearics, Canaries, Aegean...) |
+| Ground (drive) damping distance | US 150 km, Europe 220 km (`groundKm`) | [E] Europeans accept longer surface trips |
+| Rail | speed 250 km/h x (0.5+0.5q), circuity 1.1, access 0.8 h, fixed 10 USD, 0.10 USD/km | [E] tuned by a sweep so Europe short-haul is damped harder than the US without wiping out air demand |
+| Rail quality q (FR/ES 1, IT .9, NL/BE .9, DE .7, default .3; US Northeast Corridor airports 0.6) | | [E] ranking from general knowledge of HSR coverage |
+| Alaska | no surface alternative (the ANC-FAI road is ignored); CONUS-AK treated as overwater from the data | [D] roadless; the road is a simplification |
+| GB <-> mainland | counts as drive; rail only for FR/BE | [E] Channel Tunnel |
+| Seasonality tags: medSummer, ski, winterSun, northSummer (strength 0-1), CA/HI/OR/WA never tagged | `leisureTag` | [E] curves are plausible shapes, not fitted to monthly data |
+
+Other changes: `DEFAULT_METROS` is now `metrosFromData` (the data `metros` plus single-airport metros). LA 17.75M, SF 6.63M and SEA 3.733M are pinned to the old values; other metros use the largest member's `metroPopulation` [D]. `catchmentOf` ignores closed members (Berlin's demand moves to the surviving airport). Pair demand is cached in a WeakMap keyed by params and airport, then `${other}|closure epoch`, so the per-day cost is a lookup. The choice model gained a rail outside option next to driving. `ledger.ts` infeasible reasons include overwater (ETOPS, `canFlyOverwater`); `validateRoute` returns `overwater_limit` and `airport_closed`.
+
+Airport closures (`AIRPORT_CLOSURES`, [H] dates recalled): RYG 2016-11-01, SXF 2020-10-26, TXL 2020-11-09, DSA 2022-11-01. `AIRPORT_OPENINGS` has BER 2020-10-31 but **BER is not in `packages/data`, so that entry is inert and Berlin has no airport after November 2020** (the data lane should add BER). On a closure `stepDay` cancels player routes at that airport with a notice and drops their reports; rivals drop the routes and re-base (replacedBy, else the biggest open airport in scope).
+
+Known gaps: the gravity tail overshoots for thin pairs (the top transatlantic pairs fit recalled 2015 traffic within about 20%); Pandemic 2020-21 is still not modelled; the app should use `benchmarkFareFor(a, b)` instead of `benchmarkFare(km)` for default fares.

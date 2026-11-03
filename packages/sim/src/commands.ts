@@ -1,5 +1,7 @@
 import type { Aircraft, AircraftType, Airport, Command, Day, Fares, Id, Route, SimEvent } from "@arg/contracts";
+import { canFlyOverwater, isOverwaterRoute } from "@arg/data";
 import { distanceKm, simRunwayM } from "./geo";
+import { airportOpen, closureOf, dayLabel } from "./world/closures";
 import { isRangeFeasible } from "./finance/ledger";
 import { defaultLayout, validateLayout } from "./fleet/layout";
 import { initialMeta } from "./fleet/maintenance";
@@ -48,6 +50,8 @@ export type CommandErrorCode =
   | "invalid_fare"
   | "out_of_range"
   | "runway_too_short"
+  | "overwater_limit"
+  | "airport_closed"
   | "no_suitable_aircraft"
   | "duplicate_route"
   | "unknown_route"
@@ -153,6 +157,12 @@ function validateRoute(state: SimState, spec: RouteSpec, selfId: Id | null, chec
   );
   if (dup) return fail("duplicate_route", `${a.id}-${b.id} is already served by route ${dup.id}; update that route instead.`);
 
+  for (const ap of [a, b]) {
+    if (!airportOpen(ap.id, state.world.day)) {
+      const c = closureOf(ap.id);
+      return fail("airport_closed", c ? `${ap.id} (${ap.name}) closed on ${dayLabel(c.day)}${c.replacedBy ? `; its traffic moved to ${c.replacedBy}` : ""}.` : `${ap.id} (${ap.name}) is not open yet.`);
+    }
+  }
   const dist = distanceKm(a, b);
   if (!isRangeFeasible(dist, type)) {
     return fail("out_of_range", `${a.id}-${b.id} is ${Math.round(dist)} km; the ${type.name} (range ${type.rangeKm} km) cannot fly it with reserves.`);
@@ -161,6 +171,10 @@ function validateRoute(state: SimState, spec: RouteSpec, selfId: Id | null, chec
   const short = a.runwayM < need ? a : b.runwayM < need ? b : null;
   if (short) {
     return fail("runway_too_short", `${short.id} runway is ${short.runwayM} m; the ${type.name} needs ${Math.round(need)} m on this sector.`);
+  }
+
+  if (isOverwaterRoute(a, b) && !canFlyOverwater(type, a, b, dist)) {
+    return fail("overwater_limit", `${a.id}-${b.id} crosses ${Math.round(dist)} km of open water; the ${type.name} may not be scheduled on it (twin-engine diversion limit).`);
   }
 
   const warnings: string[] = [];

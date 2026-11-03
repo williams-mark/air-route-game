@@ -8,7 +8,8 @@ import {
   type Itinerary,
   type Leg,
 } from "../demand/choice";
-import { hasSurfaceAlternative, marketOnDay, SEGMENTS, segmentMap, type DayMarket, type MarketParams, DEFAULT_MARKET_PARAMS } from "../demand/market";
+import { benchmarkFareFor, outsideFor } from "../demand/fares";
+import { marketOnDay, SEGMENTS, segmentMap, type DayMarket, type MarketParams, DEFAULT_MARKET_PARAMS } from "../demand/market";
 import { distanceKm } from "../geo";
 import { cabinFillRatios, layoutEffects } from "../cabin/effects";
 import { rivalSizingMarket } from "./rivalSizing";
@@ -198,7 +199,7 @@ export function buildRivals(a: Airport, b: Airport, dist: number, market: DayMar
   const profiles = cfg.rivalProfiles.slice(0, nRivals);
   const profileTotal = profiles.reduce((s, r) => s + r.seatShare, 0);
   const totalRivalSeats = (market.baseWeekly * cfg.rivalMarketCoverage) / cfg.rivalTargetLoadFactor;
-  const benchFare = benchmarkFare(dist) * cfg.rivalFareFactor;
+  const benchFare = benchmarkFareFor(a, b, dist) * cfg.rivalFareFactor;
   const rivals: Itinerary[] = [];
   let totalRivalFreq = 0;
   profiles.forEach((pf, k) => {
@@ -315,7 +316,7 @@ export function simulateRouteWeek(
   const choice = runChoice({
     demand,
     itineraries: [player, ...rivals],
-    outside: { distanceKm: dist, driveAvailable: hasSurfaceAlternative(a, b) },
+    outside: outsideFor(a, b, dist),
     params: cfg.choice,
   });
   const mine = choice.itineraries[0]!;
@@ -481,7 +482,7 @@ export function evaluateHubConnection(input: HubConnectionInput): HubConnection 
 
   const market = marketOnDay(a, b, day, cfg.market);
   const demand = segmentMap((s) => market.bySegment[s] * demandScale);
-  const throughFare = input.connectingFare ?? benchmarkFare(dist) * 0.92;
+  const throughFare = input.connectingFare ?? benchmarkFareFor(a, b, dist) * 0.92;
   const mk = (id: string, o: string, d: string, dd: number, groups: FleetGroup[], route: Route, frac: number, seats: number): Leg => ({
     ...makeLeg(id, o, d, dd, speedOf(groups), route.weeklyFrequency * frac, 1),
     weeklySeats: seats,
@@ -501,7 +502,7 @@ export function evaluateHubConnection(input: HubConnectionInput): HubConnection 
   const choice = runChoice({
     demand,
     itineraries: [player, ...rivals],
-    outside: { distanceKm: dist, driveAvailable: hasSurfaceAlternative(a, b) },
+    outside: outsideFor(a, b, dist),
     params: cfg.choice,
   });
   const c = choice.itineraries[0]!.passengers;

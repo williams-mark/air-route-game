@@ -11,6 +11,7 @@ import { plannerPrefs } from "./planner/forecast";
 import { evaluateNetwork } from "./route/network";
 import { pushEvents } from "./commands";
 import { stepOffers } from "./offers";
+import { airportOpen, closureOf, dayLabel } from "./world/closures";
 import { rivalItinerariesFor, stepRivals } from "./rivals";
 import { DEFAULT_SIM_PARAMS, type AircraftMeta, type CheckKind, type RouteReport, type SimParams, type SimState } from "./state";
 
@@ -18,6 +19,9 @@ export { makeRng };
 export * from "./demand/market";
 export * from "./demand/metros";
 export * from "./demand/choice";
+export * from "./demand/fares";
+export * from "./world/regions";
+export * from "./world/closures";
 export * from "./finance/ledger";
 export * from "./finance/fuel";
 export * from "./time/clock";
@@ -112,6 +116,7 @@ export function stepDay(state: SimState): SimState;
 export function stepDay(state: WorldState | SimState): WorldState | SimState {
   if (!isSimState(state)) return { ...state, day: state.day + 1 };
 
+  state = closeRoutesAtClosedAirports(state);
   const { world, params } = state;
   const day = world.day;
   const maint = maintenanceEnabled();
@@ -265,6 +270,28 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     fleetMeta: meta,
   };
   return stepOffers(stepRivals(pushEvents(next, [...events, ...notices]), day));
+}
+
+/**
+ * Routes touching an airport that has closed (world/closures.ts; TXL, SXF, RYG, DSA in the data) are cancelled with a notice on the
+ * closing day. Cheap (a handful of lookups a day) and also catches a save loaded after a closure.
+ */
+export function closeRoutesAtClosedAirports(state: SimState): SimState {
+  const day = state.world.day;
+  const shut = state.world.routes.filter((r) => !airportOpen(r.origin, day) || !airportOpen(r.destination, day));
+  if (shut.length === 0) return state;
+  const gone = new Set(shut.map((r) => r.id));
+  const routeReports = Object.fromEntries(Object.entries(state.routeReports).filter(([id]) => !gone.has(id)));
+  const notices: SimEvent[] = shut.map((r) => {
+    const id = !airportOpen(r.origin, day) ? r.origin : r.destination;
+    const c = closureOf(id);
+    const name = state.airports.find((a) => a.id === id)?.name ?? id;
+    return {
+      kind: "notice", day,
+      text: `${id} (${name}) ${c ? `closed on ${dayLabel(c.day)}` : "is not available"}: ${r.origin}-${r.destination} is cancelled${c?.replacedBy ? `. Traffic has moved to ${c.replacedBy}.` : "."}`,
+    } as SimEvent;
+  });
+  return pushEvents({ ...state, world: { ...state.world, routes: state.world.routes.filter((r) => !gone.has(r.id)) }, routeReports }, notices);
 }
 
 /** Total scheduled round trips with the fleet as given (used to test whether pulling an aircraft loses flights). */

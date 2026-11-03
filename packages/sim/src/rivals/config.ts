@@ -1,4 +1,4 @@
-import type { Archetype } from "./types";
+import type { Archetype, RivalScope } from "./types";
 
 /** Archetype traits. All money in USD; fares are multiples of `benchmarkFare(distance)`. See RIVALS.md. */
 export interface ArchetypeSpec {
@@ -90,14 +90,40 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
   },
 };
 
+/**
+ * Market search areas. The original West Coast field keeps the old four states (the calibration of the 60-airport world), the new
+ * national and European carriers look across their whole country or continent.
+ */
+export const SCOPES = {
+  pacific: { states: ["CA", "HI", "OR", "WA"] },
+  pacificNorthwest: { states: ["OR", "WA", "CA"] },
+  hawaii: { states: ["HI"] },
+  us: { states: [] as string[], countries: ["US"] },
+  usTransatlantic: { states: [] as string[], countries: ["US"], transatlantic: true },
+  europe: { countries: ["EUROPE"] },
+  europeTransatlantic: { countries: ["EUROPE"], transatlantic: true },
+  nordic: { countries: ["NO", "SE", "DK", "FI", "IS"] },
+} as const satisfies Record<string, RivalScope>;
+
+/** European type preference (Airbus-led; the same real types from packages/data). */
+export const EUROPE_LEGACY_TYPES = ["A320", "A319", "A321", "A220-300", "A321N", "A320N", "B737-800", "B737-8", "A330-300", "A330-200", "A350-900", "B787-9", "B777-300ER", "B787-8", "A330-900", "A350-1000"];
+export const EUROPE_LCC_TYPES = ["A320", "B737-800", "A321", "A320N", "A319", "B737-8", "A321N", "B737-700"];
+export const US_LEGACY_TYPES = ["B737-800", "A320", "B737-900ER", "A321", "B757-200", "B737-8", "A321N", "A320N", "B737-9", "B767-300ER", "A330-300", "A330-200", "B777-200ER", "B787-8", "B787-9", "B777-300ER", "A350-900", "A330-900"];
+
 export interface StartingRivalSpec {
   id: string;
   name: string;
   archetype: Archetype;
   bases: string[];
   cash: number;
+  /** Where the airline looks for markets (default: derived from the archetype, see `scopeOf`). */
+  scope?: RivalScope;
+  typePrefs?: string[];
+  maxRoutes?: number;
   /** Routes: origin, destination, share of the potential market (seat share at 80% load). */
   routes: ReadonlyArray<readonly [string, string, number]>;
+  /** Networks built at set-up: this many routes picked from the best candidate markets near the bases (after the explicit `routes`). */
+  seedRoutes?: number;
 }
 
 /**
@@ -106,7 +132,7 @@ export interface StartingRivalSpec {
  */
 export const STARTING_RIVALS: StartingRivalSpec[] = [
   {
-    id: "pacific-crown", name: "Pacific Crown", archetype: "legacy", bases: ["SFO", "LAX"], cash: 450_000_000,
+    id: "pacific-crown", name: "Pacific Crown", archetype: "legacy", bases: ["SFO", "LAX"], cash: 450_000_000, scope: SCOPES.pacific,
     routes: [
       ["SFO", "LAX", 0.3], ["SFO", "SAN", 0.18], ["SFO", "BUR", 0.12], ["SFO", "SNA", 0.14], ["SFO", "ONT", 0.1],
       ["LAX", "SJC", 0.1], ["LAX", "SMF", 0.1], ["LAX", "OAK", 0.06],
@@ -117,7 +143,7 @@ export const STARTING_RIVALS: StartingRivalSpec[] = [
     ],
   },
   {
-    id: "kestrel-air", name: "Kestrel Air", archetype: "lcc", bases: ["SAN", "OAK"], cash: 180_000_000,
+    id: "kestrel-air", name: "Kestrel Air", archetype: "lcc", bases: ["SAN", "OAK"], cash: 180_000_000, scope: SCOPES.pacific,
     routes: [
       ["SAN", "OAK", 0.2], ["SAN", "SMF", 0.2], ["SAN", "SFO", 0.16], ["SAN", "SJC", 0.12],
       ["OAK", "LAX", 0.14], ["OAK", "BUR", 0.14], ["OAK", "SNA", 0.14], ["OAK", "LGB", 0.12],
@@ -128,7 +154,7 @@ export const STARTING_RIVALS: StartingRivalSpec[] = [
     ],
   },
   {
-    id: "golden-state-express", name: "Golden State Express", archetype: "regional", bases: ["LAX", "SFO"], cash: 90_000_000,
+    id: "golden-state-express", name: "Golden State Express", archetype: "regional", bases: ["LAX", "SFO"], cash: 90_000_000, scope: SCOPES.pacific,
     routes: [
       ["LAX", "SBA", 0.3], ["LAX", "MRY", 0.3], ["LAX", "SBP", 0.35], ["LAX", "PSP", 0.25], ["LAX", "FAT", 0.3],
       ["LAX", "MMH", 0.5], ["SFO", "ACV", 0.5], ["SFO", "RDD", 0.4], ["SFO", "SBA", 0.25], ["SFO", "FAT", 0.2],
@@ -137,20 +163,53 @@ export const STARTING_RIVALS: StartingRivalSpec[] = [
     ],
   },
   {
-    id: "islander", name: "Islander", archetype: "interisland", bases: ["HNL", "OGG"], cash: 120_000_000,
+    id: "islander", name: "Islander", archetype: "interisland", bases: ["HNL", "OGG"], cash: 120_000_000, scope: SCOPES.hawaii,
     routes: [
       ["HNL", "OGG", 0.32], ["HNL", "KOA", 0.32], ["HNL", "LIH", 0.32], ["HNL", "ITO", 0.3], ["OGG", "KOA", 0.25],
       ["OGG", "LIH", 0.2], ["HNL", "MKK", 0.5], ["HNL", "LNY", 0.5], ["OGG", "ITO", 0.15],
     ],
   },
   {
-    id: "sierra-jet", name: "Sierra Jet", archetype: "lcc", bases: ["SMF", "SJC"], cash: 130_000_000,
+    id: "sierra-jet", name: "Sierra Jet", archetype: "lcc", bases: ["SMF", "SJC"], cash: 130_000_000, scope: SCOPES.pacific,
     routes: [
       ["SMF", "LAX", 0.14], ["SMF", "SAN", 0.18], ["SMF", "BUR", 0.14], ["SMF", "SNA", 0.12], ["SMF", "ONT", 0.1],
       ["SJC", "SAN", 0.14], ["SJC", "LAX", 0.14], ["SJC", "SNA", 0.1], ["SMF", "HNL", 0.1], ["SJC", "HNL", 0.1],
       ["SMF", "OGG", 0.1], ["SJC", "OGG", 0.1], ["SMF", "LGB", 0.1], ["LAX", "OGG", 0.2],
       ["SMF", "SEA", 0.12], ["SMF", "PDX", 0.12], ["SJC", "SEA", 0.1],
     ],
+  },
+  // --- Whole-US and European field (all names fictional). Cash and fleets are sized so that margins land in the 5-12% band of BALANCE.md.
+  {
+    id: "cardinal-air", name: "Cardinal Air", archetype: "legacy", bases: ["ATL", "DFW"], cash: 800_000_000, scope: SCOPES.usTransatlantic,
+    typePrefs: US_LEGACY_TYPES, maxRoutes: 44, routes: [], seedRoutes: 22,
+  },
+  {
+    id: "polaris-air", name: "Polaris Air", archetype: "legacy", bases: ["ORD", "JFK"], cash: 750_000_000, scope: SCOPES.usTransatlantic,
+    typePrefs: US_LEGACY_TYPES, maxRoutes: 44, routes: [], seedRoutes: 22,
+  },
+  {
+    id: "sunbird-express", name: "Sunbird Express", archetype: "lcc", bases: ["MCO", "FLL"], cash: 300_000_000, scope: SCOPES.us,
+    maxRoutes: 36, routes: [], seedRoutes: 18,
+  },
+  {
+    id: "rheinland-air", name: "Rheinland Air", archetype: "legacy", bases: ["FRA", "MUC"], cash: 700_000_000, scope: SCOPES.europeTransatlantic,
+    typePrefs: EUROPE_LEGACY_TYPES, maxRoutes: 44, routes: [], seedRoutes: 22,
+  },
+  {
+    id: "gallia-air", name: "Gallia Air", archetype: "legacy", bases: ["CDG", "NCE"], cash: 600_000_000, scope: SCOPES.europeTransatlantic,
+    typePrefs: EUROPE_LEGACY_TYPES, maxRoutes: 40, routes: [], seedRoutes: 20,
+  },
+  {
+    id: "verdant-jet", name: "Verdant Jet", archetype: "lcc", bases: ["DUB", "STN"], cash: 350_000_000, scope: SCOPES.europe,
+    typePrefs: EUROPE_LCC_TYPES, maxRoutes: 40, routes: [], seedRoutes: 20,
+  },
+  {
+    id: "tramontana-jet", name: "Tramontana Jet", archetype: "lcc", bases: ["BCN", "BGY"], cash: 250_000_000, scope: SCOPES.europe,
+    typePrefs: EUROPE_LCC_TYPES, maxRoutes: 34, routes: [], seedRoutes: 16,
+  },
+  {
+    id: "fjord-connect", name: "Fjord Connect", archetype: "regional", bases: ["OSL", "BGO"], cash: 90_000_000, scope: SCOPES.nordic,
+    typePrefs: ["E175", "CRJ900", "CRJ700", "ATR72-600", "A220-100"], routes: [], seedRoutes: 8,
   },
 ];
 
@@ -160,6 +219,9 @@ export interface EntrantSpec {
   archetype: Archetype;
   bases: string[];
   cash: number;
+  scope?: RivalScope;
+  typePrefs?: string[];
+  maxRoutes?: number;
   /** Launch date as years since 2015-01-01 (fractional); jittered by +/- `jitterDays` from the seed. */
   launchYear: number;
   jitterDays: number;
@@ -168,13 +230,13 @@ export interface EntrantSpec {
 
 /** Scheduled new entrants (rare). Random extra entrants: see RIVAL_PARAMS.randomEntrantChancePerYear. */
 export const SCHEDULED_ENTRANTS: EntrantSpec[] = [
-  { id: "ember-air", name: "Ember Air", archetype: "lcc", bases: ["LAX", "SNA"], cash: 70_000_000, launchYear: 2.3, jitterDays: 90, initialRoutes: 4 },
+  { id: "ember-air", name: "Ember Air", archetype: "lcc", bases: ["LAX", "SNA"], cash: 70_000_000, scope: SCOPES.pacific, launchYear: 2.3, jitterDays: 90, initialRoutes: 4 },
   // Pacific Northwest regional (Seattle and Portland); routes are chosen from the candidate list at launch.
-  { id: "cascade-connect", name: "Cascade Connect", archetype: "regional", bases: ["SEA", "PDX"], cash: 90_000_000, launchYear: 0.5, jitterDays: 60, initialRoutes: 6 },
+  { id: "cascade-connect", name: "Cascade Connect", archetype: "regional", bases: ["SEA", "PDX"], cash: 90_000_000, scope: SCOPES.pacific, launchYear: 0.5, jitterDays: 60, initialRoutes: 6 },
 ];
 
 /** Names for random startups. Fictional. */
-export const ENTRANT_NAME_POOL = ["Halcyon Jet", "Redwood Wings", "Tradewind Air", "Cormorant Air", "Mesa Flyer", "Lumen Air"];
+export const ENTRANT_NAME_POOL = ["Halcyon Jet", "Redwood Wings", "Tradewind Air", "Cormorant Air", "Mesa Flyer", "Lumen Air", "Aspen Wings", "Corvus Air", "Saltire Jet", "Meltemi Air"];
 
 export const RIVAL_PARAMS = {
   /** Cadence in weeks: monthly = 4 weeks, quarterly = 13, annual = 52. Each airline has its own phase. */
@@ -210,6 +272,6 @@ export const RIVAL_PARAMS = {
   /** Extra optimism of a startup (founders overestimate their markets). */
   startupOptimism: 0.1,
   /** Random startup chance per year (checked annually from 2018 while fewer than `maxActive` rivals are active). */
-  randomEntrantChancePerYear: 0.1, randomEntrantFromYear: 2018, maxActive: 8, entrantCash: 70_000_000,
-  newsLimit: 300,
+  randomEntrantChancePerYear: 0.1, randomEntrantFromYear: 2018, maxActive: 20, entrantCash: 70_000_000,
+  newsLimit: 900,
 } as const;

@@ -1,5 +1,5 @@
 import type { Aircraft, AircraftType, Airport, Route } from "@arg/contracts";
-import { benchmarkFare } from "./demand/choice";
+import { benchmarkFareFor } from "./demand/fares";
 import { hasSurfaceAlternative } from "./demand/market";
 import { defaultLayout } from "./fleet/layout";
 import { distanceKm } from "./geo";
@@ -36,7 +36,7 @@ export const STARTING_ROUTES: ReadonlyArray<readonly [string, string, number, st
  */
 export function startingFare(a: Airport, b: Airport): number {
   const d = distanceKm(a, b);
-  const bench = benchmarkFare(d);
+  const bench = benchmarkFareFor(a, b, d);
   if (!hasSurfaceAlternative(a, b) || d >= 400) return Math.round(bench);
   return Math.round(bench * (0.6 + (0.4 * d) / 400));
 }

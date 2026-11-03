@@ -1,8 +1,15 @@
 // Save-file envelope for SimState. SimState is plain JSON (no Map/Set/undefined/NaN), so serialization is JSON.stringify
 // with a versioned wrapper; `extras` carries opaque UI-side data (feed, ledger, pending decisions) that the app restores.
+import { airports as dataAirports } from "@arg/data";
 import type { SimState } from "./state";
 
-export const SAVE_VERSION = 1;
+/**
+ * Save format history. 1: the California/Hawaii/Oregon/Washington game (airports without country and landmass, five West Coast
+ * rivals). 2: whole US and Europe (lane/world-sim): airports carry country and landmass, rivals may carry scope, type preferences and a
+ * route cap. A version 1 save is migrated on load (`migrateV1`) and plays on in the larger world; nothing is lost.
+ */
+export const SAVE_VERSION = 2;
+const OLDEST_READABLE_VERSION = 1;
 export const SAVE_FORMAT = "air-route-game-save";
 
 export interface SaveFile<X = unknown> {
@@ -39,17 +46,34 @@ export function parseSave<X = unknown>(text: string): ParseResult<X> {
     return { ok: false, code: "not_a_save", message: "This file is not an Air Route Game save." };
   }
   const f = raw as Partial<SaveFile<X>>;
-  if (f.version !== SAVE_VERSION) {
+  if (typeof f.version !== "number" || !Number.isInteger(f.version) || f.version < OLDEST_READABLE_VERSION || f.version > SAVE_VERSION) {
     return {
       ok: false, code: "version_mismatch",
-      message: `This save was made by a different version of the game (save format ${String(f.version)}, this build reads format ${SAVE_VERSION}). It cannot be loaded.`,
+      message: `This save was made by a different version of the game (save format ${String(f.version)}, this build reads formats ${OLDEST_READABLE_VERSION} to ${SAVE_VERSION}). It cannot be loaded.`,
     };
   }
   const problems = validateSimState(f.state);
   if (problems.length > 0) {
     return { ok: false, code: "corrupt", message: `This save file is damaged or incomplete (${problems[0]}${problems.length > 1 ? `; ${problems.length - 1} more problem${problems.length > 2 ? "s" : ""}` : ""}).` };
   }
+  if (f.version < SAVE_VERSION) return { ok: true, save: { ...(f as SaveFile<X>), version: SAVE_VERSION, state: migrateV1(f.state as SimState) } };
   return { ok: true, save: f as SaveFile<X> };
+}
+
+/**
+ * Version 1 to 2. Old airports lack `country` and `landmass` (the sim treats a missing country as Europe, so they must be filled):
+ * US, with the landmass from the state. The airports the save did not know (the rest of the US and Europe) are appended from the
+ * data package so the player can open routes there; airports already in the save keep their saved values. Rival airlines need
+ * nothing: their scope, type list and route cap are optional and derived from their bases.
+ */
+export function migrateV1(state: SimState): SimState {
+  const have = new Set(state.airports.map((a) => a.id));
+  const fixed = state.airports.map((a) => {
+    const old = a as unknown as { country?: string; landmass?: string; region?: string };
+    if (old.country && old.landmass) return a;
+    return { ...a, country: old.country ?? "US", landmass: old.landmass ?? (old.region === "HI" ? "US-HI" : old.region === "AK" ? "US-AK" : "US-CONUS") };
+  });
+  return { ...state, airports: [...fixed, ...dataAirports.filter((a) => !have.has(a.id))] };
 }
 
 // ---------------------------------------------------------------------------
