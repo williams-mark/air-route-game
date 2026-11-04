@@ -1,6 +1,7 @@
 import type { Aircraft, AircraftType, Airport, Day, Fares, Id, Route } from "@arg/contracts";
 import { assign, type AssignPrefs, type ScheduleResult } from "../fleet/scheduler";
 import { plannerPrefs } from "../planner/forecast";
+import { homeHubOf } from "../fleet/hubs";
 import { rivalItinerariesFor } from "../rivals";
 import type { RivalsState } from "../rivals/types";
 import type { RouteReport, SimState } from "../state";
@@ -18,6 +19,8 @@ export interface LiveModelInput {
   notionalFleet: boolean;
   rivals: RivalsState | null;
   prefs: AssignPrefs | undefined;
+  /** Home hub for aircraft without a base (fleet/hubs.ts). */
+  homeHub?: Id;
   /** Demand noise factor for a route; called once per route in route order (the daily step draws it from its rng). */
   noise: (route: Route) => number;
 }
@@ -38,7 +41,7 @@ export interface LiveModelResult {
  */
 export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
   const { routes, fleet, airports, types, day } = inp;
-  const schedule = assign(routes, fleet, { airports, types, prefs: inp.prefs });
+  const schedule = assign(routes, fleet, { airports, types, prefs: inp.prefs, homeHub: inp.homeHub });
   const fleetById = new Map(fleet.map((ac) => [ac.id, ac]));
   const ownedTypes = new Set(fleet.filter((ac) => ac.status !== "delivery").map((ac) => ac.typeId));
   const reports: Record<Id, RouteReport> = {};
@@ -159,6 +162,7 @@ function liveInput(state: SimState, day: Day, routes: readonly Route[], noise: (
     types: new Map(state.aircraftTypes.map((t) => [t.id, t])),
     day,
     notionalFleet: state.params.notionalFleet,
+    homeHub: homeHubOf(state),
     rivals: state.rivals,
     prefs: plannerPrefs(state, day),
     noise,

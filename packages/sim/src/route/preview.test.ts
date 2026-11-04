@@ -18,7 +18,8 @@ function mini(fleet: Aircraft[], routes: Route[]): SimState {
 }
 
 describe("route preview uses the live model", () => {
-  const owned = [ac("a1", "B737-800"), ac("a2", "B737-800"), ac("a3", "B737-800")];
+  // a1 is based at SFO (fixture hub), so it can fly SFO-SAN and LAX-SFO; the others are based at LAX.
+  const owned = [{ ...ac("a1", "B737-800"), hubId: "SFO" }, ac("a2", "B737-800"), ac("a3", "B737-800")];
   const routes = [route("r1", "SFO", "SAN", 25, "A321"), route("r2", "LAX", "SFO", 14, "B737-800", 105), route("r3", "LAX", "SAN", 7, "B737-800", 140)];
   const state = runDays(mini(owned, routes), 40);
 

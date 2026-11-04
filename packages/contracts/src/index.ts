@@ -62,6 +62,8 @@ export interface Aircraft {
   status: "active" | "maintenance" | "delivery" | "stored";
   ageDays: number;
   hoursSinceCheck: { A: number; B: number; C: number; D: number };
+  /** Base hub airport id. Absent in older saves: the home hub (see sim fleet/hubs.ts). */
+  hubId?: Id;
 }
 
 export interface Fares {
@@ -104,6 +106,8 @@ export interface WorldState {
   cash: number;
   routes: Route[];
   fleet: Aircraft[];
+  /** Player's home hub airport id. Absent = the sim's baseAirport, else LAX. */
+  homeHub?: Id;
 }
 
 // --- Sim <-> UI messages ---

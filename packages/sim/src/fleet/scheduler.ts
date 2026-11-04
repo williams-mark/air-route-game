@@ -23,6 +23,16 @@ export interface ScheduleContext {
   airports: ReadonlyMap<Id, Airport>;
   types: ReadonlyMap<Id, AircraftType>;
   prefs?: AssignPrefs;
+  /** Home hub, used for aircraft without a `hubId`. Default DEFAULT_HOME_HUB. */
+  homeHub?: Id;
+}
+
+/** Hub used when neither the aircraft nor the context names one (the original single-hub game). */
+export const DEFAULT_HOME_HUB = "LAX";
+
+/** Base hub of an aircraft: its `hubId`, else the home hub. */
+export function hubOfAircraft(ac: Aircraft, homeHub: Id = DEFAULT_HOME_HUB): Id {
+  return ac.hubId ?? homeHub;
 }
 
 export interface AircraftLoad {
@@ -53,13 +63,17 @@ export function weeklyCapacityHours(type: AircraftType): number {
  * Greedy block-hour scheduler. Aircraft that are not 'active' (maintenance, delivery, stored) are ignored.
  * Routes are served widebodies first, then by weekly block-hour need, largest first. Each route takes round trips
  * from aircraft of its requested type first (best fit: the smallest aircraft with room for everything, else the
- * one with most room), then from other feasible types of the same size class. Whole round trips only; frequencies
- * the fleet cannot cover are reported as `underSupplied`.
+ * one with most room), then from other feasible types of the same size class. Only aircraft based at the route's origin
+ * or destination hub may fly it. Whole round trips only; frequencies the fleet cannot cover are reported as `underSupplied`.
  */
 export function assign(routes: readonly Route[], fleet: readonly Aircraft[], ctx: ScheduleContext): ScheduleResult {
   const free = new Map<Id, number>();
   const loads: Record<Id, AircraftLoad> = {};
   const prefs = ctx.prefs;
+  const homeHub = ctx.homeHub ?? DEFAULT_HOME_HUB;
+  // An aircraft only flies routes that touch its base hub (origin or destination); no substitution from other hubs.
+  const baseOf = (ac: Aircraft): Id => hubOfAircraft(ac, homeHub);
+  const servesHub = (ac: Aircraft, r: Route): boolean => baseOf(ac) === r.origin || baseOf(ac) === r.destination;
   const active = fleet
     .filter((ac) => ac.status === "active" && ctx.types.has(ac.typeId) && !(prefs?.reserved?.has(ac.id) && !prefs.pins?.has(ac.id)))
     .sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
@@ -101,7 +115,7 @@ export function assign(routes: readonly Route[], fleet: readonly Aircraft[], ctx
       const p = rid === undefined ? undefined : prepared.find((q) => q.route.id === rid);
       if (!p || !p.a || !p.b || !p.reqType) continue;
       const type = ctx.types.get(ac.typeId)!;
-      if (!typeCanServe(p.a, p.b, type)) continue;
+      if (!servesHub(ac, p.route) || !typeCanServe(p.a, p.b, type)) continue;
       const left = leftBy.get(p.route.id)!;
       const rt = 2 * blockHours(p.dist, type);
       const k = Math.min(left, Math.floor((free.get(ac.id)! + 1e-9) / rt));
@@ -132,6 +146,7 @@ export function assign(routes: readonly Route[], fleet: readonly Aircraft[], ctx
     for (const pass of passes) {
       while (left > 0) {
         const cands = active
+          .filter((ac) => servesHub(ac, route))
           .map((ac) => ({ ac, type: ctx.types.get(ac.typeId)! }))
           .filter(({ type }) =>
             pass === "requested"

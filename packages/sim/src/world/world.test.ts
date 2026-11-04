@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports, canFlyRoute } from "@arg/data";
 import type { Airport } from "@arg/contracts";
 import { applyCommand } from "../commands";
+import { withBasedAircraft } from "../testing/basedAircraft";
 import { carriedShare } from "../route/rivalSizing";
 import { simulateRouteWeek, ROUTE_CHOICE_PARAMS } from "../route/routeModel";
 import { baseWeeklyDemand, hasSurfaceAlternative, marketOnDay, pairMarket, seasonality } from "../demand/market";
@@ -272,11 +273,12 @@ describe("airport closures and openings", () => {
     const route = { origin: "FRA", destination: "BER", weeklyFrequency: 7, fares: { Y: 120, J: 400 }, typeId: "B737-800" };
     expect(applyCommand(s, { kind: "openRoute", route }).result).toMatchObject({ ok: false, error: "airport_closed" });
     s = { ...s, world: { ...s.world, day: dateToDay("2020-12-01") } };
+    s = withBasedAircraft(s, "B737-800", "FRA"); // block hours for FRA-BER come from a FRA-based aircraft
     expect(applyCommand(s, { kind: "openRoute", route }).result.ok).toBe(true);
   });
   it("a player route to a closed airport is cancelled on the closing day with a notice; opening one afterwards is refused", () => {
     let s = startingScenario(airports, aircraftTypes, 5);
-    s = { ...s, rivals: null, world: { ...s.world, day: closeTxl - 3 } };
+    s = withBasedAircraft({ ...s, rivals: null, world: { ...s.world, day: closeTxl - 3 } }, "B777-200ER", "LAX");
     const open = applyCommand(s, { kind: "openRoute", route: { origin: "LAX", destination: "TXL", weeklyFrequency: 3, fares: { Y: 500, J: 1800 }, typeId: "B777-200ER" } });
     expect(open.result.ok).toBe(true);
     s = drainEvents(open.state).state;
