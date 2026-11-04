@@ -1,3 +1,9 @@
+## lane/fleet-app (fleet type table, route block hours)
+- Fleet view: type table (in service, on order, free block h/wk, used/available h, Order button per type), hub filter, inline expansion to aircraft with a per-aircraft "Move to hub" select (dispatches setAircraftHub). Card list and sort bar kept below.
+- Route sandbox: type picker lists only owned or on-order types; block hours needed vs free at the origin hub shown live; default frequency capped to what the origin hub can fly; insufficient_block_hours shown inline.
+- Pure helpers: `packages/app/src/fleet/typeTable.ts` (tested), `typeBlockHours` in sim `fleet/hubs.ts` (tested).
+- Gate: install, typecheck, test (data 23, sim 294, app 149), build, e2e 46/46. e2e route check now bases one B737-800 at SFO via the Fleet view first.
+
 # Build status (update at the end of every work session)
 
 Last updated: Tue 3 Nov 2026 (lane/world-int). Gate green: install --frozen-lockfile, typecheck, test (data 23, sim 279, app 143), build, e2e 46/46 (23 checks x 2 themes). Soak `--games 8 --det 1`: 8 games x 10 y, 0 violations, cash identity exact over 29144 days, determinism replay byte-identical, 373 s total (mean 42 s/game). See "World integration lane" below.

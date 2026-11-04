@@ -4,7 +4,7 @@ import { newWorld, stepDay, type CheckKind, type Offer, type CabinCommand, type 
 import { routeName, validateRouteDraft, type CommandError } from "../routes/helpers";
 import type { DayRecord } from "./finance";
 import { EMPTY_RIVALS, type RivalsView } from "../rivals/helpers";
-import type { SaveFile } from "@arg/sim";
+import type { SaveFile, HubCommand } from "@arg/sim";
 
 export type Speed = 0 | 1 | 2 | 3 | 4 | 5;
 export type Severity = "info" | "good" | "warn" | "alert";
@@ -31,6 +31,8 @@ export interface FleetItem {
   layout?: CabinLayout;
   /** True while the heavy-check slot is a cabin refit. */
   refit?: boolean;
+  /** Hub the aircraft is based at (absent in mock data). */
+  hub?: Id;
   /** Names of the routes this aircraft flies today (empty when idle). */
   routes: string[];
   /** Heavy check in progress (status maintenance). */
@@ -100,7 +102,7 @@ export type { CommandError };
 export interface SimBridge {
   getState(): SimSnapshot;
   subscribe(listener: () => void): () => void;
-  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand): CommandResult | void;
+  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand): CommandResult | void;
   /** Read-only sim state for the fleet planner (real bridge only). */
   getSim?(): SimState | null;
   setSpeed(speed: Speed): void;
@@ -211,7 +213,7 @@ export class MockSimBridge implements SimBridge {
   getState = (): SimSnapshot => this.snap;
   subscribe = (l: () => void): (() => void) => { this.listeners.add(l); return () => { this.listeners.delete(l); }; };
 
-  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand): CommandResult | void {
+  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand): CommandResult | void {
     switch (cmd.kind) {
       case "setSpeed": this.setSpeed(cmd.speed); return;
       case "openRoute": {
