@@ -5,7 +5,7 @@ import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as dataAirports } from "@arg/data";
 import {
   applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay,
-  validateSimState, type AutoSlowHook, type Clock, type SimState,
+  validateSimState, type AutoSlowHook, type Clock, type SimState, type HubCommand, homeHubOf,
 } from "@arg/sim";
 import type {
   CommandResult, Decision, FleetItem, Notice, OfferItem, OrderItem, Severity, SimBridge, SimSnapshot, Speed,
@@ -288,7 +288,7 @@ export class RealSimBridge implements SimBridge {
 
   getSim = (): SimState => this.sim;
 
-  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand): CommandResult | void {
+  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand): CommandResult | void {
     if (cmd.kind === "setSpeed") {
       if (![0, 1, 2, 3, 4, 5].includes(cmd.speed)) return { ok: false, error: { code: "invalid_speed", message: "Speed must be 0 to 5." } };
       this.setSpeed(cmd.speed);
@@ -415,6 +415,7 @@ export function buildFleet(sim: SimState): FleetItem[] {
     const item: FleetItem = {
       id: ac.id, tail: ac.tailNumber, typeId: ac.typeId, typeName: types.get(ac.typeId)?.name ?? ac.typeId,
       status: ac.status, ageYears: ac.ageDays / 365.25, seats: layoutSeats(ac.layout), layout: ac.layout, routes: flies.get(ac.id) ?? [],
+      hub: ac.hubId ?? homeHubOf(sim),
     };
     if (meta?.maintenance?.refit) item.refit = true;
     if (meta?.maintenance && (meta.maintenance.refit || maintenanceEnabled())) item.check = { kind: meta.maintenance.check, endDay: meta.maintenance.endDay, daysRemaining: Math.max(0, meta.maintenance.endDay - day) };

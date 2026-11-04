@@ -175,6 +175,11 @@ for (const theme of themes) {
   });
 
   await check(theme, "route sandbox: create SFO-SAN route and see it in Routes", async () => {
+    // SFO has no block hours until an aircraft is based there: move one B737-800 to SFO from the Fleet type table.
+    await nav(page, "Fleet");
+    await page.locator('button[aria-controls^="fleet-type-"]').filter({ hasText: "737-800" }).first().click();
+    await page.locator('select[aria-label^="Hub for N"]:not([disabled])').first().selectOption("SFO");
+    await page.waitForTimeout(300);
     await nav(page, "Map");
     await page.keyboard.press("n");
     await page.getByRole("combobox", { name: "From" }).waitFor({ timeout: 5000 });

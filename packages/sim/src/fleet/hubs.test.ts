@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
 import type { Aircraft, Route } from "@arg/contracts";
 import { applyCommand } from "../commands";
-import { blockHoursPerFrequency, hubBlockHours, homeHubOf, routeHourSummary } from "./hubs";
+import { blockHoursPerFrequency, hubBlockHours, homeHubOf, routeHourSummary, typeBlockHours } from "./hubs";
 import { assign, weeklyCapacityHours } from "./scheduler";
 import { blockHours } from "../finance/ledger";
 import { distanceKm } from "../geo";
@@ -43,6 +43,21 @@ describe("block-hour math", () => {
     const km = distanceKm(A.get("LAX")!, A.get("SEA")!);
     expect(s.needed).toBeCloseTo(5 * blockHoursPerFrequency({ origin: "LAX", destination: "SEA" }, T.get("B737-800")!, km), 9);
     expect(s.free).toBeCloseTo(s.available - s.used, 9);
+  });
+});
+
+describe("typeBlockHours", () => {
+  it("sums a type over all hubs by default and over one hub when given", () => {
+    const base = sc();
+    const all = typeBlockHours(base, "B737-800");
+    const lax = typeBlockHours(base, "B737-800", "LAX");
+    expect(lax.available).toBeCloseTo(hubBlockHours(base, "LAX", "B737-800").available, 9);
+    expect(all.available).toBeGreaterThanOrEqual(lax.available);
+    expect(all.free).toBeCloseTo(all.available - all.used, 9);
+  });
+
+  it("a hub with no aircraft of the type has no available hours", () => {
+    expect(typeBlockHours(sc(), "B737-800", "JFK").available).toBe(0);
   });
 });
 

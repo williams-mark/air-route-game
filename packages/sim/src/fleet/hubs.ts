@@ -46,6 +46,22 @@ export function hubBlockHours(state: SimState, hubId: Id, typeId: Id, excludeRou
   return { available, used, free: available - used };
 }
 
+/**
+ * Block hours of one type summed over every hub it is based at or flies from (`hubId` omitted), or over one hub.
+ * The hub list is the bases of the active aircraft of the type plus the origins of its routes.
+ */
+export function typeBlockHours(state: SimState, typeId: Id, hubId?: Id): HubBlockHours {
+  const home = homeHubOf(state);
+  const hubs = new Set<Id>();
+  for (const ac of state.world.fleet) if (ac.typeId === typeId && ac.status === "active") hubs.add(hubOfAircraft(ac, home));
+  for (const r of state.world.routes) if (r.typeId === typeId) hubs.add(r.origin);
+  const list = hubId !== undefined ? [hubId] : [...hubs];
+  return list.reduce<HubBlockHours>((sum, h) => {
+    const p = hubBlockHours(state, h, typeId);
+    return { available: sum.available + p.available, used: sum.used + p.used, free: sum.free + p.free };
+  }, { available: 0, used: 0, free: 0 });
+}
+
 export interface RouteHourSummary extends HubBlockHours {
   /** Weekly block hours the proposed frequency needs on this type. */
   needed: number;

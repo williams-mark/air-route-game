@@ -4,7 +4,8 @@ import { aircraftTypes, airportById } from "@arg/data";
 import { AircraftPicker } from "../aircraft/AircraftPicker";
 import { rangeNote, routeBlock, usableRangeKm } from "../aircraft/availability";
 import { usePickerMemory } from "../aircraft/memory";
-import { dayToDate } from "@arg/sim";
+import { dayToDate, routeHourSummary } from "@arg/sim";
+import { ownedOrOrderedTypeIds } from "../fleet/typeTable";
 import { useUi } from "../store";
 import { bridge, useSim } from "../sim/useSim";
 import { AirportField } from "./AirportField";
@@ -77,11 +78,15 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
     const owned = new Set((bridge.getSim?.()?.world.fleet ?? []).filter((ac) => ac.status === "active").map((ac) => ac.typeId));
     return owned.size > 0 ? bestType(x, y, d, 7, undefined, (t) => owned.has(t.id)) : null;
   };
+  // Only types the airline owns or has on order can be picked; the rest are hidden, not offered.
+  const fleetNow = useSim().fleet;
+  const ownedIds = useMemo(() => ownedOrOrderedTypeIds(fleetNow), [fleetNow]);
+  const ownedTypes = useMemo(() => aircraftTypes.filter((t) => ownedIds.has(t.id)), [ownedIds]);
   const [typeId, setTypeId] = useState(() => {
     const last = usePickerMemory.getState().last.route;
-    const lastOk = last ? types.find((o) => o.type.id === last && o.available) : undefined;
-    // Default to the most profitable type the airline already owns that can fly the pair; only when it owns none, the best type overall.
-    return lastOk?.type.id ?? ownedBest(a, b, wkDay)?.id ?? bestType(a, b, wkDay)?.id ?? types.find((t) => t.available)?.type.id ?? types[0]?.type.id ?? "";
+    const lastOk = last && ownedIds.has(last) ? types.find((o) => o.type.id === last && o.available) : undefined;
+    // Default to the most profitable type the airline already owns that can fly the pair, else the first owned type that can.
+    return lastOk?.type.id ?? ownedBest(a, b, wkDay)?.id ?? types.find((t) => t.available && ownedIds.has(t.type.id))?.type.id ?? "";
   });
   const [fareText, setFareText] = useState<Record<CabinClass, string>>(() => faresToText({ Y: mf.Y }));
   const [freq, setFreq] = useState<number>(() => {
@@ -92,8 +97,12 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
     const live = bridge.getSim?.() ?? null;
     if (live && t) {
       const fares0: Fares = { Y: mf.Y };
+      // Block hours at the origin hub cap the frequency the hub can fly; never default above it.
+      const perWk = routeHourSummary(live, originId, destinationId, t, 1).needed;
+      const fitFreq = perWk > 0 ? Math.floor(routeHourSummary(live, originId, destinationId, t, 1).free / perWk) : 0;
       let best: { f: number; profit: number; full: boolean } | null = null;
       for (const f of [3, 5, 7, 10, 14, 21, 28, 35]) {
+        if (f > fitFreq) continue;
         const pv = previewNewRoute(live, { origin: originId, destination: destinationId, weeklyFrequency: f, fares: fares0, typeId: t });
         if (!pv || !pv.figures.feasible || pv.operatedFraction <= 0) continue;
         const full = pv.operatedFraction >= 0.97;
@@ -102,6 +111,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
         if (!best || (full && !best.full) || (full === best.full && net > best.profit)) best = { f, profit: net, full };
       }
       if (best && best.profit > 0) return best.f;
+      return Math.max(1, Math.min(fitFreq, best?.f ?? fitFreq));
     }
     return bestFrequency(frequencySweep({ origin: originId, destination: destinationId, weeklyFrequency: 7, fares: { Y: mf.Y }, typeId: t }, wkDay))?.frequency ?? 7;
   });
@@ -126,12 +136,17 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const sweep = useMemo(() => (typeId ? frequencySweep(dDraft, wkDay) : []), [dDraft.origin, dDraft.destination, dDraft.typeId, dDraft.fares, wkDay, typeId]); // eslint-disable-line react-hooks/exhaustive-deps
   const best = useMemo(() => bestFrequency(sweep), [sweep]);
   const selectedType = aircraftTypes.find((t) => t.id === typeId);
-  const issue = typeId ? validateRouteDraft(draft, routes, undefined, undefined, wkDay) : { code: "no_type", message: "No aircraft type in the database can fly this pair." };
+  const issue = typeId ? validateRouteDraft(draft, routes, undefined, undefined, wkDay) : { code: "no_type", message: "No type you own or have on order can fly this pair." };
+  // Block-hour pool of the origin hub for the chosen type and frequency (live figures).
+  const hours = sim && typeId ? routeHourSummary(sim, originId, destinationId, typeId, freq) : null;
+  const hoursShort = !!hours && hours.needed > hours.free + 1e-9;
+  const [openError, setOpenError] = useState<string | null>(null);
+  useEffect(() => { setOpenError(null); }, [freq, typeId]);
 
   const open = () => {
     if (!parsed) { push("alert", "Economy fare is required; other cabins must be positive numbers or blank."); return; }
     const res = bridge.dispatch({ kind: "openRoute", route: draft });
-    if (res && !res.ok) { push("alert", res.error.message); return; }
+    if (res && !res.ok) { setOpenError(res.error.message); push("alert", res.error.message); return; }
     const r: Route | undefined = bridge.getState().routes.find((x) => x.origin === originId && x.destination === destinationId);
     push("good", `Opened ${routeName(draft)}: ${freq}/wk with ${typeId}.`);
     if (res && res.ok && res.warnings && res.warnings.length > 0) push("alert", res.warnings.join(" "));
@@ -161,11 +176,13 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
 
       <section className="rp-sec" aria-labelledby="rp-plan">
         <h3 id="rp-plan">Plan</h3>
-        {types.length === 0 ? (
+        {ownedTypes.length === 0 ? (
+          <p className="rp-err" role="alert">You own no aircraft and have none on order. Order an aircraft type first.</p>
+        ) : types.length === 0 ? (
           <p className="rp-err" role="alert">No aircraft in the database can fly this pair (range, runway or overwater limit).</p>
         ) : (
           <div className="rp-field">
-            <AircraftPicker label="Aircraft type" value={typeId} onChange={setTypeId} year={year.year} types={aircraftTypes}
+            <AircraftPicker label="Aircraft type" value={typeId} onChange={setTypeId} year={year.year} types={ownedTypes}
               block={(t) => routeBlock(t, a, b, year.year)} memoryKey="route" />
             <div className="af-sub">{types.filter((t) => t.available).length} of {aircraftTypes.length} types can fly this pair now.</div>
             {selectedType && (
@@ -177,6 +194,13 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
           </div>
         )}
         <FrequencyField value={freq} onChange={setFreq} />
+        {hours && (
+          <div className="rp-hours" aria-live="polite">
+            <div>Needs <b>{hours.needed.toFixed(1)}</b> block h / wk at {originId} for {freq}/wk on {typeId}.</div>
+            <div>Free at {originId} for {typeId}: <b className={hoursShort ? "neg" : undefined}>{Math.max(0, hours.free).toFixed(1)}</b> ({hours.available.toFixed(1)} available, {hours.used.toFixed(1)} used).</div>
+            {hoursShort && <p className="rp-err" role="alert">Not enough block hours at {originId}: lower the frequency, order another {selectedType?.name ?? typeId}, or base one at {originId}.</p>}
+          </div>
+        )}
         <FareFields text={fareText} onChange={setFareText} km={market.distanceKm} from={a} to={b} />
       </section>
 
@@ -201,6 +225,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
       </section>
 
       {issue && issue.code !== "duplicate_route" && <p className="rp-err" role="alert">{issue.message}</p>}
+      {openError && <p className="rp-err" role="alert">{openError}</p>}
       <div className="rp-sticky">
         <button type="button" onClick={() => end()}>Cancel</button>
         <button type="button" className="primary" disabled={!typeId || !parsed} onClick={open}>Open route</button>

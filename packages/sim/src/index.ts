@@ -42,6 +42,7 @@ export * from "./route/liveModel";
 export { fleetGroups, averageSeats, evaluateWithFleet } from "./route/routeModel";
 export type { FleetGroup } from "./route/routeModel";
 export * from "./commands";
+export * from "./fleet/hubs";
 export * from "./scenario";
 export * from "./offers";
 export * from "./cabin";
