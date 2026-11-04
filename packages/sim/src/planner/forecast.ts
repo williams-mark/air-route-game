@@ -1,3 +1,4 @@
+import { homeHubOf } from "../fleet/hubs";
 import type { Aircraft, Day, Id } from "@arg/contracts";
 import { checksCoveredBy, dueCheck, MAINTENANCE_PARAMS, maintenanceEnabled } from "../fleet/maintenance";
 import { assign, type AssignPrefs } from "../fleet/scheduler";
@@ -9,6 +10,7 @@ export function simContext(state: SimState) {
   return {
     airports: new Map(state.airports.map((a) => [a.id, a])),
     types: new Map(state.aircraftTypes.map((t) => [t.id, t])),
+    homeHub: homeHubOf(state),
   };
 }
 

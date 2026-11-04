@@ -5,7 +5,8 @@ import { createBridge } from "./create";
 import { monthly } from "./finance";
 
 const make = (o: ConstructorParameters<typeof RealSimBridge>[0] = {}) => new RealSimBridge({ startPaused: true, ...o });
-const draft = { origin: "SFO", destination: "SAN", weeklyFrequency: 7, fares: { Y: 110 }, typeId: "B737-800" };
+// Origin LAX: the fleet is LAX-based, so the block-hour pool at LAX covers it (an SFO origin would be refused).
+const draft = { origin: "LAX", destination: "SEA", weeklyFrequency: 1, fares: { Y: 110 }, typeId: "B737-800" };
 
 describe("RealSimBridge", () => {
   it("starts with the four-route scenario and 150M cash", () => {

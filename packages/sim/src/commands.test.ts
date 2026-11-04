@@ -62,10 +62,9 @@ describe("openRoute", () => {
     const empty = newSim(1, airports, aircraftTypes);
     const r0 = applyCommand(empty, { kind: "openRoute", route: spec("LAX", "SJC", "B737-800") }).result;
     expect(r0.ok === false && r0.error).toBe("no_suitable_aircraft");
-    // The starting fleet has an A320 but we ask for a 737-900ER: substitute allowed, with a warning.
+    // The starting fleet has an A320 but no 737-900ER: no block hours of that type at LAX, so no substitution (refused).
     const r1 = applyCommand(sc(), { kind: "openRoute", route: spec("LAX", "SJC", "B737-900ER", 7, 90) }).result;
-    expect(r1.ok).toBe(true);
-    if (r1.ok) expect(r1.warnings[0]).toMatch(/substitute/);
+    expect(r1).toMatchObject({ ok: false, error: "insufficient_block_hours" });
   });
 });
 

@@ -2,6 +2,7 @@
 // with a versioned wrapper; `extras` carries opaque UI-side data (feed, ledger, pending decisions) that the app restores.
 import { airports as dataAirports } from "@arg/data";
 import type { SimState } from "./state";
+import { stampAircraftHubs } from "./fleet/hubs";
 
 /**
  * Save format history. 1: the California/Hawaii/Oregon/Washington game (airports without country and landmass, five West Coast
@@ -56,8 +57,9 @@ export function parseSave<X = unknown>(text: string): ParseResult<X> {
   if (problems.length > 0) {
     return { ok: false, code: "corrupt", message: `This save file is damaged or incomplete (${problems[0]}${problems.length > 1 ? `; ${problems.length - 1} more problem${problems.length > 2 ? "s" : ""}` : ""}).` };
   }
-  if (f.version < SAVE_VERSION) return { ok: true, save: { ...(f as SaveFile<X>), version: SAVE_VERSION, state: migrateV1(f.state as SimState) } };
-  return { ok: true, save: f as SaveFile<X> };
+  // Aircraft without a hubId (saves before hubs) are stamped with the home hub. No version bump: the field is optional.
+  if (f.version < SAVE_VERSION) return { ok: true, save: { ...(f as SaveFile<X>), version: SAVE_VERSION, state: stampAircraftHubs(migrateV1(f.state as SimState)) } };
+  return { ok: true, save: { ...(f as SaveFile<X>), state: stampAircraftHubs(f.state as SimState) } };
 }
 
 /**

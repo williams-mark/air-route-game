@@ -91,6 +91,13 @@ Other notes:
 - Toasts overlap page headers on non-map views; Finance cash chart y-axis labels may clip.
 - Decision cards expire after 45 days.
 
+## Fleet hubs lane (lane/fleet-sim, sim only)
+- Block-hour pools per hub and type (`packages/sim/src/fleet/hubs.ts`): `hubBlockHours`, `routeHourSummary` (live figures for the UI), `blockHoursPerFrequency`, `stampAircraftHubs`.
+- `Aircraft.hubId` and `WorldState.homeHub` are optional. Absent means the home hub (`baseAirport`, else LAX). Scheduler: an aircraft flies only routes that touch its hub (origin or destination); no cross-hub substitution.
+- `openRoute` and `updateRoute` refuse with `insufficient_block_hours` (needed vs free shown) when the origin hub's pool is short. The check is skipped when `notionalFleet` is on (sandbox). Pools count active aircraft only, so a route on a type still on order is refused until delivery.
+- `setAircraftHub` command. Saves: no SAVE_VERSION bump (fields optional; load stamps `hubId` on every aircraft).
+- Test fixtures that opened routes with no hub-based aircraft now add one (`testing/basedAircraft.ts`). Routes with no hub-based aircraft are underSupplied, not substituted. App UI for hubs is not built.
+
 ## Offers lane notes
 - Ownership cost scales by net price / list (`ownershipFactor`) for offer orders and, since lane/qa-save, for ordinary orders too (volume discount 8-40% now lowers daily cost).
 - Used/distressed aircraft arrive with age and hours but their check clocks start fresh.

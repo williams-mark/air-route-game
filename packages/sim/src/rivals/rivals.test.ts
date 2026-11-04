@@ -10,6 +10,7 @@ import { simulateRouteWeek } from "../route/routeModel";
 import { startingScenario } from "../scenario";
 import type { SimState } from "../state";
 import { AIRCRAFT_TYPES, AIRPORTS } from "../testing/fixtures";
+import { withBasedAircraft } from "../testing/basedAircraft";
 import { ARCHETYPES, SCHEDULED_ENTRANTS, STARTING_RIVALS } from "./config";
 import { createRivals, rivalItinerariesFor, canServe } from "./index";
 import { rivalIndustry, rivalNews, rivalReports } from "./reports";
@@ -166,7 +167,8 @@ describe("rivals: memory and retaliation", () => {
   });
 
   it("a player entering a rival's market is an entry; its scale decides whether anyone cares", () => {
-    let s = runDays(scenario(22), 30);
+    // 21 a week needs about 90 block hours a week from SFO: two 737-800s based there.
+    let s = runDays(withBasedAircraft(withBasedAircraft(scenario(22), "B737-800", "SFO"), "B737-800", "SFO"), 30);
     const open = applyCommand(s, {
       kind: "openRoute",
       route: { origin: "SFO", destination: "SAN", weeklyFrequency: 21, fares: { Y: 80 }, typeId: "B737-800" },

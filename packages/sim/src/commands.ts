@@ -6,6 +6,7 @@ import { isRangeFeasible } from "./finance/ledger";
 import { defaultLayout, validateLayout } from "./fleet/layout";
 import { initialMeta } from "./fleet/maintenance";
 import { typeCanServe } from "./fleet/scheduler";
+import { routeHourSummary } from "./fleet/hubs";
 import { makeRng, mixSeed } from "./rng";
 import type { AircraftOrder, SimState } from "./state";
 import { dayToDate, START_YEAR, isLeapYear } from "./time/calendar";
@@ -63,7 +64,8 @@ export type CommandErrorCode =
   | "offer_expired"
   | "unknown_aircraft"
   | "aircraft_unavailable"
-  | "no_change";
+  | "no_change"
+  | "insufficient_block_hours";
 
 export interface CommandError {
   ok: false;
@@ -76,6 +78,7 @@ export interface CommandResultMap {
   openRoute: { ok: true; kind: "openRoute"; routeId: Id; route: Route; warnings: string[] };
   updateRoute: { ok: true; kind: "updateRoute"; routeId: Id; route: Route; warnings: string[] };
   closeRoute: { ok: true; kind: "closeRoute"; routeId: Id };
+  setAircraftHub: { ok: true; kind: "setAircraftHub"; aircraftId: Id; hubId: Id };
   orderAircraft: {
     ok: true;
     kind: "orderAircraft";
@@ -88,7 +91,10 @@ export interface CommandResultMap {
   };
 }
 
-export type AnyCommand = Command | OfferCommand | CabinCommand | PlannerCommand;
+/** Assign an active aircraft to a base hub (fleet/hubs.ts). Routes it flies must start at that hub. */
+export type HubCommand = { kind: "setAircraftHub"; aircraftId: Id; hubId: Id };
+
+export type AnyCommand = Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand;
 type OfferOk = Exclude<OfferResult, CommandError>;
 type FullResultMap = CommandResultMap & { acceptOffer: Extract<OfferOk, { kind: "acceptOffer" }>; dismissOffer: Extract<OfferOk, { kind: "dismissOffer" }>; refitAircraft: Extract<RefitResult, { ok: true }> }
   & { [K in PlannerCommand["kind"]]: Extract<PlannerOk, { kind: K }> };
@@ -186,6 +192,16 @@ function validateRoute(state: SimState, spec: RouteSpec, selfId: Id | null, chec
   const blocked = routeFeasibilityError(a, b, type, state.world.day);
   if (blocked) return fail(blocked.code, blocked.message);
   const dist = distanceKm(a, b);
+  // Block-hour pool of the origin hub for this type (not checked while the notional fleet can fly unowned types).
+  if (!state.params.notionalFleet) {
+    const h = routeHourSummary(state, a.id, b.id, type.id, spec.weeklyFrequency, selfId ?? undefined);
+    if (h.needed > h.free + 1e-9) {
+      return fail(
+        "insufficient_block_hours",
+        `${a.id}-${b.id} at ${spec.weeklyFrequency}/wk on the ${type.name} needs ${h.needed.toFixed(1)} block hours a week from ${a.id}; ${Math.max(0, h.free).toFixed(1)} are free there (${h.available.toFixed(1)} available, ${h.used.toFixed(1)} used).`,
+      );
+    }
+  }
 
   const warnings: string[] = [];
   if (checkFleet) {
@@ -373,5 +389,16 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
     }
     case "orderAircraft":
       return doOrder(state, cmd);
+    case "setAircraftHub": {
+      const ac = state.world.fleet.find((x) => x.id === cmd.aircraftId);
+      if (!ac) return { state, result: fail("unknown_aircraft", `No aircraft "${cmd.aircraftId}".`) };
+      if (ac.status !== "active") return { state, result: fail("aircraft_unavailable", `${ac.tailNumber} is ${ac.status}; only active aircraft can be based at a hub.`) };
+      if (!state.airports.some((x) => x.id === cmd.hubId)) return { state, result: fail("unknown_airport", `Unknown hub airport "${cmd.hubId}".`) };
+      const fleet = state.world.fleet.map((x) => (x.id === ac.id ? { ...x, hubId: cmd.hubId } : x));
+      return {
+        state: pushEvents({ ...state, world: { ...state.world, fleet } }, [notice(state, `${ac.tailNumber} now based at ${cmd.hubId}.`)]),
+        result: { ok: true, kind: "setAircraftHub", aircraftId: ac.id, hubId: cmd.hubId },
+      };
+    }
   }
 }

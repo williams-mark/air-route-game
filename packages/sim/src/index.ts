@@ -6,7 +6,8 @@ import { simulateRouteWeek } from "./route/routeModel";
 import { evaluateLiveRoutes } from "./route/liveModel";
 import { makeRng, mixSeed } from "./rng";
 import { checkCostUsd, checkEndDay, dueCheck, initialMeta, MAINTENANCE_PARAMS, maintenanceEnabled, resetAfterCheck } from "./fleet/maintenance";
-import { assign } from "./fleet/scheduler";
+import { assign, DEFAULT_HOME_HUB } from "./fleet/scheduler";
+import { homeHubOf } from "./fleet/hubs";
 import { plannerPrefs } from "./planner/forecast";
 import { evaluateNetwork } from "./route/network";
 import { pushEvents } from "./commands";
@@ -75,8 +76,10 @@ export function newSim(
   const world = newWorld(seed);
   if (start.cash !== undefined) world.cash = start.cash;
   if (start.day !== undefined) world.day = start.day;
-  world.fleet = (start.fleet ?? []).map((ac) => ({ ...ac, layout: ac.layout, hoursSinceCheck: { ...ac.hoursSinceCheck } }));
+  const home = start.baseAirport ?? DEFAULT_HOME_HUB;
+  world.fleet = (start.fleet ?? []).map((ac) => ({ ...ac, layout: ac.layout, hoursSinceCheck: { ...ac.hoursSinceCheck }, hubId: ac.hubId ?? home }));
   world.routes = (start.routes ?? []).map((r) => ({ ...r, fares: { ...r.fares } }));
+  if (start.baseAirport) world.homeHub = start.baseAirport;
   const rng = makeRng(mixSeed(seed, 0x5eed));
   const fleetMeta: Record<Id, AircraftMeta> = {};
   for (const ac of world.fleet) fleetMeta[ac.id] = initialMeta(ac, rng);
@@ -125,7 +128,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   const rng = makeRng(mixSeed(world.seed, day));
   const notices: SimEvent[] = [];
   const say = (text: string) => notices.push({ kind: "notice", day, text });
-  const ctx = { airports, types, prefs: plannerPrefs(state, day) };
+  const ctx = { airports, types, prefs: plannerPrefs(state, day), homeHub: homeHubOf(state) };
 
   // Work on private copies so the input state is never modified.
   const fleet: Aircraft[] = world.fleet.map((ac) => ({ ...ac, hoursSinceCheck: { ...ac.hoursSinceCheck } }));
@@ -207,7 +210,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
 
   // 4. Schedule the active fleet onto routes and simulate every route (with hub connecting traffic): the shared live model.
   const live = evaluateLiveRoutes({
-    routes: world.routes, fleet, airports, types, day, notionalFleet: params.notionalFleet, rivals: state.rivals, prefs: ctx.prefs,
+    routes: world.routes, fleet, airports, types, day, notionalFleet: params.notionalFleet, rivals: state.rivals, prefs: ctx.prefs, homeHub: ctx.homeHub,
     noise: () => 1 + (rng() - 0.5) * params.demandNoise,
   });
   const { schedule, reports } = live;
