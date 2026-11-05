@@ -217,7 +217,10 @@ export class MockSimBridge implements SimBridge {
       case "updateRoute": {
         const cur = this.routes.find((r) => r.id === cmd.id);
         if (!cur) return { ok: false, error: { code: "unknown_route", message: "That route no longer exists." } };
-        const next: Route = { ...cur, ...cmd.patch, id: cur.id };
+        const { targetLoadFactor: target, ...rest } = cmd.patch;
+        const next: Route = { ...cur, ...rest, id: cur.id };
+        if (target === null) delete next.targetLoadFactor;
+        else if (target !== undefined) next.targetLoadFactor = target;
         const err = validateRouteDraft(next, this.routes, undefined, cur.id, this.world.day);
         if (err) return { ok: false, error: err };
         this.routes = this.routes.map((r) => (r.id === cur.id ? next : r));

@@ -30,7 +30,7 @@ export * from "./time/calendar";
 export { distanceKm, haversineKm } from "./geo";
 export {
   simulateRouteWeek, routeAircraftNeed, cabinsFor, DEFAULT_ROUTE_MODEL_CONFIG, ROUTE_CHOICE_PARAMS,
-  evaluateHubConnection, networkContribution,
+  evaluateHubConnection, networkContribution, fareScaleForTargetLoadFactor, scaleFares, TARGET_LOAD_FACTOR_RANGE,
 } from "./route/routeModel";
 export type {
   RouteWeek, RouteModelConfig, RouteWeekOptions, HubConnection, HubConnectionInput, NetworkContribution,
@@ -121,7 +121,8 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   if (!isSimState(state)) return { ...state, day: state.day + 1 };
 
   state = closeRoutesAtClosedAirports(state);
-  const { world, params } = state;
+  let { world } = state;
+  const { params } = state;
   const day = world.day;
   const maint = maintenanceEnabled();
   const airports = new Map(state.airports.map((a) => [a.id, a]));
@@ -213,8 +214,13 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   const live = evaluateLiveRoutes({
     routes: world.routes, fleet, airports, types, day, notionalFleet: params.notionalFleet, rivals: state.rivals, prefs: ctx.prefs, homeHub: ctx.homeHub,
     noise: () => 1 + (rng() - 0.5) * params.demandNoise,
+    // Weekly step: routes with a target load factor are re-priced before they are simulated (see liveModel).
+    solveFares: day % 7 === 0,
   });
   const { schedule, reports } = live;
+  if (Object.keys(live.solvedFares).length > 0) {
+    world = { ...world, routes: world.routes.map((r) => (live.solvedFares[r.id] ? { ...r, fares: live.solvedFares[r.id]! } : r)) };
+  }
   const revenue = live.revenue;
   const routeCosts = live.routeCosts;
   for (const route of world.routes) {

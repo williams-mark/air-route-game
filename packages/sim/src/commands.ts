@@ -3,6 +3,7 @@ import { canFlyOverwater, isOverwaterRoute } from "@arg/data";
 import { distanceKm, simRunwayM } from "./geo";
 import { airportOpen, closureOf, dayLabel } from "./world/closures";
 import { isRangeFeasible } from "./finance/ledger";
+import { TARGET_LOAD_FACTOR_RANGE } from "./route/routeModel";
 import { defaultLayout, validateLayout } from "./fleet/layout";
 import { initialMeta } from "./fleet/maintenance";
 import { typeCanServe } from "./fleet/scheduler";
@@ -49,6 +50,7 @@ export type CommandErrorCode =
   | "unknown_type"
   | "invalid_frequency"
   | "invalid_fare"
+  | "invalid_target_load_factor"
   | "out_of_range"
   | "runway_too_short"
   | "overwater_limit"
@@ -366,8 +368,14 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
     case "updateRoute": {
       const cur = state.world.routes.find((r) => r.id === cmd.id);
       if (!cur) return { state, result: fail("unknown_route", `No route with id "${cmd.id}".`) };
-      const { id: _ignored, ...patch } = cmd.patch as Partial<Route>;
-      const merged: Route = { ...cur, ...patch, id: cur.id };
+      const { id: _ignored, targetLoadFactor: target, ...patch } = cmd.patch as typeof cmd.patch & { id?: Id };
+      const { min, max } = TARGET_LOAD_FACTOR_RANGE;
+      if (target !== undefined && target !== null && !(Number.isFinite(target) && target >= min && target <= max)) {
+        return { state, result: fail("invalid_target_load_factor", `Target load factor must be between ${min} and ${max}.`) };
+      }
+      const merged: Route = { ...cur, ...(patch as Partial<Route>), id: cur.id };
+      if (target === null) delete merged.targetLoadFactor;
+      else if (target !== undefined) merged.targetLoadFactor = target;
       const pairOrTypeChanged = merged.origin !== cur.origin || merged.destination !== cur.destination || merged.typeId !== cur.typeId;
       const v = validateRoute(state, merged, cur.id, pairOrTypeChanged);
       if ("ok" in v) return { state, result: v };

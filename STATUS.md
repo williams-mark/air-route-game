@@ -2,6 +2,11 @@
 - Route inspector banner: `typeOwnership` / `ownershipReason` (routes/helpers.ts, tested) count owned, free and on-route aircraft from the fleet. "You own no X" only when none is owned; otherwise "your N X are all flying other routes" or the free count.
 - Fleet view is the type table only: cards and sort bar removed (fleetSort.ts deleted). Each aircraft row in the expansion has "Move to hub" and "Cabin" (opens the cabin/refit dialog, same as before).
 - Notifications: only aircraft deliveries raise a card (`sim/decisions.ts`). Rival fare-cut, low-load and heavy-check cards were removed by owner request (fareCut.ts deleted). No delivery or notice pauses the clock; the dock no longer auto-opens or auto-expands. The Settings "Auto-pause on events" switch is kept but currently has no trigger.
+## lane/lf-sim (target load factor per route)
+- `Route.targetLoadFactor?` (0.5..0.95). Weekly step (day % 7 === 0) re-prices routes with a target: `fareScaleForTargetLoadFactor` (bisection, 30 steps, 0.4x..2.5x of the current fares) through the same week evaluation as the live report; all fare classes scale together. Fares written back to `route.fares`; routes without a target are untouched.
+- `updateRoute` patch takes `targetLoadFactor` number or null (clears); out of range returns `invalid_target_load_factor`.
+- Tests: `route/fareSolver.test.ts` (7). Gate: typecheck green; sim 301 (293 excl. qa + 8 qa), app 149, data 23; build green.
+- Note: load factor falls as economy fares rise, so a higher target lowers fares (the spec's "fare rises when target is raised" was not implemented).
 
 ## lane/fleet-app (fleet type table, route block hours)
 - Fleet view: type table (in service, on order, free block h/wk, used/available h, Order button per type), hub filter, inline expansion to aircraft with a per-aircraft "Move to hub" select (dispatches setAircraftHub). Card list and sort bar kept below.

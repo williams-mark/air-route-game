@@ -80,6 +80,8 @@ export interface Route {
   weeklyFrequency: number;
   fares: Fares;
   typeId: Id; // aircraft type the scheduler should plan with
+  /** Target load factor (0.5..0.95). When set, the sim re-prices economy and premium fares weekly to steer toward it. */
+  targetLoadFactor?: number;
 }
 
 export interface MarketSnapshot {
@@ -115,7 +117,7 @@ export interface WorldState {
 export type Command =
   | { kind: "setSpeed"; speed: 0 | 1 | 2 | 3 | 4 | 5 }
   | { kind: "openRoute"; route: Omit<Route, "id"> }
-  | { kind: "updateRoute"; id: Id; patch: Partial<Omit<Route, "id">> }
+  | { kind: "updateRoute"; id: Id; patch: Partial<Omit<Route, "id" | "targetLoadFactor">> & { targetLoadFactor?: number | null } }
   | { kind: "closeRoute"; id: Id }
   | { kind: "orderAircraft"; typeId: Id; count: number; layout: CabinLayout };
 
