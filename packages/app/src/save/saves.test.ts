@@ -103,10 +103,11 @@ describe("damaged saves never break the running game", () => {
     source.stepDays(5);
     const save = source.serialize();
     const before = target.getState();
-    (target as any).refreshDeliveryDays = () => { throw new Error("boom"); };
+    // Fail inside initialisation (reset) on the instance; the instance property is removed again below.
+    (target as any).reset = () => { throw new Error("boom"); };
     expect(loadText(target, stringifySave(save)).ok).toBe(false);
     expect(target.getState()).toBe(before);
-    (target as any).refreshDeliveryDays = RealSimBridge.prototype["refreshDeliveryDays" as never];
+    delete (target as any).reset;
     expect(() => target.stepDays(3)).not.toThrow();
     expect(target.getState().day).toBe(8);
   });
@@ -122,17 +123,11 @@ describe("damaged saves never break the running game", () => {
 });
 
 describe("rival fare-cut decision cards", () => {
-  it("offers match / partial / hold and dispatches updateRoute through decide()", () => {
+  // The fare-cut cards were removed by owner request: rivals no longer raise a card, so the old match/partial/hold flow is gone.
+  it("raises no fare-cut card in a game where rivals cut fares", () => {
     const b = mk();
     b.stepDays(40);
-    const card = b.getState().decisions.find((d) => /cut .* fares/.test(d.title));
-    expect(card).toBeTruthy();
-    expect(card!.options.map((o) => o.id)).toEqual(["match", "partial", "hold"]);
-    const route = b.getState().routes.find((r) => card!.id.startsWith(`rivalcut-${r.id}@`))!;
-    expect(route).toBeTruthy();
-    b.decide(card!.id, "match");
-    const after = b.getState().routes.find((r) => r.id === route.id)!;
-    expect(after.fares.Y).toBeLessThan(route.fares.Y);
-    expect(b.getState().decisions.find((d) => d.id === card!.id)).toBeUndefined();
+    expect(b.getState().decisions.find((d) => /cut .* fares/.test(d.title))).toBeUndefined();
+    expect(b.getState().decisions.some((d) => d.id.startsWith("rivalcut-"))).toBe(false);
   });
 });

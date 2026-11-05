@@ -36,14 +36,15 @@ describe("MockSimBridge", () => {
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
-  it("releases the second decision on day 3 and resolves decisions", () => {
+  it("releases the sample offer decision on day 3 and resolves it", () => {
+    // The mock's competitor fare-cut card was removed by owner request (fare-cut cards no longer exist), so only the offer card remains.
     const b = new MockSimBridge();
-    expect(b.getState().decisions.map((d) => d.id)).toEqual(["kestrel-fares"]);
+    expect(b.getState().decisions).toEqual([]);
     b.setSpeed(3);
     b.advance(1000);
-    expect(b.getState().decisions).toHaveLength(2);
-    b.decide("kestrel-fares", "hold");
     expect(b.getState().decisions.map((d) => d.id)).toEqual(["launch-discount"]);
+    b.decide("launch-discount", "order2");
+    expect(b.getState().decisions).toEqual([]);
   });
 
   it("tracks a 30-day profit window", () => {

@@ -75,6 +75,31 @@ export function substitutionText(requested: string, mix: readonly OperatingType[
   return `Planned ${requested}, flown by ${parts.join(" and ")}`;
 }
 
+/** Fleet counts for one type: owned = in the fleet (not on order, not stored); free = owned and flying no route; onRoute = owned and flying the given route. */
+export interface TypeOwnership { owned: number; free: number; onRoute: number }
+
+export function typeOwnership(fleet: ReadonlyArray<{ typeId: string; status: string; routes: readonly string[] }>, typeId: string, routeId?: string): TypeOwnership {
+  const o: TypeOwnership = { owned: 0, free: 0, onRoute: 0 };
+  for (const a of fleet) {
+    if (a.typeId !== typeId || a.status === "delivery" || a.status === "stored") continue;
+    o.owned++;
+    if (a.routes.length === 0) o.free++;
+    if (routeId !== undefined && a.routes.includes(routeId)) o.onRoute++;
+  }
+  return o;
+}
+
+/** Why the scheduler substitutes for `typeId`. "No X" only when none is owned; busy or not-free aircraft are counted, never called missing. */
+export function ownershipReason(typeId: string, o: TypeOwnership): string {
+  if (o.owned === 0) return `You own no ${typeId}`;
+  if (o.free === 0) {
+    if (o.onRoute === 0) return `your ${o.owned} ${typeId} are all flying other routes`;
+    if (o.onRoute === o.owned) return `all ${o.owned} of your ${typeId} already fly this route`;
+    return `${o.onRoute} of your ${o.owned} ${typeId} fly this route and the rest fly other routes`;
+  }
+  return `${o.free} of your ${o.owned} ${typeId} are free, but the scheduler is still substituting`;
+}
+
 // --- Frequency sweep -------------------------------------------------------
 
 export interface SweepPoint {

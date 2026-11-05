@@ -7,7 +7,6 @@ import { useOffersUi } from "../offers/store";
 import { closesIn, KIND_BADGE } from "../offers/format";
 import { IconAlert, IconBell, IconChevron, IconGood, IconInfo, IconTag, IconWarn } from "../shell/icons";
 import { clampPos, cornerPos, sortDecisions, unresolvedCount, visibleNotices, type Corner, type Pt, type Rect, type Size } from "./dockLogic";
-import { usePlanner } from "../planner/store";
 import { useDock } from "./dockStore";
 import "./dock.css";
 import "../offers/offers.css";
@@ -69,7 +68,7 @@ export function NotificationDock() {
   const dock = useDock();
   const collapsed = useDockCollapsed();
   const onMap = view === "map";
-  const [open, setOpen] = useState<string | null>(() => (bridge.getState().decisions[0] ? `d:${bridge.getState().decisions[0]!.id}` : null));
+  const [open, setOpen] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ w: 0, h: 0 });
   const [tick, setTick] = useState(0);
@@ -79,13 +78,6 @@ export function NotificationDock() {
   const notices = visibleNotices(sim.notices, dock.clearedUpTo, 10);
   const count = unresolvedCount(sim.decisions.length, unseenOffers.length);
 
-  // Newest decision opens by itself, and the dock opens on the map so it is not missed while the game is paused.
-  const knownDecisions = useRef(new Set(sim.decisions.map((d) => d.id)));
-  useEffect(() => {
-    let fresh: string | null = null;
-    for (const d of sim.decisions) if (!knownDecisions.current.has(d.id)) { knownDecisions.current.add(d.id); fresh = d.id; }
-    if (fresh) { setOpen(`d:${fresh}`); if (useUi.getState().view === "map" && useDock.getState().minimized) useDock.getState().setMinimized(false); }
-  }, [sim.decisions]);
   useEffect(() => { if (!onMap) useDock.getState().setPeek(false); }, [view, onMap]);
 
   useLayoutEffect(() => {
@@ -183,9 +175,6 @@ export function NotificationDock() {
                   </div>
                   {d.routeId && bridge.getState().routes.some((r) => r.id === d.routeId) && (
                     <button type="button" className="link-btn" onClick={() => { setView("routes"); select({ kind: "route", id: d.routeId! }); }}>Show this route in Routes</button>
-                  )}
-                  {d.aircraftId && (
-                    <button type="button" className="link-btn" onClick={() => { usePlanner.getState().focus(d.aircraftId!); setView("planner"); }}>Plan cover in the planner</button>
                   )}
                   <button type="button" className="link-btn" onClick={() => { snooze(d.id); setOpen(null); }}>Decide later</button>
                 </div>

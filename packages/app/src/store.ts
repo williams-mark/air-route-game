@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import type { CameraPresetId, Theme } from "./map/types";
-import type { FleetSortKey, SortDir } from "./views/fleetSort";
 import { startScreenWanted } from "./save/saves";
 
 export type Selection = { kind: "route" | "airport"; id: string } | null;
@@ -26,7 +25,6 @@ interface UiState {
   /** Decision ids the player chose to decide later (hidden until reopened). */
   snoozed: string[];
   /** Fleet view sort (per session). */
-  fleetSort: { key: FleetSortKey; dir: SortDir };
   setTheme: (t: Theme) => void;
   setView: (v: ViewId) => void;
   select: (s: Selection) => void;
@@ -40,7 +38,6 @@ interface UiState {
   selectRival: (id: string | null) => void;
   setHelp: (v: boolean) => void;
   setFeedOpen: (v: boolean) => void;
-  setFleetSort: (key: FleetSortKey, dir?: SortDir) => void;
   snooze: (id: string) => void;
   unsnoozeAll: () => void;
 }
@@ -88,7 +85,6 @@ export const useUi = create<UiState>((set) => ({
   helpOpen: false,
   feedOpen: true,
   snoozed: [],
-  fleetSort: { key: "default", dir: "asc" },
   setTheme: (t) => { applyTheme(t); write("arg-theme", t); set({ theme: t }); },
   setView: (view) => { document.documentElement.dataset.view = view; set({ view }); },
   select: (selection) => set({ selection }),
@@ -102,7 +98,6 @@ export const useUi = create<UiState>((set) => ({
   selectRival: (selectedRival) => set({ selectedRival }),
   setHelp: (helpOpen) => set({ helpOpen }),
   setFeedOpen: (feedOpen) => set({ feedOpen }),
-  setFleetSort: (key, dir) => set((s) => ({ fleetSort: { key, dir: dir ?? (s.fleetSort.key === key ? (s.fleetSort.dir === "asc" ? "desc" : "asc") : "asc") } })),
   snooze: (id) => set((s) => (s.snoozed.includes(id) ? s : { snoozed: [...s.snoozed, id] })),
   unsnoozeAll: () => set({ snoozed: [] }),
 }));

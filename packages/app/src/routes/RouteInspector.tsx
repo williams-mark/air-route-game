@@ -7,7 +7,7 @@ import { bridge, useSim } from "../sim/useSim";
 import { IconAlert } from "../shell/icons";
 import { MonthBars } from "./charts";
 import { FareFields, FrequencyField, Stat, useDebounced } from "./editor";
-import { CABINS, CABIN_NAME, FREQ_MAX, faresToText, liveSeasonal, livePreview, operatingMix, parseFares, profitTier, projectRoute, routeName, seasonalProfit, substitutionText } from "./helpers";
+import { CABINS, CABIN_NAME, FREQ_MAX, faresToText, liveSeasonal, livePreview, operatingMix, parseFares, ownershipReason, profitTier, projectRoute, routeName, seasonalProfit, substitutionText, typeOwnership } from "./helpers";
 import { pct, usd, usdSigned } from "./fmt";
 import { useToasts } from "./store";
 import { RouteAircraft } from "./RouteAircraft";
@@ -58,7 +58,7 @@ export function RouteInspector({ route }: { route: Route }) {
   const months = useMemo(() => liveSeasonal(sim, route.id, wkDay) ?? seasonalProfit(route, wkDay), [route, wkDay, live]); // eslint-disable-line react-hooks/exhaustive-deps
   const mix = useMemo(() => operatingMix(sched, fleet), [sched, fleet]);
   const substituted = substitutionText(route.typeId, mix);
-  const ownedOfType = fleet.some((f) => f.typeId === route.typeId && f.status !== "delivery" && f.status !== "stored");
+  const ownership = typeOwnership(fleet, route.typeId, route.id);
   const stand = fleet.find((f) => f.status === "active" && f.typeId !== route.typeId);
 
   const parsed = parseFares(fares);
@@ -119,12 +119,12 @@ export function RouteInspector({ route }: { route: Route }) {
           <Stat label="Break-even load" value={ev.breakEvenLoadFactor === null ? "n/a" : pct(ev.breakEvenLoadFactor)} sub={ev.breakEvenLoadFactor !== null && ev.loadFactor > ev.breakEvenLoadFactor ? "Above break-even" : "Below break-even"} />
           <Stat label="Market share" value={pct(week.snapshot.playerShare)} sub={`of ${Math.round(week.snapshot.weeklyDemand).toLocaleString()} potential pax/wk`} />
         </section>
-        {(substituted || (!report && !ownedOfType && route.typeId)) && (
+        {(substituted || (!report && ownership.owned === 0 && route.typeId)) && (
           <div className="rp-alert" role="status"><IconAlert size={16} /><div>
             <b>{substituted ?? `Planned ${route.typeId}, no ${route.typeId} in your fleet yet`}</b>
             <ul><li>
               {substituted
-                ? `You own no ${route.typeId}${ownedOfType ? " that is free" : ""}, so the scheduler is substituting. Seats, fuel, crew and fees below use the aircraft actually flying.`
+                ? `${ownershipReason(route.typeId, ownership)}, so the scheduler is substituting. Seats, fuel, crew and fees below use the aircraft actually flying.`
                 : `The scheduler will substitute ${stand ? `another aircraft such as your ${stand.typeId}` : "whatever it can find"} until you have one.`}
             </li></ul></div></div>
         )}

@@ -1,3 +1,8 @@
+## lane/fleet-fix (owner feedback)
+- Route inspector banner: `typeOwnership` / `ownershipReason` (routes/helpers.ts, tested) count owned, free and on-route aircraft from the fleet. "You own no X" only when none is owned; otherwise "your N X are all flying other routes" or the free count.
+- Fleet view is the type table only: cards and sort bar removed (fleetSort.ts deleted). Each aircraft row in the expansion has "Move to hub" and "Cabin" (opens the cabin/refit dialog, same as before).
+- Notifications: only aircraft deliveries raise a card (`sim/decisions.ts`). Rival fare-cut, low-load and heavy-check cards were removed by owner request (fareCut.ts deleted). No delivery or notice pauses the clock; the dock no longer auto-opens or auto-expands. The Settings "Auto-pause on events" switch is kept but currently has no trigger.
+
 ## lane/fleet-app (fleet type table, route block hours)
 - Fleet view: type table (in service, on order, free block h/wk, used/available h, Order button per type), hub filter, inline expansion to aircraft with a per-aircraft "Move to hub" select (dispatches setAircraftHub). Card list and sort bar kept below.
 - Route sandbox: type picker lists only owned or on-order types; block hours needed vs free at the origin hub shown live; default frequency capped to what the origin hub can fly; insufficient_block_hours shown inline.
