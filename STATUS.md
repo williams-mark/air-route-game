@@ -21,6 +21,8 @@
 
 # Build status (update at the end of every work session)
 
+Last updated: Thu 5 Nov 2026 (merged lane/save-safe, lane/hub-board). Gate green: typecheck, test (data 23, sim 301, app 156), build. e2e not re-run. B01, B05, B06, B10 verified already fixed on main.
+
 Last updated: Tue 3 Nov 2026 (lane/world-int). Gate green: install --frozen-lockfile, typecheck, test (data 23, sim 279, app 143), build, e2e 46/46 (23 checks x 2 themes). Soak `--games 8 --det 1`: 8 games x 10 y, 0 violations, cash identity exact over 29144 days, determinism replay byte-identical, 373 s total (mean 42 s/game). See "World integration lane" below.
 
 Last updated: Tue 3 Nov 2026 (lane/qa-ui). On lane/qa-ui typecheck, test (data 15, sim 197, app 97) and build pass, and the Playwright e2e passes (22 checks per theme). `main` itself was last verified before this lane.
@@ -63,7 +65,7 @@ lane/qa-save: data 15, sim 224, app 94; typecheck, test, build pass.
 | T12 fleet/order book/checks | done | orders with delivery delays, A-D checks, scheduler, Fleet/Orders views, cabin layout in order form and refits |
 | T13 offers panel | done (lane/offers) | launch, end-of-life, flash-sale and used offers; Offers tab, popup, badge. See MODEL.md "Offers" |
 | T14 basic rivals | done: sim and UI wired; tested by sim tests and rivals helper unit tests | sim + Rivals view, competition block in route inspector, map competitor layer, rival fare-cut decision cards (match / partial + frequency / hold; one at a time) |
-| T15 why ledger and hub board | partial | ledger in inspector; hub board not started |
+| T15 why ledger and hub board | done (lane/hub-board) | ledger in inspector; hub board view (Alt+0, palette) with departures/arrivals board and block-hour panel; no per-flight times in sim |
 | T16 save/load, cabin sliders, light polish | done | Cabin sliders done: designer view, order and refit editors (lane/cabin, see MODEL.md "Cabin"); save/load done (lane/saveui): IndexedDB 5 slots + autosave (monthly, tab hide), Ctrl+S, export/import, start screen (skip with ?newgame/?seed/?nostart/?ff/?mock/?paused) |
 | T17 QA and balance bots | done (first pass) | bots + BALANCE.md; soak (30 games), fuzz, Playwright e2e (22 checks x 2 themes since lane/qa-ui: modal focus, narrow widths, pill overlap added), QA.md with manual checklist. Tested: sim invariants, save round-trip (unit), rivals helpers (unit). Not covered by e2e: save/load, start screen and rivals flows. Independent SQA 2 Nov 2026: 6.5/10, findings in QA.md |
 | T18 deploy and hardening | partly done (lane/ship) | manualChunks vendor split, build:single, deploy.yml, netlify.toml, DEPLOY.md, build stamp in Settings. Nothing deployed yet; needs Mark's Cloudflare secrets |
@@ -186,3 +188,7 @@ Playtested the expanded world through the UI (Playwright, `packages/app/scripts/
 
 ## lane/save-safe (B01 follow-up)
 - B01 validation (validateSimState, validateExtras, loadGame validate-trial-swap with rollback) already existed from lane/qa-save; this lane adds app-level tests only (saves.test.ts): corrupt JSON, empty, truncated, wrong version (future and string), wrong format tag, missing state/world, null and NaN/Infinity cash, negative day. Each rejects with a message and leaves the running game byte-identical and steppable. No source, contracts or sim changes.
+## lane/hub-board (T15 hub board, read-only)
+- Hub board view (toolbar, palette "Go to Hub board", Alt+0 as the tenth view; `viewKey`/`viewIndexForKey` in shell/views.ts). Hub select (home first). Left: departures/arrivals board (route, type, freq/wk with scheduled vs requested, load factor, connecting share, weekly profit). Right: block hours used/available/free per type with bars. Header: routes, weekly profit, connecting pax/wk and share.
+- Built from `reports`, `routes`, `fleet` and sim `typeBlockHours`; no sim or contracts changes. Pure helpers `packages/app/src/hubboard/hubBoard.ts` (tested). Routes without a report show "n/a".
+- Unavailable / caveats: no per-flight times or delays (sim has no timetable); `hubBlockHours` counts routes by origin only, so arrivals use the origin hub's pool; connecting share is passengers carried on that route (`RouteReport.connecting`), not a per-market split. Playwright e2e not run.

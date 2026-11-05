@@ -1,5 +1,5 @@
 import { useUi } from "../store";
-import { VIEWS } from "./views";
+import { VIEWS, viewKey } from "./views";
 
 export function Toolbar() {
   const view = useUi((s) => s.view);
@@ -9,7 +9,7 @@ export function Toolbar() {
       {VIEWS.map(({ id, label, Icon }, i) => (
         <button
           key={id} className="tool-btn" aria-label={label} aria-current={view === id ? "page" : undefined}
-          title={`${label} (Alt+${i + 1})`} onClick={() => setView(id)}
+          title={`${label} (Alt+${viewKey(i)})`} onClick={() => setView(id)}
         >
           <Icon size={22} />
           <span className="tool-label">{label.split(" ")[0]}</span>

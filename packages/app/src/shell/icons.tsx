@@ -31,3 +31,4 @@ export const IconBell = (p: P) => <Svg {...p}><path d="M6 17V11a6 6 0 1 1 12 0v6
 export const IconTag = (p: P) => <Svg {...p}><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.5 1.5 0 0 1 0 2.1l-6.6 6.6a1.5 1.5 0 0 1-2.1 0L3.5 12.2Z" /><path d="M8 8h.01" /></Svg>;
 export const IconCabin = (p: P) => <Svg {...p}><path d="M2.5 12c0-2 1.5-3.5 3.5-3.5h12c2.2 0 3.5 1.5 3.5 3.5s-1.3 3.5-3.5 3.5H6c-2 0-3.500-1.500-3.500-3.500Z" /><path d="M8 10v4M11 10v4M14 10v4M17 10v4" /></Svg>;
 export const IconRivals = (p: P) => <Svg {...p}><circle cx="9" cy="8" r="3" /><path d="M3.5 19c0-3.2 2.4-5 5.5-5s5.500 1.800 5.500 5" /><circle cx="17.5" cy="9" r="2.300" /><path d="M16.500 14.200c2.700-.2 4.500 1.300 4.500 4" /></Svg>;
+export const IconHubBoard = (p: P) => <Svg {...p}><path d="M3 5h18v14H3z" /><path d="M3 10h18M8 5v14" /><path d="M11 13.500h7M11 16.500h5" /></Svg>;

@@ -6,7 +6,7 @@ import { useUi } from "../store";
 import { useCreation, useSwapRequest } from "../routes/store";
 import { bridge } from "../sim/useSim";
 import { CAMERA_PRESETS, PRESET_LABEL } from "../map/presets";
-import { VIEWS } from "./views";
+import { VIEWS, viewKey } from "./views";
 import { toggleDock } from "../notify/NotificationDock";
 import { useDock } from "../notify/dockStore";
 
@@ -15,7 +15,7 @@ interface Cmd { id: string; label: string; group: string; hint?: string; run: ()
 function useCommands(): Cmd[] {
   const ui = useUi.getState;
   return useMemo(() => {
-    const list: Cmd[] = VIEWS.map((v, i) => ({ id: `view-${v.id}`, label: `Go to ${v.label}`, group: "View", hint: `Alt+${i + 1}`, run: () => ui().setView(v.id) }));
+    const list: Cmd[] = VIEWS.map((v, i) => ({ id: `view-${v.id}`, label: `Go to ${v.label}`, group: "View", hint: `Alt+${viewKey(i)}`, run: () => ui().setView(v.id) }));
     list.push(
       { id: "save", label: "Save game…", group: "Game", hint: "Ctrl+S", run: () => ui().setSaveDialog("save") },
       { id: "load", label: "Load game…", group: "Game", run: () => ui().setSaveDialog("load") },
