@@ -7,52 +7,19 @@ import { useToasts } from "../routes/store";
 import { usePickerMemory } from "../aircraft/memory";
 import { buildTypeRows, hubOptions, atHub, type HubFilter, type TypeRow } from "../fleet/typeTable";
 import type { FleetItem } from "../sim/bridge";
-import { formatDate } from "../sim/format";
 import { bridge, useSim, useSimSelector } from "../sim/useSim";
 import { useUi } from "../store";
-import { FLEET_SORT_KEYS, groupLabel, sortFleet } from "./fleetSort";
 
 /** "In check" only exists while the maintenance programme runs; otherwise the hangar holds cabin refits only. */
 const label = (st: FleetItem["status"]) => ({ active: "Active", maintenance: maintenanceEnabled() ? "In check" : "Cabin refit", delivery: "On order", stored: "Stored" })[st];
-const CHECK_NAME = { A: "A check", B: "B check", C: "C check", D: "D check" } as const;
-
-function Card({ a, onRefit }: { a: FleetItem; onRefit: (a: FleetItem) => void }) {
-  const idle = a.status === "active" && a.routes.length === 0;
-  const status = a.status === "maintenance" && a.check ? `${a.refit ? "Cabin refit" : CHECK_NAME[a.check.kind]}, ${a.check.daysRemaining} ${a.check.daysRemaining === 1 ? "day" : "days"} left` : label(a.status);
-  return (
-    <li className="card">
-      <div className="card-top"><strong>{a.tail}</strong><span className={`status st-${a.status}`}>{idle ? "Idle" : label(a.status)}</span></div>
-      <div className="card-sub">{a.typeName} {"·"} {a.seats} seats</div>
-      <dl className="mini">
-        {a.status === "delivery" ? (
-          <>
-            <dt>Delivery</dt><dd>{a.deliveryDay !== undefined ? formatDate(a.deliveryDay) : "TBC"}</dd>
-            <dt>Order</dt><dd>{a.orderId ?? "–"}</dd>
-          </>
-        ) : (
-          <>
-            <dt>Status</dt><dd>{idle ? "Spare, not scheduled" : status}</dd>
-            <dt>Age</dt><dd>{a.ageYears < 0.1 ? "New" : `${a.ageYears.toFixed(1)} yr`}</dd>
-            <dt>Hub</dt><dd>{a.hub ?? "–"}</dd>
-            <dt>Flying</dt><dd>{a.routes.length ? a.routes.join(", ") : "–"}</dd>
-            {a.nextCheck && <><dt>Next check</dt><dd>{a.nextCheck.kind} in {a.nextCheck.inDays < 60 ? `${a.nextCheck.inDays} days` : `${Math.round(a.nextCheck.inDays / 30.4)} months`}</dd></>}
-          </>
-        )}
-      </dl>
-      {(a.status === "active" || a.status === "stored") && a.layout && (
-        <button type="button" className="card-action" onClick={() => onRefit(a)} aria-label={`Refit cabin of ${a.tail}`}>Refit cabin{"…"}</button>
-      )}
-    </li>
-  );
-}
-
-
 const fmtHours = (h: number) => Math.round(h).toLocaleString("en-US");
+/** Cabin refits need a layout and an aircraft that is flying or stored (not on order, not already in the hangar). */
+const canRefit = (a: FleetItem) => (a.status === "active" || a.status === "stored") && !!a.layout;
 
 /** Top-level rows: one per aircraft type, with a hub filter and inline expansion to the individual aircraft. */
-function TypeTable({ rows, fleet, hub, home, onMove, onOrder }: {
+function TypeTable({ rows, fleet, hub, home, onMove, onOrder, onCabin }: {
   rows: TypeRow[]; fleet: FleetItem[]; hub: HubFilter; home?: string;
-  onMove: (aircraftId: string, hubId: string) => void; onOrder: (typeId: string) => void;
+  onMove: (aircraftId: string, hubId: string) => void; onOrder: (typeId: string) => void; onCabin: (a: FleetItem) => void;
 }) {
   const [open, setOpen] = useState<string | null>(null);
   // Any airport can be a hub: the move select offers every airport in the data, home hub first.
@@ -91,7 +58,7 @@ function TypeTable({ rows, fleet, hub, home, onMove, onOrder }: {
                       <p className="hint">No {r.typeName} at {hub === "all" ? "any hub" : hub} yet.</p>
                     ) : (
                       <table className="fleet-members" aria-label={`${r.typeName} aircraft`}>
-                        <thead><tr><th scope="col">Tail</th><th scope="col">Hub</th><th scope="col">Status</th><th scope="col">Flying</th><th scope="col">Age</th><th scope="col">Move to hub</th></tr></thead>
+                        <thead><tr><th scope="col">Tail</th><th scope="col">Hub</th><th scope="col">Status</th><th scope="col">Flying</th><th scope="col">Age</th><th scope="col">Move to hub</th><th scope="col">Cabin</th></tr></thead>
                         <tbody>
                           {members.map((a) => (
                             <tr key={a.id}>
@@ -106,6 +73,13 @@ function TypeTable({ rows, fleet, hub, home, onMove, onOrder }: {
                                   onChange={(e) => onMove(a.id, e.target.value)}>
                                   {moveTo.map((h) => <option key={h} value={h}>{h}</option>)}
                                 </select>
+                              </td>
+                              <td>
+                                {canRefit(a) ? (
+                                  <button type="button" className="card-action" onClick={() => onCabin(a)} aria-label={`Cabin of ${a.tail}`}>Cabin{"…"}</button>
+                                ) : (
+                                  <button type="button" className="card-action" disabled title="Only active or stored aircraft with a cabin layout can be refitted" aria-label={`Cabin of ${a.tail}`}>Cabin</button>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -129,10 +103,7 @@ export default function FleetView() {
   const push = useToasts((s) => s.push);
   const [refitting, setRefitting] = useState<FleetItem | null>(null);
   const refitType = refitting ? aircraftTypes.find((t) => t.id === refitting.typeId) : undefined;
-  const { key: sortKey, dir: sortDir } = useUi((s) => s.fleetSort);
-  const setFleetSort = useUi((s) => s.setFleetSort);
   const setView = useUi((s) => s.setView);
-  const sorted = useMemo(() => sortFleet(fleet, sortKey, sortDir), [fleet, sortKey, sortDir]);
   const [hub, setHub] = useState<HubFilter>("all");
   const sim = bridge.getSim?.() ?? null;
   const home = sim ? homeHubOf(sim) : undefined;
@@ -148,7 +119,6 @@ export default function FleetView() {
     push("good", `${ac?.tail ?? "Aircraft"} now based at ${hubId}.`);
   };
   const orderType = (typeId: string) => { usePickerMemory.getState().remember("order", typeId); setView("orders"); };
-  const sortLabel = FLEET_SORT_KEYS.find((k) => k.key === sortKey)!.label;
   const n = (st: FleetItem["status"]) => fleet.filter((a) => a.status === st).length;
   const byType = useMemo(() => {
     const m = new Map<string, number>();
@@ -177,34 +147,8 @@ export default function FleetView() {
         </select>
       </div>
       <div className="fleet-scroll">
-        <TypeTable rows={typeRows} fleet={fleet} hub={hub} home={home} onMove={move} onOrder={orderType} />
+        <TypeTable rows={typeRows} fleet={fleet} hub={hub} home={home} onMove={move} onOrder={orderType} onCabin={setRefitting} />
       </div>
-      <h2 className="fleet-aircraft-head">Aircraft</h2>
-      <div className="sort-bar" role="group" aria-label="Sort fleet">
-        <span className="sort-label" id="fleet-sort-label">Sort by</span>
-        {FLEET_SORT_KEYS.map((k) => (
-          <button key={k.key} type="button" className={`sort-btn${sortKey === k.key ? " on" : ""}`} aria-pressed={sortKey === k.key}
-            onClick={() => setFleetSort(k.key, sortKey === k.key ? (sortDir === "asc" ? "desc" : "asc") : "asc")}>
-            {k.label}{sortKey === k.key && <span aria-hidden="true"> {sortDir === "asc" ? "\u2191" : "\u2193"}</span>}
-          </button>
-        ))}
-        <button type="button" className="sort-btn" onClick={() => setFleetSort(sortKey, sortDir === "asc" ? "desc" : "asc")} aria-label={`Sort direction: ${sortDir === "asc" ? "ascending" : "descending"}. Switch.`}>
-          {sortDir === "asc" ? "Ascending" : "Descending"}
-        </button>
-        <span className="sr-only" role="status">Sorted by {sortLabel}, {sortDir === "asc" ? "ascending" : "descending"}</span>
-      </div>
-      <ul className="cards">
-        {sorted.filter((a) => atHub(a, hub, home)).map((a, i, list) => {
-          const g = groupLabel(a, sortKey);
-          const head = g !== null && (i === 0 || groupLabel(list[i - 1]!, sortKey) !== g);
-          return (
-            <Fragment key={a.id}>
-              {head && <li className="group-head" role="presentation">{g}</li>}
-              <Card a={a} onRefit={setRefitting} />
-            </Fragment>
-          );
-        })}
-      </ul>
       {refitting && refitType && refitting.layout && (
         <CabinDialog
           title={`Refit ${refitting.tail} (${refitType.name})`} type={refitType} initial={refitting.layout} day={day} confirmLabel="Start refit" requireChange

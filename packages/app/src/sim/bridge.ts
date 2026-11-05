@@ -13,9 +13,7 @@ export interface Notice { id: number; day: Day; severity: Severity; text: string
 export interface DecisionOption { id: string; label: string; effect: string }
 export interface Decision {
   id: string; day: Day; title: string; context: string; options: DecisionOption[];
-  /** Set on heavy-check cards: the aircraft concerned, so the card can link to the fleet planner. */
-  aircraftId?: Id;
-  /** The route the card is about (fare cuts, low load, deliveries): the dock links to it in the Routes view. */
+  /** The route the card is about (deliveries): the dock links to it in the Routes view. */
   routeId?: Id;
 }
 
@@ -119,15 +117,6 @@ export interface SimBridge {
 export const DAYS_PER_SECOND: Record<Speed, number> = { 0: 0, 1: 1, 2: 3, 3: 7, 4: 14, 5: 30 };
 
 const SAMPLE_DECISIONS: Decision[] = [
-  {
-    id: "kestrel-fares", day: 0, title: "Kestrel Air cut LAX–SAN fares 12%",
-    context: "A competitor undercut you on your busiest short-haul route. Load factor has dipped 4 points this week.",
-    options: [
-      { id: "match", label: "Match the cut", effect: "Hold share, −$38K/wk profit" },
-      { id: "partial", label: "Cut 6% and add a frequency", effect: "Lose ~3% share, −$14K/wk" },
-      { id: "hold", label: "Hold fares", effect: "Lose ~9% share, +$6K/wk margin" },
-    ],
-  },
   {
     id: "launch-discount", day: 3, title: "Launch customer discount on A321neo",
     context: "The manufacturer offers 6% off list for 4 or more firm orders if you commit this month.",

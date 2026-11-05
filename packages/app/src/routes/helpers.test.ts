@@ -3,7 +3,7 @@ import { aircraftTypes, airportById } from "@arg/data";
 import { benchmarkFareFor, dayToDate, runDays, startingScenario } from "@arg/sim";
 import {
   bestFrequency, bestType, eligibleTypes, fareHint, FREQ_SWEEP_MAX, frequencySweep, marketFares, midMonthDay, parseFares,
-  livePreview, liveSeasonal, operatingMix, profitTier, rivalPresence, seasonalProfit, substitutionText, suggestAirports, validateRouteDraft, type RouteDraft, type SweepPoint,
+  livePreview, liveSeasonal, operatingMix, ownershipReason, profitTier, rivalPresence, seasonalProfit, substitutionText, typeOwnership, suggestAirports, validateRouteDraft, type RouteDraft, type SweepPoint,
 } from "./helpers";
 import { rangeNote, routeBlock, usableRangeKm } from "../aircraft/availability";
 import { airports } from "@arg/data";
@@ -193,5 +193,31 @@ describe("live route forecasts", () => {
     const r = sim.world.routes[0]!;
     expect(liveSeasonal(sim, r.id, sim.world.day)).toHaveLength(12);
     expect(liveSeasonal(null, r.id, sim.world.day)).toBeNull();
+  });
+});
+
+describe("type ownership for the substitution banner", () => {
+  // LAX-CDG (route "r1") is flown by two A330-200s; a third A330-200 is spare; one 777 is on order; one 737 is stored.
+  const fleet = [
+    { typeId: "A330-200", status: "active", routes: ["r1"] },
+    { typeId: "A330-200", status: "active", routes: ["r1"] },
+    { typeId: "A330-200", status: "active", routes: [] },
+    { typeId: "A330-200", status: "delivery", routes: [] },
+    { typeId: "B777-300ER", status: "delivery", routes: [] },
+    { typeId: "B737-800", status: "stored", routes: [] },
+  ];
+  it("counts owned, free and on-route aircraft from the fleet (on order and stored excluded)", () => {
+    expect(typeOwnership(fleet, "A330-200", "r1")).toEqual({ owned: 3, free: 1, onRoute: 2 });
+    expect(typeOwnership(fleet, "B777-300ER", "r1")).toEqual({ owned: 0, free: 0, onRoute: 0 });
+    expect(typeOwnership(fleet, "B737-800", "r1")).toEqual({ owned: 0, free: 0, onRoute: 0 });
+  });
+  it("says a type is missing only when none is owned", () => {
+    expect(ownershipReason("B777-300ER", typeOwnership(fleet, "B777-300ER", "r1"))).toBe("You own no B777-300ER");
+  });
+  it("never says an owned type is missing: busy and free aircraft are counted", () => {
+    expect(ownershipReason("A330-200", typeOwnership(fleet, "A330-200", "r1"))).toBe("1 of your 3 A330-200 are free, but the scheduler is still substituting");
+    const busy = fleet.filter((a) => !(a.typeId === "A330-200" && a.routes.length === 0 && a.status === "active"));
+    expect(ownershipReason("A330-200", typeOwnership(busy, "A330-200", "r2"))).toBe("your 2 A330-200 are all flying other routes");
+    expect(ownershipReason("A330-200", typeOwnership(busy, "A330-200", "r1"))).toBe("all 2 of your A330-200 already fly this route");
   });
 });

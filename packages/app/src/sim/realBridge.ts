@@ -5,7 +5,7 @@ import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as dataAirports } from "@arg/data";
 import {
   applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay,
-  validateSimState, type AutoSlowHook, type Clock, type SimState, type HubCommand, homeHubOf,
+  validateSimState, type Clock, type SimState, type HubCommand, homeHubOf,
 } from "@arg/sim";
 import type {
   CommandResult, Decision, FleetItem, Notice, OfferItem, OrderItem, Severity, SimBridge, SimSnapshot, Speed,
@@ -48,7 +48,7 @@ export function validateExtras(x: unknown): string[] {
   if (!Array.isArray(x.ledger) || x.ledger.some((r) => !isObj(r) || !isNum(r.day) || !isNum(r.cash) || !isNum(r.revenue) || !isNum(r.costs) || !isNum(r.profit) || !isObj(r.by))) out.push("the saved finance ledger is damaged");
   if (!Array.isArray(x.pending) || x.pending.some((p) => !isObj(p) || typeof p.id !== "string" || typeof p.key !== "string" || !isNum(p.day) || !isNum(p.expiresDay) || typeof p.title !== "string" || !Array.isArray(p.options) || !isObj(p.commands))) out.push("the saved decision cards are damaged");
   const e = x.engine;
-  if (!isObj(e) || !isObj(e.lfSum) || !isObj(e.lowWeeks) || !Array.isArray(e.cooldown) || !Array.isArray(e.status) || typeof e.primed !== "boolean" || !isNum(e.newsSeen)
+  if (!isObj(e) || !Array.isArray(e.cooldown) || !Array.isArray(e.status) || typeof e.primed !== "boolean"
     || e.cooldown.some((c) => !Array.isArray(c) || c.length !== 2) || e.status.some((c) => !Array.isArray(c) || c.length !== 2)) out.push("the saved decision engine is damaged");
   if (typeof x.lowCash !== "boolean") out.push("the low-cash flag is invalid");
   return out;
@@ -79,10 +79,9 @@ export class RealSimBridge implements SimBridge {
   private ledger: DayRecord[] = [];
   private pending: PendingDecision[] = [];
   private engine = new DecisionEngine();
+  /** Kept for the Settings switch. No notice or delivery pauses the clock (the owner removed those pauses). */
   private autoPause!: boolean;
-  private deliveryDays = new Set<Day>();
   private lowCash = false;
-  private reportedSlow: object | null = null;
   private raf: number | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
 
@@ -97,18 +96,10 @@ export class RealSimBridge implements SimBridge {
   private reset(sim: SimState, speed: Speed, welcome: boolean, extras?: BridgeExtras): void {
     this.sim = sim;
     this.notices = []; this.nextNotice = 1; this.ledger = []; this.pending = []; this.engine = new DecisionEngine();
-    this.lowCash = false; this.reportedSlow = null; this.offersOf = null; this.viewOf = null; this.rivalsOf = null;
-    const hook: AutoSlowHook = {
-      check: (day) => {
-        // `day` is the day number after the step the clock is granting, so the sim day being run is day - 1.
-        if (this.autoPause && this.deliveryDays.has(day - 1)) return { maxSpeed: 2, reason: "An aircraft is being delivered." };
-        return null;
-      },
-    };
+    this.lowCash = false; this.offersOf = null; this.viewOf = null; this.rivalsOf = null;
     this.autoPause = this.autoPause ?? this.opts.autoPause ?? true;
-    this.clock = createClock({ startDay: this.sim.world.day, speed, hook, maxDtMs: this.opts.maxDtMs ?? 250 });
+    this.clock = createClock({ startDay: this.sim.world.day, speed, maxDtMs: this.opts.maxDtMs ?? 250 });
     this.sim = { ...this.sim, speed: this.clock.speed };
-    this.refreshDeliveryDays();
     if (extras) {
       this.notices = extras.notices; this.nextNotice = extras.nextNotice; this.ledger = extras.ledger; this.pending = extras.pending;
       this.engine = DecisionEngine.fromJSON(extras.engine); this.lowCash = extras.lowCash;
@@ -151,7 +142,7 @@ export class RealSimBridge implements SimBridge {
   }
 
   private static readonly FIELDS = [
-    "sim", "clock", "snap", "notices", "nextNotice", "ledger", "pending", "engine", "deliveryDays", "lowCash", "reportedSlow",
+    "sim", "clock", "snap", "notices", "nextNotice", "ledger", "pending", "engine", "lowCash",
     "offersOf", "offersCache", "viewOf", "rivalsOf", "rivalsCache",
   ] as const;
   private captureFields(): Record<string, unknown> {
@@ -191,11 +182,6 @@ export class RealSimBridge implements SimBridge {
   advance(ms: number): number {
     const days = this.clock.advance(ms);
     if (days > 0) {
-      const slow = this.clock.lastAutoSlow; // read before stepping: pausing for a decision resets it
-      if (slow && slow !== this.reportedSlow) {
-        this.reportedSlow = slow;
-        this.say(this.sim.world.day + days, "info", `${slow.maxSpeed === 0 ? "Paused" : `Slowed to speed ${slow.maxSpeed}`}: ${slow.reason}`);
-      }
       for (let i = 0; i < days; i++) this.stepOne();
       this.syncSpeed();
       this.collect();
@@ -212,14 +198,10 @@ export class RealSimBridge implements SimBridge {
 
   private stepOne(): void {
     this.sim = stepDay(this.sim);
-    if (this.sim.orders.some((o) => o.delayDays)) this.refreshDeliveryDays();
     const snap = this.sim.events.find((e): e is Extract<SimEvent, { kind: "finance" }> => e.kind === "finance");
     if (snap) this.ledger.push(dayRecord(snap.snapshot, this.sim.routeReports));
     const raised = this.engine.onDay(this.sim, this.pending);
-    if (raised.length) {
-      this.pending = [...this.pending, ...raised];
-        if (this.autoPause) this.slowTo(0, "A decision needs your attention.");
-    }
+    if (raised.length) this.pending = [...this.pending, ...raised];
     // Drain regularly so the sim queue (cap 2000) never drops events at high speed.
     if (this.sim.pendingEvents.length > 400) this.collect();
     const expired = this.pending.filter((p) => p.expiresDay <= this.sim.world.day);
@@ -233,7 +215,6 @@ export class RealSimBridge implements SimBridge {
   private collect(): void {
     const { state, events } = drainEvents(this.sim);
     this.sim = state;
-    let pause = false;
     for (const e of events) {
       if (e.kind !== "notice" || QUIET.test(e.text)) continue;
       const sev = classifyNotice(e.text);
@@ -243,30 +224,15 @@ export class RealSimBridge implements SimBridge {
     if (cash < LOW_CASH_USD && !this.lowCash) {
       this.lowCash = true;
       this.say(this.sim.world.day, "alert", `Cash is down to ${(cash / 1e6).toFixed(1)}M. Cut costs or the airline cannot pay its bills.`);
-      pause = true;
     } else if (cash >= LOW_CASH_USD * 1.5) this.lowCash = false;
-    if (pause && this.autoPause) this.slowTo(0, "Cash is critically low.");
   }
 
   private say(day: Day, severity: Severity, text: string): void {
     this.notices = [{ id: this.nextNotice++, day, severity, text }, ...this.notices].slice(0, NOTICE_LIMIT);
   }
 
-  private slowTo(max: Speed, reason: string): void {
-    if (this.clock.speed <= max) return;
-    this.clock.setSpeed(max);
-    this.syncSpeed();
-    this.say(this.sim.world.day, "info", `${max === 0 ? "Paused" : `Slowed to speed ${max}`}: ${reason}`);
-  }
-
   private syncSpeed(): void {
     if (this.sim.speed !== this.clock.speed) this.sim = { ...this.sim, speed: this.clock.speed };
-  }
-
-  private refreshDeliveryDays(): void {
-    this.deliveryDays = new Set(
-      Object.values(this.sim.fleetMeta).map((m) => m.deliveryDay).filter((d): d is Day => d !== null),
-    );
   }
 
   // --- SimBridge -----------------------------------------------------------
@@ -301,7 +267,6 @@ export class RealSimBridge implements SimBridge {
       this.emit();
       return { ok: false, error: { code: result.error, message: result.message } };
     }
-    if (result.kind === "orderAircraft" || result.kind === "acceptOffer") this.refreshDeliveryDays();
     this.emit();
     switch (result.kind) {
       case "openRoute": return { ok: true, routeId: result.routeId, warnings: result.warnings };

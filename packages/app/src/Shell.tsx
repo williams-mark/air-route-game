@@ -1,5 +1,5 @@
-import { Suspense, lazy, useEffect, useRef, type ReactNode } from "react";
-import { bridge, bumpSpeed, setSpeed, togglePause, useSim } from "./sim/useSim";
+import { Suspense, lazy, useEffect, type ReactNode } from "react";
+import { bridge, bumpSpeed, setSpeed, togglePause } from "./sim/useSim";
 import type { Speed } from "./sim/bridge";
 import { useUi, type ViewId } from "./store";
 import { TopBar } from "./shell/TopBar";
@@ -76,21 +76,6 @@ function useGlobalKeys() {
   }, []);
 }
 
-/** Pause automatically when a new decision or alert arrives (if enabled in Settings). */
-function useAutoPause() {
-  const sim = useSim();
-  // The real bridge slows and pauses its own clock (AutoSlowHook); this UI-side fallback serves the mock.
-  const seen = useRef({ decisions: new Set(sim.decisions.map((d) => d.id)), notice: sim.notices[0]?.id ?? 0 });
-  useEffect(() => {
-    if (bridge.setAutoPause) return;
-    let trigger = false;
-    for (const d of sim.decisions) if (!seen.current.decisions.has(d.id)) { seen.current.decisions.add(d.id); trigger = true; useUi.getState().unsnoozeAll(); }
-    for (const n of sim.notices) if (n.id > seen.current.notice) { if (n.severity === "alert") trigger = true; }
-    seen.current.notice = Math.max(seen.current.notice, sim.notices[0]?.id ?? 0);
-    if (trigger && useUi.getState().autoPause && bridge.getState().speed !== 0) setSpeed(0);
-  }, [sim.decisions, sim.notices]);
-}
-
 function useAutosave() {
   useEffect(() => installAutosave(bridge, {
     blocked: () => useUi.getState().startOpen,
@@ -104,7 +89,6 @@ export function Shell() {
   const help = useUi((s) => s.helpOpen);
   const panel = usePanelOpen();
   useGlobalKeys();
-  useAutoPause();
   useAutosave();
   const startOpen = useUi((s) => s.startOpen);
   const saveDialog = useUi((s) => s.saveDialog);
