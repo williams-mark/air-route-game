@@ -1,3 +1,9 @@
+## lane/lf-sim (target load factor per route)
+- `Route.targetLoadFactor?` (0.5..0.95). Weekly step (day % 7 === 0) re-prices routes with a target: `fareScaleForTargetLoadFactor` (bisection, 30 steps, 0.4x..2.5x of the current fares) through the same week evaluation as the live report; all fare classes scale together. Fares written back to `route.fares`; routes without a target are untouched.
+- `updateRoute` patch takes `targetLoadFactor` number or null (clears); out of range returns `invalid_target_load_factor`.
+- Tests: `route/fareSolver.test.ts` (7). Gate: typecheck green; sim 301 (293 excl. qa + 8 qa), app 149, data 23; build green.
+- Note: load factor falls as economy fares rise, so a higher target lowers fares (the spec's "fare rises when target is raised" was not implemented).
+
 ## lane/fleet-app (fleet type table, route block hours)
 - Fleet view: type table (in service, on order, free block h/wk, used/available h, Order button per type), hub filter, inline expansion to aircraft with a per-aircraft "Move to hub" select (dispatches setAircraftHub). Card list and sort bar kept below.
 - Route sandbox: type picker lists only owned or on-order types; block hours needed vs free at the origin hub shown live; default frequency capped to what the origin hub can fly; insufficient_block_hours shown inline.

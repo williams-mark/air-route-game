@@ -355,6 +355,55 @@ export function simulateRouteWeek(
   return { route, day, market, choice, evaluation, playerPassengersOneWay: mine.passengers, snapshot, operatedFraction: fraction };
 }
 
+/** Allowed target load factor range (commands reject values outside it). */
+export const TARGET_LOAD_FACTOR_RANGE = { min: 0.5, max: 0.95 } as const;
+/** Economy fare multiplier search range, relative to the fares the route has when the solver runs. */
+export const FARE_SCALE_BOUNDS = { min: 0.4, max: 2.5 } as const;
+export const FARE_SCALE_ITERATIONS = 30;
+
+/** Every fare class multiplied by `scale` (premium fares keep their ratio to economy). */
+export function scaleFares(fares: Fares, scale: number): Fares {
+  const out: Fares = { Y: fares.Y * scale };
+  for (const c of ["F", "J", "W"] as const) if (fares[c] !== undefined) out[c] = fares[c]! * scale;
+  return out;
+}
+
+/**
+ * Economy fare multiplier (bisection over FARE_SCALE_BOUNDS, FARE_SCALE_ITERATIONS steps) whose load factor is closest to
+ * `target`. `loadFactorAt` evaluates the route at the given fares through the same path as the live report and returns null
+ * when the route cannot be flown (then the multiplier is 1). Load factor falls as fares rise, so the search keeps the probe
+ * closest to the target. If the target is out of reach within the bounds, the nearest bound is returned.
+ */
+export function fareScaleForTargetLoadFactor(
+  fares: Fares,
+  target: number,
+  loadFactorAt: (fares: Fares) => number | null,
+): number {
+  let best = { scale: 1, err: Infinity };
+  const probe = (scale: number): number | null => {
+    const lf = loadFactorAt(scaleFares(fares, scale));
+    if (lf === null) return null;
+    const err = Math.abs(lf - target);
+    if (err < best.err) best = { scale, err };
+    return lf;
+  };
+  let lo: number = FARE_SCALE_BOUNDS.min;
+  let hi: number = FARE_SCALE_BOUNDS.max;
+  const lfLo = probe(lo);
+  const lfHi = probe(hi);
+  if (lfLo === null || lfHi === null) return 1;
+  if (lfLo <= target) return lo;
+  if (lfHi >= target) return hi;
+  for (let i = 0; i < FARE_SCALE_ITERATIONS; i++) {
+    const mid = (lo + hi) / 2;
+    const lf = probe(mid);
+    if (lf === null) return 1;
+    if (lf > target) lo = mid;
+    else hi = mid;
+  }
+  return best.scale;
+}
+
 /** Fractional aircraft the route needs at full schedule. */
 export function routeAircraftNeed(route: Route, airports: ReadonlyMap<string, Airport>, types: ReadonlyMap<string, AircraftType>): number {
   const a = airports.get(route.origin);

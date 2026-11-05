@@ -7,7 +7,7 @@ import type { RivalsState } from "../rivals/types";
 import type { RouteReport, SimState } from "../state";
 import { dayToDate, daysInMonth } from "../time/calendar";
 import { evaluateNetwork } from "./network";
-import { simulateRouteWeek, type RouteWeek } from "./routeModel";
+import { fareScaleForTargetLoadFactor, scaleFares, simulateRouteWeek, type RouteWeek, type RouteWeekOptions } from "./routeModel";
 import type { RouteEvaluation } from "../finance/ledger";
 
 export interface LiveModelInput {
@@ -23,12 +23,19 @@ export interface LiveModelInput {
   homeHub?: Id;
   /** Demand noise factor for a route; called once per route in route order (the daily step draws it from its rng). */
   noise: (route: Route) => number;
+  /**
+   * Re-price routes that carry a targetLoadFactor (the weekly fare solve). Only on weekly steps; routes without a target keep their fares.
+   * The solver runs through the same week evaluation as the report, so the returned report matches the solved fares.
+   */
+  solveFares?: boolean;
 }
 
 export interface LiveModelResult {
   schedule: ScheduleResult;
   reports: Record<Id, RouteReport>;
   weeks: Record<Id, RouteWeek>;
+  /** Fares written by the target-load-factor solve this step (route id to fares); empty when nothing was solved. */
+  solvedFares: Record<Id, Fares>;
   /** Daily totals over the routes (weekly / 7), before fleet-level costs. */
   revenue: number;
   routeCosts: number;
@@ -49,6 +56,8 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
   const routeFleet: Record<Id, Aircraft[]> = {};
   const routeFlights: Record<Id, Record<Id, number>> = {};
   const routeFraction: Record<Id, number> = {};
+  const solvedFares: Record<Id, Fares> = {};
+  const pricedRoutes: Route[] = [];
   let revenue = 0;
   let routeCosts = 0;
   for (const route of routes) {
@@ -61,14 +70,26 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
     const a = airports.get(route.origin);
     const b = airports.get(route.destination);
     const flights = notional || flying.length === 0 ? undefined : sched?.roundTripsByAircraft;
-    const week = a && b ? simulateRouteWeek(route, airports, types, day, {
+    const weekOpts: RouteWeekOptions = {
       fleetAircraft: notional ? [] : layoutSource,
       fleetFlights: flights,
       operatedFraction: fraction,
       demandScale: noise,
       chargeOwnership: notional,
-      rivalItineraries: rivalItinerariesFor(inp.rivals, a, b, types),
-    }) : null;
+      rivalItineraries: a && b ? rivalItinerariesFor(inp.rivals, a, b, types) : undefined,
+    };
+    const weekAt = (r: Route) => (a && b ? simulateRouteWeek(r, airports, types, day, weekOpts) : null);
+    let priced = route;
+    if (inp.solveFares && route.targetLoadFactor !== undefined && a && b) {
+      const scale = fareScaleForTargetLoadFactor(route.fares, route.targetLoadFactor, (f) => {
+        const w = weekAt({ ...route, fares: f });
+        return w && w.evaluation.feasible ? w.evaluation.loadFactor : null;
+      });
+      priced = { ...route, fares: scaleFares(route.fares, scale) };
+      solvedFares[route.id] = priced.fares;
+    }
+    pricedRoutes.push(priced);
+    const week = weekAt(priced);
     if (!week) continue;
     weeks[route.id] = week;
     routeFleet[route.id] = notional ? [] : layoutSource;
@@ -88,14 +109,14 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
     };
   }
   // Hub connecting passengers (SAN-HNL via LAX ...): extra revenue and cost on the legs, load factors updated.
-  const net = evaluateNetwork({ routes, airports, types, day, weeks, fleet: routeFleet, flights: routeFlights, operatedFraction: routeFraction });
+  const net = evaluateNetwork({ routes: pricedRoutes, airports, types, day, weeks, fleet: routeFleet, flights: routeFlights, operatedFraction: routeFraction });
   revenue += net.deltaRevenue / 7;
   routeCosts += net.deltaCosts / 7;
   for (const [id, evaluation] of Object.entries(net.evaluations)) {
     const rep = reports[id];
     if (rep) reports[id] = { ...rep, evaluation, connecting: net.connecting[id] };
   }
-  return { schedule, reports, weeks, revenue, routeCosts };
+  return { schedule, reports, weeks, solvedFares, revenue, routeCosts };
 }
 
 // ---------------------------------------------------------------------------
