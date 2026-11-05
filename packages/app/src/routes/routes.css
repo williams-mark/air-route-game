@@ -164,3 +164,65 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 .af-list li.af-more { display: block; cursor: default; color: var(--text-dim); font-size: .74rem; text-align: center; }
 .af-none { font-size: .76rem; color: var(--text-dim); margin-top: .2rem; }
 .af-list li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Route creation sandbox: one screen at 1280x720 (two columns, no scrolling). Colours from theme.css variables only. */
+.route-panel.sandbox { width: min(880px, calc(100% - 28px)); }
+.route-panel.sandbox .rp-head { padding: .55rem .85rem .4rem; }
+.route-panel.sandbox .rp-head h2 { font-size: 1.1rem; }
+.route-panel.sandbox .rp-head p { font-size: .75rem; }
+.route-panel.sandbox .sandbox-banner { padding: .3rem .85rem; font-size: .75rem; }
+.route-panel.sandbox .rp-scroll { padding: .3rem .85rem .6rem; display: flex; flex-direction: column; overflow: hidden; }
+.route-panel.sandbox .rp-pair { display: grid; grid-template-columns: 1fr 2rem 1fr; gap: .5rem; align-items: start; }
+.route-panel.sandbox .rp-swap { position: static; margin-top: 1.35rem; width: 2rem; height: 2rem; }
+.route-panel.sandbox .rp-field { margin: .2rem 0; }
+.route-panel.sandbox .rp-field > label { font-size: .74rem; }
+.route-panel.sandbox .rp-field .hint, .route-panel.sandbox .hint { font-size: .7rem; }
+.route-panel.sandbox .rp-empty { padding: .4rem 0; }
+.route-panel.sandbox .airport-field .af-row { margin: 0; }
+.rc-body { display: grid; grid-template-columns: 1.05fr 1fr; gap: .9rem; flex: 1; min-height: 0; margin-top: .35rem; }
+.rc-sec { min-width: 0; }
+.rc-sec h3 { margin: 0 0 .3rem; font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); }
+.rc-sec h3 .hint { text-transform: none; letter-spacing: 0; }
+.rc-col { min-width: 0; display: flex; flex-direction: column; }
+.rc-col .rc-sec + .rc-sec { border-top: 1px solid var(--line); padding-top: .4rem; margin-top: .4rem; }
+.rc-col .rc-market { padding-left: 0; }
+.rc-col .rc-proj { padding-left: 0; }
+.rc-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; align-items: start; }
+.rc-lf-in { position: relative; }
+.rc-lf-in input { padding-right: 1.6rem !important; }
+.rc-lf-in span { position: absolute; right: .55rem; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: .85rem; pointer-events: none; }
+.rc-hint { font-size: .7rem; color: var(--text-dim); margin-top: .2rem; }
+.rc-hours { display: flex; flex-wrap: wrap; gap: .15rem .9rem; font-size: .76rem; color: var(--text-dim); margin: .4rem 0 .1rem; font-variant-numeric: tabular-nums; }
+.rc-hours b { color: var(--text); }
+.rc-hours .rp-err { margin: 0; width: 100%; font-size: .74rem; }
+.route-panel.sandbox .rp-freq-compact { grid-template-columns: 2rem 4.6rem 2rem; gap: .35rem; }
+.route-panel.sandbox .rp-freq-compact .icon-btn { width: 2rem; height: 2rem; }
+.route-panel.sandbox .rp-fares { margin: .35rem 0 0; }
+.route-panel.sandbox .rp-fares legend { font-size: .74rem; font-weight: 600; margin-bottom: .2rem; }
+.route-panel.sandbox .rp-fare-row { grid-template-columns: repeat(4, 1fr); gap: .35rem; }
+.route-panel.sandbox .rp-fare label { font-size: .7rem; margin-bottom: .15rem; white-space: nowrap; }
+.route-panel.sandbox .rp-fare input { font-size: .82rem; padding: .3rem .4rem .3rem 1.1rem; }
+.route-panel.sandbox .rp-fare-in span { font-size: .78rem; }
+.route-panel.sandbox .rp-hint { font-size: .68rem; white-space: nowrap; }
+.rc-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: .45rem; margin: .3rem 0; }
+.rc-kpis .rp-stat { padding: .3rem .5rem; }
+.rc-kpis .rp-stat .v { font-size: 1rem; }
+.rc-market .seg-bar { height: .5rem; margin-top: .2rem; }
+.rc-market .seg-legend { font-size: .7rem; margin: .25rem 0 0; }
+.rc-note { font-size: .75rem; color: var(--text-dim); margin: .3rem 0; line-height: 1.35; }
+.rc-note b { color: var(--text); }
+.rc-proj-kpis { margin: .3rem 0; padding: .4rem .55rem; }
+.rc-proj-kpis .big { font-size: 1rem; }
+.rc-proj .rp-chart { height: 118px; width: 100%; display: block; }
+.rc-proj .rp-actions { margin: .2rem 0 0; }
+.rc-proj .rp-actions button { font-size: .78rem; padding: .3rem .6rem; }
+.rc-foot { display: flex; align-items: center; gap: .5rem; border-top: 1px solid var(--line); padding: .5rem .85rem; }
+.rc-msgs { flex: 1; min-width: 0; }
+.rc-msgs .rp-err { margin: 0; font-size: .75rem; }
+.rc-foot button { font-size: .85rem; padding: .4rem .8rem; }
+@media (max-width: 900px) {
+  .route-panel.sandbox .rp-scroll { overflow-y: auto; }
+  .rc-body { grid-template-columns: 1fr; }
+  .rc-col .rc-sec + .rc-sec { border-top: 0; }
+  
+}

@@ -32,13 +32,11 @@ export function RouteCreator() {
   const destination = c.destination ? airportById.get(c.destination) : undefined;
   return (
     <>
-      <div className="sandbox-banner" role="status">
-        <b>Paused sandbox</b> {"—"} nothing is committed until you press Open route
-      </div>
+      <div className="sandbox-banner" role="status"><b>Paused sandbox.</b> Nothing is committed until Open route.</div>
       <header className="rp-head">
         <div>
           <h2 id="rp-title" tabIndex={-1} ref={titleRef}>New route</h2>
-          <p>Choose two airports on the map or type their codes.</p>
+          <p>Pick two airports on the map or type codes.</p>
         </div>
         <button className="icon-btn" aria-label="Cancel new route" title="Cancel (Esc)" onClick={() => c.end()}>{"✕"}</button>
       </header>
@@ -53,7 +51,7 @@ export function RouteCreator() {
         {origin && destination ? (
           <PairSandbox key={`${origin.id}-${destination.id}`} originId={origin.id} destinationId={destination.id} />
         ) : (
-          <p className="rp-empty">Pick both ends to see the market, the aircraft that can fly it and a profit projection.</p>
+          <p className="rp-empty">Pick both ends to see the market and a projection.</p>
         )}
       </div>
     </>
@@ -136,100 +134,127 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const sweep = useMemo(() => (typeId ? frequencySweep(dDraft, wkDay) : []), [dDraft.origin, dDraft.destination, dDraft.typeId, dDraft.fares, wkDay, typeId]); // eslint-disable-line react-hooks/exhaustive-deps
   const best = useMemo(() => bestFrequency(sweep), [sweep]);
   const selectedType = aircraftTypes.find((t) => t.id === typeId);
-  const issue = typeId ? validateRouteDraft(draft, routes, undefined, undefined, wkDay) : { code: "no_type", message: "No type you own or have on order can fly this pair." };
+  const issue = typeId ? validateRouteDraft(draft, routes, undefined, undefined, wkDay) : { code: "no_type", message: "No owned type can fly this pair." };
   // Block-hour pool of the origin hub for the chosen type and frequency (live figures).
   const hours = sim && typeId ? routeHourSummary(sim, originId, destinationId, typeId, freq) : null;
   const hoursShort = !!hours && hours.needed > hours.free + 1e-9;
+  const [lfText, setLfText] = useState("");
+  const lf = parseTargetLf(lfText);
   const [openError, setOpenError] = useState<string | null>(null);
   useEffect(() => { setOpenError(null); }, [freq, typeId]);
 
   const open = () => {
-    if (!parsed) { push("alert", "Economy fare is required; other cabins must be positive numbers or blank."); return; }
-    const res = bridge.dispatch({ kind: "openRoute", route: draft });
+    if (!parsed) { push("alert", "Economy fare required; other cabins positive or blank."); return; }
+    if (!lf.ok) { push("alert", "Target load factor: 50-95% or blank."); return; }
+    // Typed as an extra-field draft until Route.targetLoadFactor lands in contracts (lane/lf-sim); then drop the widening.
+    const routeDraft: RouteDraft & { targetLoadFactor: number | null } = { ...draft, targetLoadFactor: lf.value };
+    const res = bridge.dispatch({ kind: "openRoute", route: routeDraft });
     if (res && !res.ok) { setOpenError(res.error.message); push("alert", res.error.message); return; }
     const r: Route | undefined = bridge.getState().routes.find((x) => x.origin === originId && x.destination === destinationId);
-    push("good", `Opened ${routeName(draft)}: ${freq}/wk with ${typeId}.`);
+    push("good", `Opened ${routeName(draft)}: ${freq}/wk, ${typeId}.`);
     if (res && res.ok && res.warnings && res.warnings.length > 0) push("alert", res.warnings.join(" "));
     end();
     if (r) selectUi({ kind: "route", id: res && res.ok && res.routeId ? res.routeId : r.id });
   };
 
+  const existingMsg = existing ? `Already flown: ${routeName(existing)}.` : null;
+  const issueMsg = issue && issue.code !== "duplicate_route" ? issue.message : null;
+  const fareMsg = parsed ? null : "Economy fare required.";
+  const lfMsg = lf.ok ? null : "Target load factor: 50-95% or blank.";
+  const footMsgs = [existingMsg, issueMsg, fareMsg, lfMsg, openError].filter((m): m is string => !!m);
   const mix = (Object.keys(market.shares) as Array<keyof typeof market.shares>);
   return (
     <>
-      <section className="rp-sec" aria-labelledby="rp-market">
-        <h3 id="rp-market">Market</h3>
-        <div className="rp-stats">
-          <Stat label="Distance" value={`${Math.round(market.distanceKm).toLocaleString()} km`} />
-          <Stat label="Market size" value={`${Math.round(market.weeklyOneWay).toLocaleString()} / wk`} sub="one-way, annual average" />
-        </div>
-        <div className="seg-bar" role="img" aria-label={`Segment mix: ${mix.map((m) => `${SEG_LABEL[m]} ${pct(market.shares[m])}`).join(", ")}`}>
-          {mix.map((m) => <span key={m} className={`seg-${m}`} style={{ flexGrow: market.shares[m] }} />)}
-        </div>
-        <ul className="seg-legend">{mix.map((m) => <li key={m}><i className={`seg-${m}`} />{SEG_LABEL[m]} {pct(market.shares[m])}</li>)}</ul>
-        <p className="rp-note">
-          <b>Competition:</b> a rival flies this pair {rival.directFrequency}/wk with about {rival.directSeats} seats at about {usd(rival.fare)}
-          {rival.oneStop ? `, and one-stop connections undercut at about ${usd(rival.oneStopFare ?? 0)}` : ", with no competitive one-stop option"}.
-        </p>
-        {existing && <p className="rp-err" role="alert">You already fly {routeName(existing)}. Opening this would be refused.</p>}
-      </section>
-
-      <section className="rp-sec" aria-labelledby="rp-plan">
-        <h3 id="rp-plan">Plan</h3>
-        {ownedTypes.length === 0 ? (
-          <p className="rp-err" role="alert">You own no aircraft and have none on order. Order an aircraft type first.</p>
-        ) : types.length === 0 ? (
-          <p className="rp-err" role="alert">No aircraft in the database can fly this pair (range, runway or overwater limit).</p>
-        ) : (
-          <div className="rp-field">
-            <AircraftPicker label="Aircraft type" value={typeId} onChange={setTypeId} year={year.year} types={ownedTypes}
-              block={(t) => routeBlock(t, a, b, year.year)} memoryKey="route" />
-            <div className="af-sub">{types.filter((t) => t.available).length} of {aircraftTypes.length} types can fly this pair now.</div>
-            {selectedType && (
-              <div className="af-sub" title={rangeNote(selectedType)}>
-                This route is {Math.round(market.distanceKm).toLocaleString()} km. {selectedType.id} nominal range {selectedType.rangeKm.toLocaleString()} km, usable {usableRangeKm(selectedType).toLocaleString()} km
-                after reserves and planning margin, so a type with a longer nominal range than the route can still be too short.
+      <div className="rc-body">
+        <section className="rc-sec rc-plan" aria-labelledby="rp-plan">
+          <h3 id="rp-plan">Plan</h3>
+          {ownedTypes.length === 0 ? (
+            <p className="rp-err" role="alert">No aircraft owned or on order. Order a type first.</p>
+          ) : types.length === 0 ? (
+            <p className="rp-err" role="alert">No aircraft can fly this pair (range, runway or overwater).</p>
+          ) : (
+            <div className="rp-field">
+              <AircraftPicker label="Aircraft type" value={typeId} onChange={setTypeId} year={year.year} types={ownedTypes}
+                block={(t) => routeBlock(t, a, b, year.year)} memoryKey="route" />
+              <div className="af-sub">
+                {types.filter((t) => t.available).length} of {aircraftTypes.length} types fly this pair
+                {selectedType && <span title={rangeNote(selectedType)}>{`; usable ${usableRangeKm(selectedType).toLocaleString()} km`}</span>}
               </div>
-            )}
+            </div>
+          )}
+          <div className="rc-grid2">
+            <FrequencyField value={freq} onChange={setFreq} compact />
+            <div className="rp-field">
+              <label htmlFor="rc-lf">Target load factor <span className="hint">%, blank = off</span></label>
+              <div className="rc-lf-in">
+                <input id="rc-lf" type="number" inputMode="numeric" min={50} max={95} step={1} placeholder="off" value={lfText}
+                  aria-invalid={!lf.ok || undefined} onChange={(e) => setLfText(e.target.value)} />
+                <span aria-hidden="true">%</span>
+              </div>
+              <div className="rc-hint">Fares adjust to hit this</div>
+            </div>
           </div>
-        )}
-        <FrequencyField value={freq} onChange={setFreq} />
-        {hours && (
-          <div className="rp-hours" aria-live="polite">
-            <div>Needs <b>{hours.needed.toFixed(1)}</b> block h / wk at {originId} for {freq}/wk on {typeId}.</div>
-            <div>Free at {originId} for {typeId}: <b className={hoursShort ? "neg" : undefined}>{Math.max(0, hours.free).toFixed(1)}</b> ({hours.available.toFixed(1)} available, {hours.used.toFixed(1)} used).</div>
-            {hoursShort && <p className="rp-err" role="alert">Not enough block hours at {originId}: lower the frequency, order another {selectedType?.name ?? typeId}, or base one at {originId}.</p>}
+          {hours && (
+            <div className="rc-hours" aria-live="polite">
+              <span>Needs <b>{hours.needed.toFixed(1)}</b> block h/wk</span>
+              <span>Free at {originId}: <b className={hoursShort ? "neg" : undefined}>{Math.max(0, hours.free).toFixed(1)}</b> of {hours.available.toFixed(1)}</span>
+              {hoursShort && <span className="rp-err" role="alert">Short at {originId}: fewer flights or another aircraft.</span>}
+            </div>
+          )}
+          <FareFields text={fareText} onChange={setFareText} km={market.distanceKm} from={a} to={b} compact />
+        </section>
+
+        <div className="rc-col">
+        <section className="rc-sec rc-market" aria-labelledby="rp-market">
+          <h3 id="rp-market">Market</h3>
+          <div className="rc-kpis">
+            <Stat label="Distance" value={`${Math.round(market.distanceKm).toLocaleString()} km`} />
+            <Stat label="Market / wk" value={`${Math.round(market.weeklyOneWay).toLocaleString()}`} sub="one way" />
           </div>
-        )}
-        <FareFields text={fareText} onChange={setFareText} km={market.distanceKm} from={a} to={b} />
-      </section>
+          <div className="seg-bar" role="img" aria-label={`Segment mix: ${mix.map((m) => `${SEG_LABEL[m]} ${pct(market.shares[m])}`).join(", ")}`}>
+            {mix.map((m) => <span key={m} className={`seg-${m}`} style={{ flexGrow: market.shares[m] }} />)}
+          </div>
+          <ul className="seg-legend">{mix.map((m) => <li key={m}><i className={`seg-${m}`} />{SEG_LABEL[m]} {pct(market.shares[m])}</li>)}</ul>
+          <p className="rc-note">
+            <b>Rival:</b> {rival.directFrequency}/wk, ~{rival.directSeats} seats, ~{usd(rival.fare)}
+            {rival.oneStop ? `; one-stop ~${usd(rival.oneStopFare ?? 0)}` : "; no one-stop"}.
+          </p>
+        </section>
 
-      <section className="rp-sec" aria-labelledby="rp-proj">
-        <h3 id="rp-proj">Projection <span className="hint">({MONTHS[year.month]} {year.year} demand{livePrev ? "; your fleet, rivals and network" : ""})</span></h3>
-        {substituted && <p className="rp-note" role="status"><b>{substituted}.</b> Seats and costs below use the aircraft that would actually fly it.</p>}
-        {planned && <p className="rp-note" role="status"><b>Planned, not yet operating.</b> None of your aircraft is free to fly this pair, so the figures below assume {typeId} aircraft are available (standalone model, own fleet ignored). Order or free up aircraft before it earns this.</p>}
-        {livePrev && !livePrev.ownershipIncluded && livePrev.operatedFraction > 0 && livePrev.operatedFraction < 1 && <p className="rp-note" role="status">Your fleet could fly {Math.round(livePrev.operatedFraction * 100)}% of the planned round trips; the figures below are for what it can fly.</p>}
-        <div className="rp-proj" aria-live="polite" aria-busy={settling}>
-          <div><span className="k">{settling ? "Updating…" : livePrev && !livePrev.ownershipIncluded ? "Route profit / week" : "Profit / week"}</span><span className={`big ${!ev ? "" : ev.profit >= 0 ? "pos" : "neg"}`}>{ev ? usdSigned(ev.profit) : "–"}</span></div>
-          <div><span className="k">Load factor</span><span className="big">{ev ? pct(ev.loadFactor) : "–"}</span></div>
-          <div><span className="k">Market share</span><span className="big">{week ? pct(week.snapshot.playerShare) : "–"}</span></div>
+        <section className="rc-sec rc-proj" aria-labelledby="rp-proj">
+          <h3 id="rp-proj">Projection <span className="hint">{MONTHS[year.month]} {year.year}{livePrev ? ", your fleet" : ""}</span></h3>
+          {substituted && <p className="rc-note" role="status"><b>{substituted}.</b></p>}
+          {planned && <p className="rc-note" role="status"><b>Planned, not operating.</b> No free aircraft; standalone model.</p>}
+          {livePrev && !livePrev.ownershipIncluded && livePrev.operatedFraction > 0 && livePrev.operatedFraction < 1 && <p className="rc-note" role="status">Fleet can fly {Math.round(livePrev.operatedFraction * 100)}% of round trips.</p>}
+          <div className="rp-proj rc-proj-kpis" aria-live="polite" aria-busy={settling}>
+            <div><span className="k">{settling ? "Updating" : livePrev && !livePrev.ownershipIncluded ? "Route profit/wk" : "Profit/wk"}</span><span className={`big ${!ev ? "" : ev.profit >= 0 ? "pos" : "neg"}`}>{ev ? usdSigned(ev.profit) : "–"}</span></div>
+            <div><span className="k">Load factor</span><span className="big">{ev ? pct(ev.loadFactor) : "–"}</span></div>
+            <div><span className="k">Share</span><span className="big">{week ? pct(week.snapshot.playerShare) : "–"}</span></div>
+          </div>
+          {ev && !ev.feasible && <p className="rp-err" role="alert">{ev.infeasibleReasons.join("; ")}</p>}
+          {sweep.length > 0 && <FrequencyBars points={sweep} bestFreq={best?.frequency ?? null} current={freq} onPick={setFreq} />}
+          <div className="rp-actions">
+            <button type="button" disabled={!best || best.frequency === freq} onClick={() => best && setFreq(best.frequency)}>
+              {best ? `Use best: ${best.frequency}/wk (${usdSigned(best.profit)})` : "No feasible frequency"}
+            </button>
+          </div>
+        </section>
         </div>
-        {ev && !ev.feasible && <p className="rp-err" role="alert">{ev.infeasibleReasons.join("; ")}</p>}
-        <h4 className="rp-h4">Profit vs frequency</h4>
-        {sweep.length > 0 && <FrequencyBars points={sweep} bestFreq={best?.frequency ?? null} current={freq} onPick={setFreq} />}
-        <div className="rp-actions">
-          <button type="button" disabled={!best || best.frequency === freq} onClick={() => best && setFreq(best.frequency)}>
-            {best ? `Use best: ${best.frequency}/wk (${usdSigned(best.profit)})` : "No feasible frequency"}
-          </button>
-        </div>
-      </section>
-
-      {issue && issue.code !== "duplicate_route" && <p className="rp-err" role="alert">{issue.message}</p>}
-      {openError && <p className="rp-err" role="alert">{openError}</p>}
-      <div className="rp-sticky">
+      </div>
+      <div className="rc-foot">
+        <div className="rc-msgs">{footMsgs.map((m) => <p key={m} className="rp-err" role="alert">{m}</p>)}</div>
         <button type="button" onClick={() => end()}>Cancel</button>
-        <button type="button" className="primary" disabled={!typeId || !parsed} onClick={open}>Open route</button>
+        <button type="button" className="primary" disabled={!typeId || !parsed || !lf.ok} onClick={open}>Open route</button>
       </div>
     </>
   );
+}
+
+/** Target load factor as typed (percent, 50-95, blank = off), stored as a fraction. */
+function parseTargetLf(text: string): { ok: true; value: number | null } | { ok: false } {
+  const t = text.trim();
+  if (t === "") return { ok: true, value: null };
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 50 || n > 95) return { ok: false };
+  return { ok: true, value: n / 100 };
 }

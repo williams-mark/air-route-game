@@ -4,6 +4,11 @@
 - Pure helpers: `packages/app/src/fleet/typeTable.ts` (tested), `typeBlockHours` in sim `fleet/hubs.ts` (tested).
 - Gate: install, typecheck, test (data 23, sim 294, app 149), build, e2e 46/46. e2e route check now bases one B737-800 at SFO via the Fleet view first.
 
+## Route creation layout (lane/route-ui)
+- Route sandbox is 880 px wide and fits 1280x720 and 1440x900 without scrolling: Plan column (aircraft, flights/wk with +/-, block-hour readout, fares) and Market/Projection column; messages and buttons in a footer.
+- New "Target load factor" field (percent 50-95, blank = off, hint "Fares adjust to hit this"). It is sent on openRoute as `targetLoadFactor` via a widened draft type; it has no effect until Route.targetLoadFactor merges in contracts (lane/lf-sim). Inspector and updateRoute patch not wired here.
+- Gate: install, typecheck, test (data 23, sim 294, app 149), build, e2e 46/46.
+
 # Build status (update at the end of every work session)
 
 Last updated: Tue 3 Nov 2026 (lane/world-int). Gate green: install --frozen-lockfile, typecheck, test (data 23, sim 279, app 143), build, e2e 46/46 (23 checks x 2 themes). Soak `--games 8 --det 1`: 8 games x 10 y, 0 violations, cash identity exact over 29144 days, determinism replay byte-identical, 373 s total (mean 42 s/game). See "World integration lane" below.
