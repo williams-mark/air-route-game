@@ -26,6 +26,44 @@ export interface Airport {
   gdpPerCapita: number;
   tourismIndex: number; // 0..1
   slotsPerHour: number;
+  /** Passenger terminals with slot-fee tiers. Absent = single undifferentiated terminal (fee multiplier 1). Sourced per airport in packages/data/SOURCES.md. */
+  terminals?: Terminal[];
+}
+
+export interface Terminal {
+  id: Id; // unique within the airport, e.g. "T3", "TBIT", "BRADLEY"
+  name: string;
+  /** Slot/gate fee multiplier relative to the airport base fee (1 = standard; premium terminals > 1, remote/satellite < 1). */
+  feeMultiplier: number;
+  premium: boolean;
+  /** Share of the airport's slots this terminal can handle (0..1; terminals of an airport sum to about 1). */
+  slotShare: number;
+  /** Where the premium/fee tier comes from (URL or "estimate: ..."). */
+  source: string;
+}
+
+/** Derived by the sim, never stored in saves. */
+export interface HubCongestion {
+  airportId: Id;
+  slotsPerWeekTotal: number;
+  slotsUsedByPlayer: number;
+  slotsUsedByAll: number;
+  slotsAvailable: number;
+  terminals: { terminalId: Id; slotsUsedByPlayer: number; slotsCapacity: number; weeklyFeeUsd: number }[];
+}
+
+export type RouteCategory = "short" | "medium" | "long" | "ultra-long" | "hub-spoke" | "point-to-point" | "domestic" | "international";
+
+/** A fare policy steers the target load factor of the routes it covers and sets the discount applied to connecting fares. */
+export interface FarePolicy {
+  id: Id;
+  name: string;
+  /** 0.5..0.95. Null = no target for covered routes (fares left alone). */
+  targetLoadFactor: number | null;
+  /** Average markdown on connecting fares vs the sum of direct fares, 0..0.5 (0.15 = 15% cheaper). */
+  connectionMarkdown: number;
+  /** "all" = every route; otherwise routes matching any listed category or id. */
+  scope: "all" | { categories?: RouteCategory[]; routeIds?: Id[] };
 }
 
 export interface AircraftType {
@@ -110,6 +148,10 @@ export interface WorldState {
   fleet: Aircraft[];
   /** Player's home hub airport id. Absent = the sim's baseAirport, else LAX. */
   homeHub?: Id;
+  /** Fare policies, applied in order; a later policy overrides an earlier one on the routes both cover. Route.targetLoadFactor, when set, overrides every policy. */
+  farePolicies?: FarePolicy[];
+  /** Terminal the player occupies at each hub, keyed by airport id. Absent = airport default (first non-premium terminal). */
+  hubTerminals?: Record<Id, Id>;
 }
 
 // --- Sim <-> UI messages ---
@@ -119,6 +161,9 @@ export type Command =
   | { kind: "openRoute"; route: Omit<Route, "id"> }
   | { kind: "updateRoute"; id: Id; patch: Partial<Omit<Route, "id" | "targetLoadFactor">> & { targetLoadFactor?: number | null } }
   | { kind: "closeRoute"; id: Id }
+  | { kind: "setFarePolicy"; policy: FarePolicy }
+  | { kind: "removeFarePolicy"; id: Id }
+  | { kind: "setHubTerminal"; airportId: Id; terminalId: Id }
   | { kind: "orderAircraft"; typeId: Id; count: number; layout: CabinLayout };
 
 export type SimEvent =
