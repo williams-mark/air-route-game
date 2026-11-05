@@ -21,9 +21,21 @@ export function Stat({ label, value, tone, sub }: { label: string; value: string
   );
 }
 
-export function FrequencyField({ value, onChange, max = FREQ_MAX }: { value: number; onChange: (n: number) => void; max?: number }) {
+export function FrequencyField({ value, onChange, max = FREQ_MAX, compact = false }: { value: number; onChange: (n: number) => void; max?: number; compact?: boolean }) {
   const id = useId();
   const clamp = (n: number) => Math.max(1, Math.min(max, Math.round(n) || 1));
+  if (compact) {
+    return (
+      <div className="rp-field">
+        <label htmlFor={id}>Flights / wk <span className="hint">each way</span></label>
+        <div className="rp-freq rp-freq-compact">
+          <button type="button" className="icon-btn" aria-label="One fewer flight per week" onClick={() => onChange(clamp(value - 1))} disabled={value <= 1}>{"−"}</button>
+          <input id={id} type="number" inputMode="numeric" min={1} max={max} value={value} onChange={(e) => onChange(clamp(Number(e.target.value)))} />
+          <button type="button" className="icon-btn" aria-label="One more flight per week" onClick={() => onChange(clamp(value + 1))} disabled={value >= max}>+</button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="rp-field">
       <label htmlFor={id}>Weekly frequency <span className="hint">(each way)</span></label>
@@ -37,17 +49,19 @@ export function FrequencyField({ value, onChange, max = FREQ_MAX }: { value: num
   );
 }
 
-export function FareFields({ text, onChange, km, from, to }: { text: Record<CabinClass, string>; onChange: (t: Record<CabinClass, string>) => void; km: number; from?: Airport; to?: Airport }) {
+const SHORT_CABIN: Record<CabinClass, string> = { F: "First", J: "Business", W: "Prem. econ.", Y: "Economy" };
+
+export function FareFields({ text, onChange, km, from, to, compact = false }: { text: Record<CabinClass, string>; onChange: (t: Record<CabinClass, string>) => void; km: number; from?: Airport; to?: Airport; compact?: boolean }) {
   const base = useId();
   return (
-    <fieldset className="rp-fares">
-      <legend>Fares per cabin <span className="hint">(one way, USD)</span></legend>
-      <div className="rp-fare-grid">
+    <fieldset className={`rp-fares ${compact ? "rp-fares-compact" : ""}`}>
+      <legend>Fares <span className="hint">one way, USD</span></legend>
+      <div className={compact ? "rp-fare-grid rp-fare-row" : "rp-fare-grid"}>
         {[...CABINS].reverse().map((c) => {
           const hint = fareHint(km, c, from, to);
           return (
             <div className="rp-fare" key={c}>
-              <label htmlFor={`${base}-${c}`}>{CABIN_NAME[c]}{c === "Y" ? "" : <span className="hint"> optional</span>}</label>
+              <label htmlFor={`${base}-${c}`}>{compact ? SHORT_CABIN[c] : CABIN_NAME[c]}{c === "Y" ? "" : <span className="hint"> optional</span>}</label>
               <div className="rp-fare-in">
                 <span aria-hidden="true">$</span>
                 <input id={`${base}-${c}`} type="number" inputMode="numeric" min={1} step={1} value={text[c]} placeholder={c === "Y" ? "required" : "not offered"}
