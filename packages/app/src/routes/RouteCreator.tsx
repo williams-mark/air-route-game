@@ -146,8 +146,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const open = () => {
     if (!parsed) { push("alert", "Economy fare required; other cabins positive or blank."); return; }
     if (!lf.ok) { push("alert", "Target load factor: 50-95% or blank."); return; }
-    // Typed as an extra-field draft until Route.targetLoadFactor lands in contracts (lane/lf-sim); then drop the widening.
-    const routeDraft: RouteDraft & { targetLoadFactor: number | null } = { ...draft, targetLoadFactor: lf.value };
+    const routeDraft: RouteDraft = { ...draft, targetLoadFactor: lf.value ?? undefined };
     const res = bridge.dispatch({ kind: "openRoute", route: routeDraft });
     if (res && !res.ok) { setOpenError(res.error.message); push("alert", res.error.message); return; }
     const r: Route | undefined = bridge.getState().routes.find((x) => x.origin === originId && x.destination === destinationId);
