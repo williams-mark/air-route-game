@@ -1,9 +1,11 @@
-import type { Aircraft, AircraftType, Airport, Command, Day, Fares, Id, Route, SimEvent } from "@arg/contracts";
+import type { Aircraft, AircraftType, Airport, Command, Day, FarePolicy, Fares, Id, Route, RouteCategory, SimEvent } from "@arg/contracts";
 import { canFlyOverwater, isOverwaterRoute } from "@arg/data";
 import { distanceKm, simRunwayM } from "./geo";
 import { airportOpen, closureOf, dayLabel } from "./world/closures";
 import { isRangeFeasible } from "./finance/ledger";
 import { TARGET_LOAD_FACTOR_RANGE } from "./route/routeModel";
+import { FARE_POLICY_LIMITS } from "./route/farePolicy";
+import { baseSlotFeeUsd, playerSlotsAt, rivalSlotsAt, backgroundSlots, routeSlots, terminalsOf, weeklySlotsTotal } from "./route/congestion";
 import { defaultLayout, validateLayout } from "./fleet/layout";
 import { initialMeta } from "./fleet/maintenance";
 import { typeCanServe } from "./fleet/scheduler";
@@ -67,7 +69,11 @@ export type CommandErrorCode =
   | "unknown_aircraft"
   | "aircraft_unavailable"
   | "no_change"
-  | "insufficient_block_hours";
+  | "insufficient_block_hours"
+  | "insufficient_slots"
+  | "invalid_fare_policy"
+  | "unknown_policy"
+  | "unknown_terminal";
 
 export interface CommandError {
   ok: false;
@@ -80,6 +86,9 @@ export interface CommandResultMap {
   openRoute: { ok: true; kind: "openRoute"; routeId: Id; route: Route; warnings: string[] };
   updateRoute: { ok: true; kind: "updateRoute"; routeId: Id; route: Route; warnings: string[] };
   closeRoute: { ok: true; kind: "closeRoute"; routeId: Id };
+  setFarePolicy: { ok: true; kind: "setFarePolicy"; policy: FarePolicy; replaced: boolean };
+  removeFarePolicy: { ok: true; kind: "removeFarePolicy"; id: Id };
+  setHubTerminal: { ok: true; kind: "setHubTerminal"; airportId: Id; terminalId: Id };
   setAircraftHub: { ok: true; kind: "setAircraftHub"; aircraftId: Id; hubId: Id };
   orderAircraft: {
     ok: true;
@@ -194,6 +203,19 @@ function validateRoute(state: SimState, spec: RouteSpec, selfId: Id | null, chec
   const blocked = routeFeasibilityError(a, b, type, state.world.day);
   if (blocked) return fail(blocked.code, blocked.message);
   const dist = distanceKm(a, b);
+  // Slots a week at both ends (not checked while the notional fleet can fly unowned types; same rule as block hours).
+  if (!state.params.notionalFleet) {
+    const need = routeSlots(spec);
+    for (const ap of [a, b]) {
+      const total = weeklySlotsTotal(ap);
+      const others = playerSlotsAt(state, ap.id, selfId ?? undefined) + rivalSlotsAt(state, ap.id) + backgroundSlots(state.world.seed, ap);
+      const available = Math.max(0, total - others);
+      if (need > available) {
+        return fail("insufficient_slots", `${a.id}-${b.id} at ${spec.weeklyFrequency}/wk needs ${need} slots a week at ${ap.id}; ${available} are available (${total} total, ${others} used by others and your other routes).`);
+      }
+    }
+  }
+
   // Block-hour pool of the origin hub for this type (not checked while the notional fleet can fly unowned types).
   if (!state.params.notionalFleet) {
     const h = routeHourSummary(state, a.id, b.id, type.id, spec.weeklyFrequency, selfId ?? undefined);
@@ -329,6 +351,43 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
 }
 
 // ---------------------------------------------------------------------------
+// Fare policies
+// ---------------------------------------------------------------------------
+const ROUTE_CATEGORIES: readonly RouteCategory[] = ["short", "medium", "long", "ultra-long", "hub-spoke", "point-to-point", "domestic", "international"];
+
+function doSetFarePolicy(state: SimState, p: FarePolicy): { state: SimState; result: CommandResult<"setFarePolicy"> } {
+  const bad = (m: string) => ({ state, result: fail("invalid_fare_policy", m) as CommandError });
+  if (!p || typeof p.id !== "string" || p.id.trim() === "") return bad("A fare policy needs an id.");
+  if (typeof p.name !== "string" || p.name.trim() === "") return bad("A fare policy needs a name.");
+  const { min, max } = FARE_POLICY_LIMITS.targetLoadFactor;
+  if (p.targetLoadFactor !== null && !(Number.isFinite(p.targetLoadFactor) && p.targetLoadFactor >= min && p.targetLoadFactor <= max)) {
+    return bad(`Target load factor must be between ${min} and ${max}, or null for none.`);
+  }
+  const md = FARE_POLICY_LIMITS.connectionMarkdown;
+  if (!(Number.isFinite(p.connectionMarkdown) && p.connectionMarkdown >= md.min && p.connectionMarkdown <= md.max)) {
+    return bad(`Connection markdown must be between ${md.min} and ${md.max}.`);
+  }
+  if (p.scope !== "all") {
+    if (!p.scope || typeof p.scope !== "object") return bad('Scope must be "all" or { categories?, routeIds? }.');
+    const cats = p.scope.categories ?? [];
+    const badCat = cats.find((c) => !ROUTE_CATEGORIES.includes(c));
+    if (!Array.isArray(cats) || badCat !== undefined) return bad(`Unknown route category "${String(badCat)}".`);
+    const ids = p.scope.routeIds ?? [];
+    if (!Array.isArray(ids)) return bad("routeIds must be a list.");
+    const missing = ids.find((id) => !state.world.routes.some((r) => r.id === id));
+    if (missing !== undefined) return bad(`Unknown route "${missing}" in the policy scope.`);
+  }
+  const list = state.world.farePolicies ?? [];
+  const replaced = list.some((x) => x.id === p.id);
+  const policy: FarePolicy = { ...p, scope: p.scope === "all" ? "all" : { ...p.scope } };
+  const farePolicies = replaced ? list.map((x) => (x.id === p.id ? policy : x)) : [...list, policy];
+  return {
+    state: pushEvents({ ...state, world: { ...state.world, farePolicies } }, [notice(state, `${replaced ? "Updated" : "Added"} fare policy "${p.name}".`)]),
+    result: { ok: true, kind: "setFarePolicy", policy, replaced },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // applyCommand
 // ---------------------------------------------------------------------------
 /** Apply a UI command. Pure: returns the new state and a typed result; the input state is not modified. */
@@ -397,6 +456,28 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
     }
     case "orderAircraft":
       return doOrder(state, cmd);
+    case "setFarePolicy":
+      return doSetFarePolicy(state, cmd.policy);
+    case "removeFarePolicy": {
+      const list = state.world.farePolicies ?? [];
+      const cur = list.find((p) => p.id === cmd.id);
+      if (!cur) return { state, result: fail("unknown_policy", `No fare policy with id "${cmd.id}".`) };
+      return {
+        state: pushEvents({ ...state, world: { ...state.world, farePolicies: list.filter((p) => p.id !== cmd.id) } }, [notice(state, `Removed fare policy "${cur.name}".`)]),
+        result: { ok: true, kind: "removeFarePolicy", id: cmd.id },
+      };
+    }
+    case "setHubTerminal": {
+      const ap = state.airports.find((x) => x.id === cmd.airportId);
+      if (!ap) return { state, result: fail("unknown_airport", `Unknown airport "${cmd.airportId}".`) };
+      const t = terminalsOf(ap).find((x) => x.id === cmd.terminalId);
+      if (!t) return { state, result: fail("unknown_terminal", `${ap.id} has no terminal "${cmd.terminalId}" (${terminalsOf(ap).map((x) => x.id).join(", ")}).`) };
+      if ((state.world.hubTerminals ?? {})[ap.id] === t.id) return { state, result: fail("no_change", `${ap.id} already uses ${t.name}.`) };
+      return {
+        state: pushEvents({ ...state, world: { ...state.world, hubTerminals: { ...state.world.hubTerminals, [ap.id]: t.id } } }, [notice(state, `${ap.id}: now operating from ${t.name} (fee x${t.feeMultiplier}, $${Math.round(baseSlotFeeUsd(ap) * t.feeMultiplier)} a slot).`)]),
+        result: { ok: true, kind: "setHubTerminal", airportId: ap.id, terminalId: t.id },
+      };
+    }
     case "setAircraftHub": {
       const ac = state.world.fleet.find((x) => x.id === cmd.aircraftId);
       if (!ac) return { state, result: fail("unknown_aircraft", `No aircraft "${cmd.aircraftId}".`) };
