@@ -7,7 +7,7 @@ import { bridge, useSim } from "../sim/useSim";
 import { IconAlert } from "../shell/icons";
 import { MonthBars } from "./charts";
 import { FareFields, FrequencyField, Stat, useDebounced } from "./editor";
-import { CABINS, CABIN_NAME, FREQ_MAX, faresToText, liveSeasonal, livePreview, operatingMix, parseFares, ownershipReason, profitTier, projectRoute, routeName, seasonalProfit, substitutionText, typeOwnership } from "./helpers";
+import { CABINS, CABIN_NAME, FREQ_MAX, describeTargetLf, faresToText, formatTargetLf, liveSeasonal, livePreview, operatingMix, parseFares, parseTargetLf, ownershipReason, profitTier, projectRoute, routeName, seasonalProfit, substitutionText, typeOwnership } from "./helpers";
 import { pct, usd, usdSigned } from "./fmt";
 import { useToasts } from "./store";
 import { RouteAircraft } from "./RouteAircraft";
@@ -34,6 +34,9 @@ export function RouteInspector({ route }: { route: Route }) {
   const [freq, setFreq] = useState(route.weeklyFrequency);
   const [fares, setFares] = useState(() => faresToText(route.fares));
   const [confirming, setConfirming] = useState(false);
+  const [lfText, setLfText] = useState(() => formatTargetLf(route.targetLoadFactor));
+  const [lfError, setLfError] = useState<string | null>(null);
+  const lfId = useId();
   const headRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { headRef.current?.focus({ preventScroll: true }); }, []);
@@ -42,6 +45,7 @@ export function RouteInspector({ route }: { route: Route }) {
   // Reset the editor when the saved route changes underneath us (after Apply, or sim edits).
   const savedKey = `${route.weeklyFrequency}|${JSON.stringify(route.fares)}`;
   useEffect(() => { setFreq(route.weeklyFrequency); setFares(faresToText(route.fares)); }, [savedKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setLfText(formatTargetLf(route.targetLoadFactor)); setLfError(null); }, [route.targetLoadFactor]);
 
   const wkDay = Math.floor(day / 7) * 7;
   const a = airportById.get(route.origin), b = airportById.get(route.destination);
@@ -81,6 +85,16 @@ export function RouteInspector({ route }: { route: Route }) {
     const res = bridge.dispatch({ kind: "updateRoute", id: route.id, patch: { weeklyFrequency: freq, fares: parsed } });
     if (res && !res.ok) push("alert", res.error.message);
     else push("good", `Updated ${routeName(route)}: ${freq}/wk, economy ${usd(parsed.Y)}.`);
+  };
+  const lfParsed = parseTargetLf(lfText);
+  const lfShown = lfError ?? (lfParsed.ok ? null : lfParsed.message);
+  const lfDirty = lfParsed.ok && (lfParsed.value ?? undefined) !== route.targetLoadFactor;
+  const applyTargetLf = () => {
+    if (!lfParsed.ok) { setLfError(lfParsed.message); return; }
+    const res = bridge.dispatch({ kind: "updateRoute", id: route.id, patch: { targetLoadFactor: lfParsed.value } });
+    if (res && !res.ok) { setLfError(res.error.message); push("alert", res.error.message); return; }
+    setLfError(null);
+    push("good", lfParsed.value === null ? `Cleared the target load factor on ${routeName(route)}.` : `Target load factor ${formatTargetLf(lfParsed.value)}% on ${routeName(route)}.`);
   };
   const closeRoute = () => {
     const res = bridge.dispatch({ kind: "closeRoute", id: route.id });
@@ -137,6 +151,7 @@ export function RouteInspector({ route }: { route: Route }) {
           <h3 id="rp-sched">Schedule and fares</h3>
           <dl className="mini rp-dl">
             <dt>Frequency</dt><dd>{route.weeklyFrequency} per week each way ({ev.flightsPerWeek} flights)</dd>
+            <dt>Target load factor</dt><dd>{describeTargetLf(route.targetLoadFactor)}</dd>
             <dt>Aircraft</dt><dd>{substituted ?? route.typeId}, {Math.round(ev.seatsPerFlight)} seats per flight, {sched ? `${sched.aircraftIds.length} assigned` : `${ev.aircraftEquivalent.toFixed(1)} needed`}</dd>
             {CABINS.slice().reverse().map((c) => cabinFare(c) !== undefined && (<Fragment key={c}><dt>{CABIN_NAME[c]}</dt><dd>{usd(cabinFare(c)!)}</dd></Fragment>))}
           </dl>
@@ -164,6 +179,15 @@ export function RouteInspector({ route }: { route: Route }) {
           <h3 id="rp-edit">Adjust</h3>
           <FrequencyField value={freq} onChange={setFreq} />
           <FareFields text={fares} onChange={setFares} km={ev.distanceKm} from={airportById.get(route.origin)} to={airportById.get(route.destination)} />
+          <div className="rp-field rp-lf">
+            <label htmlFor={lfId}>Target load factor <span className="hint">%, 50-95, blank = off</span></label>
+            <div className="rp-lf-row">
+              <input id={lfId} type="number" inputMode="numeric" min={50} max={95} step={1} placeholder="off" value={lfText}
+                aria-invalid={!lfParsed.ok || undefined} onChange={(e) => { setLfText(e.target.value); setLfError(null); }} />
+              <button type="button" disabled={!lfDirty} onClick={applyTargetLf}>Set target</button>
+            </div>
+            {lfShown && <p className="rp-err" role="alert">{lfShown}</p>}
+          </div>
           <div className="rp-proj" aria-live="polite" aria-busy={settling}>
             <div>
               <span className="k">Route profit / week now</span>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { RealSimBridge } from "./realBridge";
 
-const make = () => new RealSimBridge({ startPaused: true, autoPause: false });
+const make = () => new RealSimBridge({ startPaused: true });
 /** Step until the snapshot lists an offer. */
 function withOffer(kind?: string) {
   const b = make();

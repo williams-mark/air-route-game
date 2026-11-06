@@ -295,3 +295,29 @@ export function validateRouteDraft(draft: RouteDraft, existing: readonly Route[]
   if (!(draft.fares.Y > 0)) return { code: "bad_fare", message: "Economy fare must be above zero." };
   return null;
 }
+
+/** Target load factor range in percent, as typed in the creator and inspector (the sim stores a fraction 0.5-0.95). */
+export const TARGET_LF_MIN = 50;
+export const TARGET_LF_MAX = 95;
+export const TARGET_LF_MESSAGE = `Target load factor: ${TARGET_LF_MIN}-${TARGET_LF_MAX}% or blank.`;
+
+export type TargetLfInput = { ok: true; value: number | null } | { ok: false; message: string };
+
+/** Parses a typed percent (50-95, blank = off) into the stored fraction, or null to clear the target. */
+export function parseTargetLf(text: string): TargetLfInput {
+  const t = text.trim();
+  if (t === "") return { ok: true, value: null };
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < TARGET_LF_MIN || n > TARGET_LF_MAX) return { ok: false, message: TARGET_LF_MESSAGE };
+  return { ok: true, value: n / 100 };
+}
+
+/** Text for the input box: the stored fraction as a percent without float noise ("80", "80.5"), "" when off. */
+export function formatTargetLf(lf: number | null | undefined): string {
+  return lf == null ? "" : String(Number((lf * 100).toFixed(2)));
+}
+
+/** Read-only value for the inspector row: "80%" or "off". */
+export function describeTargetLf(lf: number | null | undefined): string {
+  return lf == null ? "off" : `${formatTargetLf(lf)}%`;
+}

@@ -4,7 +4,7 @@ import { RealSimBridge } from "../sim/realBridge";
 import { autosaveDue, latestSlot, loadFromSlot, loadText, monthIndex, parseSeed, saveToSlot, startScreenWanted } from "./saves";
 import { MemoryStore } from "./store";
 
-const mk = (seed = 2015) => new RealSimBridge({ seed, startPaused: true, autoPause: false });
+const mk = (seed = 2015) => new RealSimBridge({ seed, startPaused: true });
 
 describe("save / load", () => {
   it("round-trips through a slot and resumes identically to an uninterrupted run", async () => {

@@ -5,9 +5,6 @@ import { useUi } from "../store";
 
 export const bridge: SimBridge = createBridge();
 
-// Settings toggle feeds the bridge's auto-slow rules.
-bridge.setAutoPause?.(useUi.getState().autoPause);
-useUi.subscribe((s, prev) => { if (s.autoPause !== prev.autoPause) bridge.setAutoPause?.(s.autoPause); });
 
 /** Subscribe to a slice of the snapshot; re-renders only when the selected value changes (compare with ===). */
 export function useSimSelector<T>(select: (s: SimSnapshot) => T): T {

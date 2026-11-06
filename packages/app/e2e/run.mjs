@@ -329,16 +329,7 @@ for (const theme of themes) {
     await page.keyboard.press("Space");
   });
 
-  // The rate checks measure the clock, not the decision system: with auto-pause on, a rival decision card (more frequent in the
-  // 496-airport world) pauses the game a few days in and the measurement reads "too slow". Auto-pause is switched off for them
-  // (the switch in Settings) and restored afterwards; the speed-5 check above already runs with it on.
-  const setAutoPause = async (on) => {
-    await nav(page, "Settings");
-    const sw = page.getByRole("switch", { name: /Auto-pause on events/ });
-    if (((await sw.getAttribute("aria-checked")) === "true") !== on) await sw.click();
-    await nav(page, "Map");
-  };
-  await setAutoPause(false);
+  // The rate checks measure the clock; if a card or the game pauses mid-check, the failure message says so.
   for (const sp of [1, 2, 3, 4]) {
     await check(theme, `speed ${sp}: date advances at roughly the expected rate`, async () => {
       await nav(page, "Map");
@@ -359,7 +350,6 @@ for (const theme of themes) {
     });
   }
 
-  await setAutoPause(true);
 
   await check(theme, "start screen: choose a home airport and airline name, game starts there with derived routes", async () => {
     const p2 = await browser.newPage({ viewport: { width: 1280, height: 800 } });

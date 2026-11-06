@@ -108,7 +108,7 @@ describe("RealSimBridge", () => {
   });
 
   it("delivers ordered aircraft without pausing and raises a delivery card", () => {
-    const b = new RealSimBridge({ startPaused: false, autoPause: true });
+    const b = new RealSimBridge({ startPaused: false });
     const res = b.dispatch({ kind: "orderAircraft", typeId: "A320N", count: 1, layout: { sections: [] } });
     expect(res).toMatchObject({ ok: true });
     const due = Math.min(...b.getState().orders[0]!.deliveryDays);
@@ -128,16 +128,13 @@ describe("RealSimBridge", () => {
   });
 
   // Low-load and rival fare-cut cards were removed by owner request: an overpriced route raises no card and no pause.
-  it("raises no low-load card and does not pause on a decision, with auto-pause on or off", () => {
-    const on = new RealSimBridge({ seed: 2015, startPaused: false, autoPause: true });
-    const off = new RealSimBridge({ seed: 2015, startPaused: false, autoPause: false });
-    for (const b of [on, off]) {
-      b.dispatch({ kind: "updateRoute", id: b.getState().routes.find((r) => r.destination === "SAN")!.id, patch: { fares: { Y: 160 } } });
-      b.setSpeed(2);
-      for (let i = 0; i < 400; i++) b.advance(250);
-      expect(b.getState().decisions.filter((d) => !d.id.startsWith("delivery-"))).toEqual([]);
-      expect(b.getState().speed).toBe(2);
-    }
+  it("raises no low-load card and does not pause on a decision", () => {
+    const b = new RealSimBridge({ seed: 2015, startPaused: false });
+    b.dispatch({ kind: "updateRoute", id: b.getState().routes.find((r) => r.destination === "SAN")!.id, patch: { fares: { Y: 160 } } });
+    b.setSpeed(2);
+    for (let i = 0; i < 400; i++) b.advance(250);
+    expect(b.getState().decisions.filter((d) => !d.id.startsWith("delivery-"))).toEqual([]);
+    expect(b.getState().speed).toBe(2);
   });
 
   it("rolls daily records up into calendar months", () => {

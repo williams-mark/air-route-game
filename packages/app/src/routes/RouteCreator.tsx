@@ -13,7 +13,7 @@ import { FrequencyBars } from "./charts";
 import { FareFields, FrequencyField, Stat, useDebounced } from "./editor";
 import {
   bestFrequency, bestType, eligibleTypes, faresToText, frequencySweep, marketFares, marketInfo, parseFares, projectRoute, rivalPresence, routeName,
-  operatingMix, previewNewRoute, substitutionText, validateRouteDraft, type RouteDraft,
+  operatingMix, parseTargetLf, previewNewRoute, substitutionText, TARGET_LF_MESSAGE, validateRouteDraft, type RouteDraft,
 } from "./helpers";
 import { pct, usd, usdSigned } from "./fmt";
 import { useCreation, useToasts } from "./store";
@@ -145,7 +145,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
 
   const open = () => {
     if (!parsed) { push("alert", "Economy fare required; other cabins positive or blank."); return; }
-    if (!lf.ok) { push("alert", "Target load factor: 50-95% or blank."); return; }
+    if (!lf.ok) { push("alert", TARGET_LF_MESSAGE); return; }
     const routeDraft: RouteDraft = { ...draft, targetLoadFactor: lf.value ?? undefined };
     const res = bridge.dispatch({ kind: "openRoute", route: routeDraft });
     if (res && !res.ok) { setOpenError(res.error.message); push("alert", res.error.message); return; }
@@ -159,7 +159,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const existingMsg = existing ? `Already flown: ${routeName(existing)}.` : null;
   const issueMsg = issue && issue.code !== "duplicate_route" ? issue.message : null;
   const fareMsg = parsed ? null : "Economy fare required.";
-  const lfMsg = lf.ok ? null : "Target load factor: 50-95% or blank.";
+  const lfMsg = lf.ok ? null : TARGET_LF_MESSAGE;
   const footMsgs = [existingMsg, issueMsg, fareMsg, lfMsg, openError].filter((m): m is string => !!m);
   const mix = (Object.keys(market.shares) as Array<keyof typeof market.shares>);
   return (
@@ -201,6 +201,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
             </div>
           )}
           <FareFields text={fareText} onChange={setFareText} km={market.distanceKm} from={a} to={b} compact />
+          {footMsgs.length > 0 && <div className="rc-msgs">{footMsgs.map((m) => <p key={m} className="rp-err" role="alert">{m}</p>)}</div>}
         </section>
 
         <div className="rc-col">
@@ -241,7 +242,6 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
         </div>
       </div>
       <div className="rc-foot">
-        <div className="rc-msgs">{footMsgs.map((m) => <p key={m} className="rp-err" role="alert">{m}</p>)}</div>
         <button type="button" onClick={() => end()}>Cancel</button>
         <button type="button" className="primary" disabled={!typeId || !parsed || !lf.ok} onClick={open}>Open route</button>
       </div>
@@ -249,11 +249,3 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   );
 }
 
-/** Target load factor as typed (percent, 50-95, blank = off), stored as a fraction. */
-function parseTargetLf(text: string): { ok: true; value: number | null } | { ok: false } {
-  const t = text.trim();
-  if (t === "") return { ok: true, value: null };
-  const n = Number(t);
-  if (!Number.isFinite(n) || n < 50 || n > 95) return { ok: false };
-  return { ok: true, value: n / 100 };
-}

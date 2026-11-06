@@ -216,9 +216,9 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 .rc-proj .rp-chart { height: 118px; width: 100%; display: block; }
 .rc-proj .rp-actions { margin: .2rem 0 0; }
 .rc-proj .rp-actions button { font-size: .78rem; padding: .3rem .6rem; }
-.rc-foot { display: flex; align-items: center; gap: .5rem; border-top: 1px solid var(--line); padding: .5rem .85rem; }
-.rc-msgs { flex: 1; min-width: 0; }
-.rc-msgs .rp-err { margin: 0; font-size: .75rem; }
+.rc-foot { display: flex; align-items: center; justify-content: flex-end; gap: .5rem; border-top: 1px solid var(--line); padding: .5rem .85rem; }
+.rc-msgs { min-width: 0; margin-top: .4rem; }
+.rc-msgs .rp-err { margin: .15rem 0; font-size: .75rem; }
 .rc-foot button { font-size: .85rem; padding: .4rem .8rem; }
 @media (max-width: 900px) {
   .route-panel.sandbox .rp-scroll { overflow-y: auto; }
@@ -226,3 +226,5 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
   .rc-col .rc-sec + .rc-sec { border-top: 0; }
   
 }
+.rp-lf-row { display: flex; gap: .4rem; align-items: center; }
+.rp-lf-row input { width: 6.5rem; }

@@ -16,10 +16,6 @@ export default function SettingsView() {
           </div>
         </div>
         <div className="setting">
-          <div><strong id="s-auto">Auto-pause on events</strong><p>Pause the game when a decision or an alert arrives.</p></div>
-          <button role="switch" aria-checked={ui.autoPause} aria-labelledby="s-auto" className="switch" onClick={() => ui.setAutoPause(!ui.autoPause)}><span /></button>
-        </div>
-        <div className="setting">
           <div><strong id="s-scale">UI scale</strong><p>Size of text and controls in the shell.</p></div>
           <div className="seg" role="group" aria-labelledby="s-scale">
             {UI_SCALES.map((s) => (<button key={s} aria-pressed={ui.uiScale === s} onClick={() => ui.setUiScale(s)}>{s}%</button>))}
