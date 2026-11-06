@@ -61,8 +61,22 @@ export function isLandPair(a: Airport, b: Airport): boolean {
  */
 export function isOverwaterRoute(a: Airport, b: Airport): boolean {
   if (a.landmass === "US-HI" && b.landmass === "US-HI") return (HI_ISLAND[a.id] ?? a.id) !== (HI_ISLAND[b.id] ?? b.id);
-  return a.landmass !== b.landmass;
+  if (a.landmass === b.landmass) return false;
+  const ga = LAND_CONNECTED[a.landmass], gb = LAND_CONNECTED[b.landmass];
+  return ga === undefined || ga !== gb;
 }
+
+/**
+ * Landmasses that are joined by land and are named separately only because of the road/rail convention (`isLandPair` still needs the
+ * same `landmass`). A route between two members never crosses open water, so it is not overwater (SOURCES.md "Globe expansion"):
+ * North America (US lower 48, Canada, Mexico, Central America) and Africa-Eurasia (Europe, Asia mainland, Africa via Sinai).
+ * GB, IE, Alaska, Hawaii and all islands are deliberately not members. South America is separated from Central America only by the
+ * Darien gap (no road, but no sea crossing either); it is kept out so the route is judged by the ETOPS alternates rule (always passes).
+ */
+const LAND_CONNECTED: Readonly<Record<string, string>> = {
+  "US-CONUS": "NA", CA: "NA", MX: "NA", "NA-CENTRAL": "NA",
+  "EU-MAINLAND": "EURAFRICA", "AS-MAINLAND": "EURAFRICA", "AF-MAINLAND": "EURAFRICA",
+};
 
 const ROUTE_SAMPLE_KM = 100;
 const alternatePoints: readonly { lat: number; lon: number }[] = [

@@ -1,0 +1,255 @@
+# iata|pax2015_thousands (recalled, approx)|flags|metroPop (anchor, blank=formula)|gdpPerCapita (anchor, blank=formula)|city override|ident override
+# Globe expansion (lane/globe-data): South Asia, East Asia, Southeast Asia, Oceania and the Pacific.
+# India
+DEL|48000|C|25000000||Delhi
+BOM|45000|C|21000000||Mumbai
+BLR|22000||10000000||Bengaluru
+MAA|18000||10000000||Chennai
+CCU|16000||14000000||Kolkata
+HYD|12000||9000000||Hyderabad
+COK|7000||2100000||Kochi
+AMD|9000||7000000||Ahmedabad
+GOI|5000|R|200000||Goa
+PNQ|8000||6000000||Pune
+TRV|4000||1000000||Thiruvananthapuram
+JAI|4000|C|3500000||Jaipur
+LKO|4000||3000000||Lucknow
+GAU|3500||1100000||Guwahati
+PAT|2800||2300000||Patna
+NAG|3000||2500000||Nagpur
+IXC|2400||1200000||Chandigarh
+IDR|2200||2200000||Indore
+BBI|3300||1000000||Bhubaneswar
+CJB|2900||2800000||Coimbatore
+ATQ|2200||1300000||Amritsar
+SXR|1800||1200000||Srinagar
+VNS|1800|C|1400000||Varanasi
+IXZ|1200|R|150000||Port Blair
+VTZ|3000||2000000||Visakhapatnam
+IXL|800|R|40000||Leh
+RPR|1500||1100000||Raipur
+IXE|1000||600000||Mangaluru
+# Pakistan, Bangladesh, Sri Lanka, Nepal, Maldives
+KHI|6500||15000000||Karachi
+LHE|5800||10000000||Lahore
+ISB|3500|X|2000000||Islamabad|OPRN
+PEW|2800||2000000||Peshawar
+DAC|7500||17000000||Dhaka
+CGP|2500||4000000||Chittagong
+ZYL|800||600000||Sylhet
+CMB|9000||2500000||Colombo
+KTM|4800||1400000||Kathmandu
+MLE|3000|R|150000||Male
+# Japan
+HND|75000|C|37000000||Tokyo
+NRT|36000|C|37000000||Tokyo
+KIX|25000|C|18000000||Osaka
+ITM|14000||18000000||Osaka
+NGO|10000||9000000||Nagoya
+FUK|21000||2500000||Fukuoka
+CTS|21000|R|2600000||Sapporo
+OKA|15000|R|1300000||Naha
+KOJ|5500||1700000||Kagoshima
+KMQ|3000||1100000||Komatsu
+HIJ|3000||2000000||Hiroshima
+SDJ|3300||2300000||Sendai
+KMJ|3200||1800000||Kumamoto
+NGS|3000||1400000||Nagasaki
+OIT|1800||480000||Oita
+MYJ|3000||1000000||Matsuyama
+UKB|3000||18000000||Kobe
+ISG|2000|R|50000||Ishigaki
+MMY|1300|R|55000||Miyako
+HKD|3000|R|450000||Hakodate
+KIJ|1000||800000||Niigata
+TAK|1500||900000||Takamatsu
+KCZ|1100||350000||Kochi
+KMI|2800||400000||Miyazaki
+AOJ|1000||300000||Aomori
+AKJ|1000||340000||Asahikawa
+# Korea, Taiwan, China, Hong Kong, Macau, Mongolia
+ICN|49000|C|25000000||Seoul
+GMP|24000|C|25000000||Seoul
+PUS|13000||3500000||Busan
+CJU|26000|R|650000||Jeju
+TAE|3500||2500000||Daegu
+CJJ|2000||850000||Cheongju
+KWJ|1900||1500000||Gwangju
+TPE|42000|C|7000000||Taipei
+TSA|6000|C|7000000||Taipei
+KHH|6500||2800000||Kaohsiung
+RMQ|6000||2800000||Taichung
+MZG|1500|R|100000||Magong
+PEK|90000|C|21000000||Beijing
+PVG|60000|C|24000000||Shanghai
+SHA|40000|C|24000000||Shanghai
+CAN|55000||13000000||Guangzhou
+CTU|42000|C|14000000||Chengdu
+SZX|40000||12000000||Shenzhen
+KMG|37000|C|6700000||Kunming
+XIY|38000|C|8700000||Xi'an
+CKG|36000||17000000||Chongqing
+HGH|32000|C|9000000||Hangzhou
+NKG|22000||8000000||Nanjing
+CSX|23000||7000000||Changsha
+XMN|22000|C|4000000||Xiamen
+WUH|20000||10000000||Wuhan
+TAO|20000||9000000||Qingdao
+CGO|20000||8000000||Zhengzhou
+URC|17000||3500000||Urumqi
+TSN|20000||14000000||Tianjin
+DLC|16000||6000000||Dalian
+SYX|17000|R|700000||Sanya
+HAK|24000|R|2000000||Haikou
+NNG|14000||4000000||Nanning
+KWE|16000||4500000||Guiyang
+HRB|18000||10000000||Harbin
+SHE|20000||8000000||Shenyang
+TNA|15000||8000000||Jinan
+FOC|14000||7000000||Fuzhou
+CGQ|12000||7500000||Changchun
+HFE|10000||8000000||Hefei
+TYN|13000||4000000||Taiyuan
+LHW|10000||3700000||Lanzhou
+WNZ|12000||9000000||Wenzhou
+NGB|11000||8000000||Ningbo
+XNN|6500||2300000||Xining
+INC|5000||2000000||Yinchuan
+LXA|4500|R|500000||Lhasa
+ZUH|8000||1600000||Zhuhai
+HET|7000||2900000||Hohhot
+SJW|9000||10000000||Shijiazhuang
+KHN|6000||5000000||Nanchang
+LJG|6000|R|1250000||Lijiang
+DYG|5500|R|1500000||Zhangjiajie
+YNT|8000||7000000||Yantai
+KWL|10000|R|5000000||Guilin
+HKG|68000|C|7300000||Hong Kong
+MFM|6000|R|630000||Macau
+ULN|1200||1400000||Ulaanbaatar
+# Thailand, Vietnam, Cambodia, Laos, Myanmar
+BKK|55000|C|15000000||Bangkok
+DMK|21000||15000000||Bangkok
+HKT|15000|R|400000||Phuket
+CNX|7000|C|1000000||Chiang Mai
+USM|2000|R|60000||Koh Samui
+KBV|4000|R|100000||Krabi
+HDY|3000||1500000||Hat Yai
+CEI|2000||900000||Chiang Rai
+UTH|1800||600000||Udon Thani
+KKC|1400||1000000||Khon Kaen
+SGN|32000||9000000||Ho Chi Minh City
+HAN|22000||7500000||Hanoi
+DAD|10000|R|1100000||Da Nang
+CXR|5000|R|400000||Nha Trang
+PQC|2000|R|110000||Phu Quoc
+HPH|3000||2000000||Hai Phong
+VII|2000||500000||Vinh
+HUI|1300|C|1000000||Hue
+DLI|1500|R|250000||Da Lat
+PNH|3500||2000000||Phnom Penh
+REP|3000|RCX|200000||Siem Reap|KH-0003
+VTE|1500||800000||Vientiane
+LPQ|1000|RC|60000||Luang Prabang
+RGN|5000||5200000||Yangon
+MDL|1500||1500000||Mandalay
+# Singapore, Malaysia, Brunei, Indonesia, Philippines, Timor
+SIN|55000|C|5600000||Singapore
+KUL|48000||7000000||Kuala Lumpur
+PEN|7000|R|1800000||Penang
+BKI|6500|R|500000||Kota Kinabalu
+KCH|4500||600000||Kuching
+LGK|4000|R|100000||Langkawi
+JHB|2800||1800000||Johor Bahru
+MYY|1500||400000||Miri
+BWN|1500||400000||Bandar Seri Begawan
+CGK|55000||31000000||Jakarta
+DPS|20000|R|4000000||Denpasar
+SUB|17000||9000000||Surabaya
+UPG|8000||1800000||Makassar
+KNO|8000||4000000||Medan
+JOG|6000|C|3500000||Yogyakarta
+BPN|8000||700000||Balikpapan
+BDO|5000||8000000||Bandung
+PLM|4000||2000000||Palembang
+SRG|3500||1700000||Semarang
+PKU|3000||1100000||Pekanbaru
+PDG|3000||1200000||Padang
+BTH|4000||1200000||Batam
+LOP|3000|R|1000000||Praya
+MDC|3000||800000||Manado
+BIK|700||150000||Biak
+AMQ|1500||400000||Ambon
+DJJ|1200||300000||Jayapura
+HLP|3000||31000000||Jakarta
+MNL|38000||13000000||Manila
+CEB|8000|R|3000000||Cebu
+DVO|3500||1800000||Davao
+CRK|5000||1000000||Angeles City
+ILO|3000||1000000||Iloilo
+BCD|2000||600000||Bacolod
+KLO|2000|R|100000||Kalibo
+MPH|1500|R|100000||Caticlan
+PPS|1500|R|250000||Puerto Princesa
+ZAM|1200||900000||Zamboanga
+CGY|2000||700000||Cagayan de Oro
+TAC|1200||250000||Tacloban
+LAO|900||150000||Laoag
+GES|1000||700000||General Santos
+DIL|300|S|||Dili
+# Australia
+SYD|41000|C|4900000||Sydney
+MEL|35000|C|4500000||Melbourne
+BNE|22000||2300000||Brisbane
+PER|13000||2000000||Perth
+ADL|8000||1300000||Adelaide
+OOL|6000|R|600000||Gold Coast
+CNS|5000|R|240000||Cairns
+CBR|3000||400000||Canberra
+HBA|2500||220000||Hobart
+TSV|1700||180000||Townsville
+DRW|2000||140000||Darwin
+LST|1200||100000||Launceston
+NTL|1100||450000||Newcastle
+MCY|1000|R|330000||Maroochydore
+ASP|1000|C|40000||Alice Springs
+AYQ|400|R|3000||Ayers Rock
+HTI|600|R|10000||Hamilton Island
+PPP|600|R|30000||Proserpine
+BME|900|R|15000||Broome
+KTA|800||15000||Karratha
+PHE|700||15000||Port Hedland
+ZNE|700||5000||Newman
+ROK|700||80000||Rockhampton
+MKY|800||160000||Mackay
+# New Zealand
+AKL|15000|C|1500000||Auckland
+CHC|6000||390000||Christchurch
+WLG|5000||400000||Wellington
+ZQN|2000|R|35000||Queenstown
+DUD|1000||120000||Dunedin
+ROT|600||70000||Rotorua
+NSN|1000||50000||Nelson
+NPE|600||130000||Napier
+PMR|600||85000||Palmerston North
+IVC|400||50000||Invercargill
+# Pacific
+NAN|1800|R|60000||Nadi
+SUV|600||90000||Suva
+POM|1200||350000||Port Moresby
+LAE|300||100000||Lae
+RAB|300||30000||Rabaul
+HIR|400||70000||Honiara
+VLI|300|R|50000||Port Vila
+NOU|600||180000||Noumea
+PPT|1100|R|190000||Papeete
+BOB|200|R|9000||Bora Bora
+RAR|300|R|13000||Avarua
+APW|300||40000||Apia
+TBU|150||75000||Nuku'alofa
+GUM|4000|R|160000||Tamuning
+SPN|600|R|50000||Saipan
+ROR|100|S|||Koror
+MAJ|100|S|||Majuro
+TRW|100|S|||Tarawa
+PPG|100|S|||Pago Pago

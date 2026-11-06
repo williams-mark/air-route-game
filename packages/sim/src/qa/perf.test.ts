@@ -18,6 +18,7 @@ describe("performance with the whole US and Europe", () => {
     const days = 120;
     for (let i = 0; i < days; i++) s = stepDay(s);
     const msPerDay = (performance.now() - t0) / days;
+    console.log(`PERF ${airports.length} airports: ${msPerDay.toFixed(2)} ms per sim day`);
     expect(msPerDay).toBeLessThan(40);
   }, 60_000);
 

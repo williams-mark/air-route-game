@@ -1,0 +1,174 @@
+# iata|pax2015_thousands (recalled, approx)|flags|metroPop (anchor, blank=formula)|gdpPerCapita (anchor, blank=formula)|city override|ident override
+# Globe expansion (lane/globe-data): Canada, Mexico, Central America, Caribbean, South America. Flags as in world_airports_eu.tsv.
+# Canada
+YYZ|41000|C|6200000||Toronto
+YVR|20000|C|2500000||Vancouver
+YUL|15500|C|4100000||Montreal
+YYC|15000||1400000||Calgary
+YEG|7300||1300000||Edmonton
+YOW|4800||1300000||Ottawa
+YWG|4000||800000||Winnipeg
+YHZ|3700||430000||Halifax
+YTZ|2700||6200000||Toronto
+YQB|1600||800000||Quebec City
+YYJ|1700|R|390000||Victoria
+YXE|1400||330000||Saskatoon
+YQR|1200||240000||Regina
+YLW|1600|R|190000||Kelowna
+YYT|1600||210000||St. John's
+YQT|800||120000||Thunder Bay
+YXU|500||500000||London
+YXS|450||90000||Prince George
+YFC|500||150000||Fredericton
+YQM|700||160000||Moncton
+YQG|600||330000||Windsor
+YXY|300|S|||Whitehorse
+YZF|300|S|||Yellowknife
+YFB|150|S|||Iqaluit
+YYR|150|S|||Goose Bay
+# Mexico
+MEX|41700|C|21000000||Mexico City
+CUN|20000|R|750000||Cancun
+GDL|12000||4800000||Guadalajara
+MTY|9500||4500000||Monterrey
+TIJ|9000||2000000||Tijuana
+SJD|4700|R|300000||San Jose del Cabo
+PVR|4300|R|480000||Puerto Vallarta
+BJX|2600||1700000||Leon
+MID|2900|C|1200000||Merida
+CUU|1400||900000||Chihuahua
+HMO|1500||800000||Hermosillo
+VER|1200||800000||Veracruz
+ZIH|1000|R|120000||Ixtapa-Zihuatanejo
+ACA|1000|R|800000||Acapulco
+MZT|1200|R|500000||Mazatlan
+CZM|600|R|90000||Cozumel
+CUL|1900||900000||Culiacan
+TRC|1000||1200000||Torreon
+OAX|900|C|600000||Oaxaca
+VSA|900||700000||Villahermosa
+TGZ|800||600000||Tuxtla Gutierrez
+SLP|1000||1100000||San Luis Potosi
+QRO|1000||1300000||Queretaro
+MXL|1000||1000000||Mexicali
+LAP|800|R|300000||La Paz
+HUX|800|R|30000||Huatulco
+PBC|900||2000000||Puebla
+AGU|600||1000000||Aguascalientes
+# Central America
+PTY|14800|C|1800000||Panama City
+SJO|4300|R|2200000||San Jose
+LIR|1500|R|50000||Liberia
+SAL|2500||1700000||San Salvador
+GUA|2000||3000000||Guatemala City
+TGU|1300||1200000||Tegucigalpa
+SAP|1000||900000||San Pedro Sula
+RTB|400|R|10000||Roatan
+MGA|1400||1100000||Managua
+BZE|1000|R|100000||Belize City
+# Caribbean
+HAV|5000|C|2100000||Havana
+VRA|1500|R|30000||Varadero
+SJU|9000|R|2400000||San Juan
+STT|1500|R|50000||Charlotte Amalie
+SDQ|4300||3000000||Santo Domingo
+PUJ|6500|R|150000||Punta Cana
+POP|1000|R|300000||Puerto Plata
+STI|900||800000||Santiago
+KIN|1900||1200000||Kingston
+MBJ|3600|R|180000||Montego Bay
+NAS|3000|R|250000||Nassau
+FPO|400||50000||Freeport
+GCM|1700|R|60000||Grand Cayman
+BGI|1700|R|280000||Bridgetown
+POS|2900||600000||Port of Spain
+TAB|700|R|60000||Scarborough
+AUA|2400|R|110000||Oranjestad
+CUR|1700|R|150000||Willemstad
+BON|500|R|20000||Kralendijk
+SXM|1800|R|75000||Philipsburg
+ANU|800|R|90000||St. John's
+SKB|400|R|50000||Basseterre
+UVF|800|R|180000||Vieux Fort
+GND|500|R|110000||St. George's
+PTP|2000|R|400000||Pointe-a-Pitre
+FDF|1700|R|370000||Fort-de-France
+PAP|1000||2600000||Port-au-Prince
+BDA|700|R|65000||Hamilton
+PLS|500|R|30000||Providenciales
+# South America: Brazil
+GRU|36000|C|21000000||Sao Paulo
+CGH|20000|C|21000000||Sao Paulo
+VCP|9500||21000000||Campinas
+GIG|17000|C|12000000||Rio de Janeiro
+SDU|9000|C|12000000||Rio de Janeiro
+BSB|16500||4000000||Brasilia
+CNF|10000||5000000||Belo Horizonte
+SSA|8300|C|3900000||Salvador
+REC|8000|C|3900000||Recife
+POA|8000||4200000||Porto Alegre
+CWB|6500||3500000||Curitiba
+FOR|6000|R|3900000||Fortaleza
+BEL|3200||2300000||Belem
+MAO|3000||2200000||Manaus
+FLN|4000|R|1100000||Florianopolis
+NAT|3400|R|1500000||Natal
+GYN|3000||2500000||Goiania
+CGB|3300||900000||Cuiaba
+VIX|3200||1900000||Vitoria
+MCZ|2200|R|1300000||Maceio
+SLZ|2500||1400000||Sao Luis
+BPS|1500|R|150000||Porto Seguro
+IGU|2000|R|300000||Foz do Iguacu
+JPA|1500||1200000||Joao Pessoa
+THE|1100||1200000||Teresina
+CGR|1800||900000||Campo Grande
+NVT|3200||600000||Navegantes
+LDB|1600||800000||Londrina
+PMW|1000||280000||Palmas
+AJU|1300||900000||Aracaju
+# Argentina, Uruguay, Paraguay, Chile
+EZE|10000|C|15000000||Buenos Aires
+AEP|9500|C|15000000||Buenos Aires
+COR|3600||1500000||Cordoba
+MDZ|2600|R|1100000||Mendoza
+BRC|1800|R|120000||San Carlos de Bariloche
+ROS|1200||1300000||Rosario
+IGR|1100|R|90000||Puerto Iguazu
+USH|600|R|60000||Ushuaia
+FTE|800|R|25000||El Calafate
+SLA|1100||600000||Salta
+TUC|1000||900000||San Miguel de Tucuman
+NQN|900||350000||Neuquen
+MVD|1700||1800000||Montevideo
+ASU|1200||2200000||Asuncion
+SCL|20000|C|6500000||Santiago
+ANF|2800||350000||Antofagasta
+PMC|700||270000||Puerto Montt
+PUQ|1500|R|130000||Punta Arenas
+IQQ|2000||300000||Iquique
+CCP|1500||950000||Concepcion
+IPC|100|SR|||Easter Island
+# Colombia, Venezuela, Ecuador, Peru, Bolivia, Guianas
+BOG|28000||10000000||Bogota
+MDE|10000||3900000||Medellin
+CLO|4000||3400000||Cali
+CTG|3600|R|1000000||Cartagena
+BAQ|2300||2000000||Barranquilla
+BGA|1700||1100000||Bucaramanga
+ADZ|1000|R|70000||San Andres
+SMR|800|R|500000||Santa Marta
+PEI|1400||700000||Pereira
+CCS|3000||3000000||Caracas
+UIO|5000||2700000||Quito
+GYE|4000||3000000||Guayaquil
+GPS|300|SR|||Baltra
+LIM|18000|C|10000000||Lima
+CUZ|2600|R|450000||Cusco
+AQP|1500||1000000||Arequipa
+VVI|2700||1900000||Santa Cruz de la Sierra
+LPB|2300||1800000||La Paz
+CBB|1500||1200000||Cochabamba
+GEO|500||110000||Georgetown
+PBM|300||240000||Paramaribo
+CAY|400||150000||Cayenne

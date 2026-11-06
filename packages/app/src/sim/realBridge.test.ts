@@ -31,7 +31,7 @@ describe("RealSimBridge", () => {
     const closed = b.dispatch({ kind: "openRoute", route: { origin: "FRA", destination: "BER", weeklyFrequency: 7, fares: { Y: 120 }, typeId: "B737-800" } });
     expect(closed).toMatchObject({ ok: false, error: { code: "airport_closed" } });
     expect(closed && !closed.ok && closed.error.message).toMatch(/BER/);
-    const water = b.dispatch({ kind: "openRoute", route: { origin: "ANC", destination: "BIS", weeklyFrequency: 7, fares: { Y: 300 }, typeId: "E175" } });
+    const water = b.dispatch({ kind: "openRoute", route: { origin: "SYD", destination: "AKL", weeklyFrequency: 7, fares: { Y: 300 }, typeId: "E175" } });
     expect(water).toMatchObject({ ok: false, error: { code: "overwater_limit" } });
   });
 
