@@ -2,17 +2,21 @@
 // The clock accumulates real time (rAF dt, clamped) into whole simulated days; days are stepped in a batch and the UI gets
 // exactly one snapshot per batch.
 import type { Command, Day, Id, SimEvent } from "@arg/contracts";
-import { aircraftTypes as dataTypes, airports as dataAirports } from "@arg/data";
+import { aircraftTypes as dataTypes, airports as rawAirports, terminalsFor } from "@arg/data";
 import {
   applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay,
   validateSimState, type Clock, type SimState, type HubCommand, homeHubOf,
 } from "@arg/sim";
+
 import type {
   CommandResult, Decision, FleetItem, Notice, OfferItem, OrderItem, Severity, SimBridge, SimSnapshot, Speed,
 } from "./bridge";
 import { DecisionEngine, type EngineState, type PendingDecision } from "./decisions";
 import { buildRivalsView, type RivalsView } from "../rivals/helpers";
 import { dayRecord, type DayRecord } from "./finance";
+
+/** Data airports with the per-terminal fee tiers attached (packages/data keeps terminals in their own table), so the sim sees real terminals at big hubs. */
+export const dataAirports = rawAirports.map((a) => { const t = terminalsFor(a.id); return t.length > 0 ? { ...a, terminals: t } : a; });
 
 export interface RealBridgeOptions {
   seed?: number;

@@ -7,6 +7,7 @@ const ROWS: Array<[string, string]> = [
   ["+ / −", "Faster / slower"],
   ["Ctrl/Cmd + K", "Command palette"],
   ["Alt + 1 – 9, 0", "Switch view"],
+  ["Alt + -  /  Alt + =", "Hubs / Fare policy"],
   ["Ctrl/Cmd + S", "Quick save"],
   ["N", "New route (pauses the game)"],
   ["J", "Show / minimize notifications"],

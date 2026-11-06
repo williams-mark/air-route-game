@@ -3,7 +3,7 @@ import type { CameraPresetId, Theme } from "./map/types";
 import { startScreenWanted } from "./save/saves";
 
 export type Selection = { kind: "route" | "airport"; id: string } | null;
-export type ViewId = "map" | "routes" | "fleet" | "planner" | "orders" | "cabin" | "finance" | "rivals" | "settings" | "hubboard";
+export type ViewId = "map" | "routes" | "fleet" | "planner" | "orders" | "cabin" | "finance" | "rivals" | "settings" | "hubboard" | "hubs" | "farepolicy";
 export const UI_SCALES = [90, 100, 110, 125] as const;
 
 interface UiState {

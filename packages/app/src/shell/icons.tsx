@@ -32,3 +32,5 @@ export const IconTag = (p: P) => <Svg {...p}><path d="M3.5 12.2V4.5a1 1 0 0 1 1-
 export const IconCabin = (p: P) => <Svg {...p}><path d="M2.5 12c0-2 1.5-3.5 3.5-3.5h12c2.2 0 3.5 1.5 3.5 3.5s-1.3 3.5-3.5 3.5H6c-2 0-3.500-1.500-3.500-3.500Z" /><path d="M8 10v4M11 10v4M14 10v4M17 10v4" /></Svg>;
 export const IconRivals = (p: P) => <Svg {...p}><circle cx="9" cy="8" r="3" /><path d="M3.5 19c0-3.2 2.4-5 5.5-5s5.500 1.800 5.500 5" /><circle cx="17.5" cy="9" r="2.300" /><path d="M16.500 14.200c2.700-.2 4.500 1.300 4.500 4" /></Svg>;
 export const IconHubBoard = (p: P) => <Svg {...p}><path d="M3 5h18v14H3z" /><path d="M3 10h18M8 5v14" /><path d="M11 13.500h7M11 16.500h5" /></Svg>;
+export const IconHubs = (p: P) => <Svg {...p}><circle cx="12" cy="12" r="2.500" /><circle cx="5" cy="6" r="1.500" /><circle cx="19" cy="6" r="1.500" /><circle cx="5" cy="18" r="1.500" /><circle cx="19" cy="18" r="1.500" /><path d="M6.200 7l4 3.600M17.800 7l-4 3.600M6.200 17l4-3.600M17.800 17l-4-3.600" /></Svg>;
+export const IconFarePolicy = (p: P) => <Svg {...p}><path d="M4 5h9l7 7-8 8-8-8z" /><circle cx="9" cy="9.500" r="1.200" /><path d="M10 15l4-4" /></Svg>;
