@@ -11,7 +11,8 @@ import { checkState, findNonFinite } from "./invariants";
 const ERROR_CODES = new Set([
   "invalid_speed", "unknown_airport", "same_airport", "unknown_type", "invalid_frequency", "invalid_fare", "out_of_range",
   "runway_too_short", "no_suitable_aircraft", "duplicate_route", "unknown_route", "invalid_count", "invalid_layout",
-  "type_unavailable", "insufficient_cash", "insufficient_block_hours", "unknown_offer", "offer_expired", "unknown_aircraft", "aircraft_unavailable",
+  "type_unavailable", "insufficient_cash", "insufficient_block_hours", "insufficient_slots", "invalid_fare_policy", "unknown_policy", "unknown_terminal", "unknown_offer", "offer_expired", "unknown_aircraft", "aircraft_unavailable",
+  "overwater_limit", "airport_closed", // reachable now that random airport pairs can be intercontinental (lane/globe-data)
 ]);
 
 /** Values chosen to hit edge cases: valid, boundary, negative, fractional, huge, non-finite, wrong type. */

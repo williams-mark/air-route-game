@@ -1,6 +1,7 @@
 import type { Aircraft, AircraftType, Airport, Day, Id, Route, SimEvent } from "@arg/contracts";
 import { canFlyRoute } from "@arg/data";
 import { airportEpoch, airportOpen, closureOf } from "../world/closures";
+import { isEurope } from "../world/regions";
 import { runChoice, type Itinerary } from "../demand/choice";
 import { benchmarkFareFor, outsideFor } from "../demand/fares";
 import { baseWeeklyDemand, marketOnDay, segmentMap } from "../demand/market";
@@ -38,7 +39,7 @@ export function scopeOf(air: Pick<RivalAirline, "scope" | "bases" | "archetype">
 /** True when the airport lies in the scope's home area. */
 export function inScope(scope: RivalScope, a: Airport): boolean {
   if (scope.states && scope.states.length > 0) return a.country === "US" && scope.states.includes(a.region);
-  if (scope.countries) return scope.countries.includes(a.country) || (scope.countries.includes("EUROPE") && a.country !== "US");
+  if (scope.countries) return scope.countries.includes(a.country) || (scope.countries.includes("EUROPE") && isEurope(a));
   return true;
 }
 
@@ -691,7 +692,7 @@ export function stepRivalsWeek(
       const name = ENTRANT_NAME_POOL.find((n) => !rivals.airlines.some((a) => a.name === n));
       if (name) {
         // A random startup picks a home region (a US or a European one, in proportion to the number of big airports there) and two hubs in it.
-        const big = [...ctx.airports.values()].filter((a) => airportOpen(a.id, ctx.day) && a.region !== "HI" && a.metroPopulation > 900_000 && (a.region === "CA" || a.slotsPerHour >= 30)).sort((x, y) => cmp(x.id, y.id));
+        const big = [...ctx.airports.values()].filter((a) => (a.country === "US" || isEurope(a)) && airportOpen(a.id, ctx.day) && a.region !== "HI" && a.metroPopulation > 900_000 && (a.region === "CA" || a.slotsPerHour >= 30)).sort((x, y) => cmp(x.id, y.id));
         const first = big[Math.floor(ctx.rng() * big.length)]!;
         const home = big.filter((a) => (a.country === "US") === (first.country === "US"));
         const second = home[Math.floor(ctx.rng() * home.length)]!;

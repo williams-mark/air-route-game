@@ -1,0 +1,109 @@
+# iata|pax2015_thousands (recalled, approx)|flags|metroPop (anchor, blank=formula)|gdpPerCapita (anchor, blank=formula)|city override|ident override
+# Globe expansion (lane/globe-data): Africa, Middle East, Turkey, Caucasus, Central Asia.
+# North Africa
+CAI|14000|C|19000000||Cairo
+HRG|5000|R|250000||Hurghada
+SSH|5500|R|75000||Sharm El Sheikh
+LXR|1000|R|500000||Luxor
+CMN|8000||3600000||Casablanca
+RAK|4500|RC|1000000||Marrakesh
+AGA|1700|R|1000000||Agadir
+TNG|900||1000000||Tangier
+FEZ|700||1100000||Fes
+RBA|800||1900000||Rabat
+TUN|3500||2400000||Tunis
+DJE|2000|R|150000||Djerba
+MIR|2500|R|100000||Monastir
+NBE|1700|R|100000||Enfidha
+ALG|6000||3500000||Algiers
+ORN|1600||1500000||Oran
+KRT|1500||5000000||Khartoum
+# East Africa
+ADD|8500||4000000||Addis Ababa
+NBO|6500||4000000||Nairobi
+MBA|1100|R|1200000||Mombasa
+DAR|2000||5000000||Dar es Salaam
+JRO|1000|R|300000||Kilimanjaro
+ZNZ|1000|R|600000||Zanzibar
+EBB|1700||3500000||Entebbe
+KGL|700||1200000||Kigali
+JIB|300|S|||Djibouti
+# West and Central Africa
+LOS|6000||13000000||Lagos
+ABV|3000||2000000||Abuja
+ACC|2000||4000000||Accra
+DKR|2000|X|3500000||Dakar|GOOY
+ABJ|1800||5000000||Abidjan
+DLA|1100||3500000||Douala
+FIH|1000||11000000||Kinshasa
+LBV|700||700000||Libreville
+BKO|700||2800000||Bamako
+LAD|2000||6500000||Luanda
+# Southern Africa
+JNB|19000|C|9600000||Johannesburg
+CPT|10000|C|4000000||Cape Town
+DUR|4500||3400000||Durban
+PLZ|400||1100000||Port Elizabeth
+BFN|400||800000||Bloemfontein
+GRJ|800|R|200000||George
+MPM|1000||1700000||Maputo
+HRE|1000||2000000||Harare
+VFA|400|R|100000||Victoria Falls
+LUN|1000||2400000||Lusaka
+GBE|700||250000||Gaborone
+WDH|900||400000||Windhoek
+# Indian Ocean
+MRU|3100|R|1300000||Port Louis
+SEZ|700|R|80000||Victoria
+TNR|700||3200000||Antananarivo
+RUN|2100|R|850000||Saint-Denis
+DZA|300|S|||Dzaoudzi
+SID|900|R|25000||Espargos
+RAI|400||500000||Praia
+# Turkey, Israel, Gulf
+IST|61000|C|14000000||Istanbul|LTBA
+SAW|25000||14000000||Istanbul
+AYT|28000|R|2300000||Antalya
+ESB|15000||5000000||Ankara
+ADB|11000||4000000||Izmir
+DLM|4700|R|300000||Dalaman
+BJV|3500|R|250000||Bodrum
+ADA|4000||2200000||Adana
+GZT|3000||2000000||Gaziantep
+TZX|2000||800000||Trabzon
+ASR|1100||1400000||Kayseri
+TLV|16000|C|3800000||Tel Aviv
+DXB|78000|C|2900000||Dubai
+AUH|20000||1500000||Abu Dhabi
+SHJ|8000||1500000||Sharjah
+DOH|37000|C|2400000||Doha
+BAH|8000||1400000||Manama
+KWI|11000||3000000||Kuwait City
+MCT|10000||1400000||Muscat
+SLL|1300|R|330000||Salalah
+JED|30000||4000000||Jeddah
+RUH|21000||6000000||Riyadh
+DMM|9000||1100000||Dammam
+MED|7000||1300000||Medina
+AHB|3000||1000000||Abha
+AMM|6500||4000000||Amman
+AQJ|800|R|150000||Aqaba
+BEY|7000||2200000||Beirut
+BGW|3000||7000000||Baghdad
+EBL|1500||1500000||Erbil
+IKA|6000||9000000||Tehran
+THR|11000||9000000||Tehran
+MHD|7000||3000000||Mashhad
+SYZ|3000||1700000||Shiraz
+IFN|3000||2000000||Isfahan
+TBZ|2400||1700000||Tabriz
+# Caucasus and Central Asia
+EVN|2400||1100000||Yerevan
+TBS|2700||1100000||Tbilisi
+GYD|3200||2200000||Baku
+ALA|5000||1900000||Almaty
+NQZ|3000||1000000||Astana
+TAS|3000||2400000||Tashkent
+FRU|1400||1000000||Bishkek|UAFM
+ASB|2500||800000||Ashgabat
+KBL|1900||4000000||Kabul

@@ -1,5 +1,6 @@
 // Playwright e2e smoke suite (plain node runner; uses the pre-installed `playwright`, no new dependencies).
 // Usage: pnpm --filter @arg/app e2e [-- --theme dark|light] [-- --url http://host:port/]   (starts vite itself unless --url is given)
+// --only <text> runs just the checks whose name contains the text.
 // Exit code 0 only if every check passes. Screenshots go to packages/app/screenshots/qa/ (git-ignored).
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
@@ -38,6 +39,7 @@ const browser = await chromium.launch({
 const results = [];
 const t00 = Date.now();
 async function check(theme, name, fn) {
+  if (flag("only") && !name.toLowerCase().includes(flag("only").toLowerCase())) return;
   const t0 = Date.now();
   try { await fn(); results.push({ theme, name, ok: true, ms: Date.now() - t0 }); console.log(`  ok   [${theme}] ${name} (${((Date.now() - t0) / 1000).toFixed(1)}s)`); }
   catch (e) { results.push({ theme, name, ok: false, ms: Date.now() - t0, err: String(e.message ?? e).split("\n")[0] }); console.log(`  FAIL [${theme}] ${name}: ${String(e.message ?? e).split("\n")[0]}`); }
@@ -116,6 +118,82 @@ for (const theme of themes) {
     assert(/offers/i.test(await page.locator("#panel-offers").innerText()), "offers panel empty");
     await shot(page, theme, "offers-tab");
     await page.getByRole("tab", { name: "Orders" }).click();
+    await nav(page, "Map");
+  });
+
+  await check(theme, "Hubs and Fare policy: toolbar order, palette, shortcuts, panels, 1280x720 screenshots", async () => {
+    const labels = await page.locator(".toolbar .tool-btn").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+    const fi = labels.indexOf("Fleet");
+    assert(labels[fi + 1] === "Hubs" && labels[fi + 2] === "Fare policy", `Hubs/Fare policy not next to Fleet: ${labels.join(",")}`);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    // Base one aircraft at SFO so a non-home hub exists.
+    await nav(page, "Fleet");
+    await page.locator(".fleet-type-toggle").first().click();
+    const sel = page.locator('select[aria-label^="Hub for"]:not([disabled])').first();
+    await sel.waitFor({ timeout: 5000 });
+    await sel.selectOption("SFO");
+    // Hubs via palette
+    await page.keyboard.press("Control+k");
+    await page.getByRole("dialog", { name: "Command palette" }).waitFor({ timeout: 4000 });
+    await page.keyboard.type("Go to Hubs");
+    await page.keyboard.press("Enter");
+    await heading(page, "Hubs");
+    const hubsTxt = await page.locator("main.view").innerText();
+    assert(/Home hub\s*LAX/.test(hubsTxt), "home hub note missing");
+    await page.locator('section[aria-label="Hub SFO"]').waitFor({ timeout: 5000 });
+    assert(await page.locator('section[aria-label="Hub LAX"]').count() === 0, "home hub must not be in the congestion table");
+    const card = await page.locator('section[aria-label="Hub SFO"]').innerText();
+    assert(/Estimate/.test(card) && /estimates/i.test(card), "SFO terminal fee tiers should be flagged as estimates");
+    assert(/Available/.test(card) && /All airlines/.test(card), "congestion numbers missing");
+    await page.locator(".toast-x").evaluateAll((els) => els.forEach((e) => e.click()));
+    await page.waitForTimeout(150);
+    await shot(page, theme, "hubs-1280x720");
+    // Move terminal: select another terminal, review, confirm
+    const tsel = page.getByLabel("Terminal at SFO");
+    const opts = await tsel.locator("option").allInnerTexts();
+    const other = opts.find((o) => !/current/.test(o));
+    await tsel.selectOption({ label: other });
+    assert(/a week|no change/.test(await page.locator(".hubs-delta").first().innerText()), "fee difference not shown");
+    await page.getByRole("button", { name: "Review move" }).click();
+    await page.getByRole("dialog").waitFor({ timeout: 3000 });
+    await shot(page, theme, "hubs-move-dialog");
+    await page.getByRole("button", { name: "Move slots" }).click();
+    await page.getByRole("dialog").waitFor({ state: "detached", timeout: 3000 });
+    assert(new RegExp(`${other.replace(/[()]/g, ".")}`.split(" ")[0]).test(await page.locator('section[aria-label="Hub SFO"] tr.yours').innerText()), "terminal did not change");
+    // Fare policy via shortcut
+    await page.keyboard.press("Alt+=");
+    await heading(page, "Fare policy");
+    await page.getByRole("button", { name: "New policy" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Fill the seats");
+    await page.getByLabel("Target load factor percent").fill("85");
+    await page.getByLabel("Connection markdown percent").fill("12");
+    assert(/Average markdown in price for connecting fares/.test(await page.locator(".fp-form").innerText()), "markdown hint missing");
+    await page.getByRole("radio", { name: /Categories/ }).check();
+    await page.getByRole("checkbox", { name: "Domestic" }).check();
+    await page.locator(".toast-x").evaluateAll((els) => els.forEach((e) => e.click()));
+    await page.waitForTimeout(150);
+    await shot(page, theme, "farepolicy-editor-1280x720");
+    await page.getByRole("button", { name: "Add policy" }).click();
+    await page.locator(".fp-list li", { hasText: "Fill the seats" }).waitFor({ timeout: 3000 });
+    const fp = await page.locator("main.view").innerText();
+    assert(/Target 85%/.test(fp) && /Connections −12%/.test(fp), "policy summary wrong");
+    assert(/85%/.test(await page.locator(".fp-table").innerText()), "preview should show the 85% target on a covered route");
+    await page.locator(".fp-pick").first().click();
+    await page.locator(".toast-x").evaluateAll((els) => els.forEach((e) => e.click()));
+    await page.waitForTimeout(150);
+    await shot(page, theme, "farepolicy-1280x720");
+    // Second policy, then reorder and delete
+    await page.getByRole("button", { name: "New policy" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Second");
+    await page.getByRole("button", { name: "Add policy" }).click();
+    await page.locator(".fp-list li", { hasText: "Second" }).waitFor();
+    await page.getByRole("button", { name: "Move Second up" }).click();
+    assert(/^Second/.test(await page.locator(".fp-list li").first().innerText()), "reorder failed");
+    await page.getByRole("button", { name: "Delete Second" }).click();
+    await page.getByRole("button", { name: "Delete policy" }).click();
+    await page.waitForTimeout(200);
+    assert((await page.locator(".fp-list li").count()) === 1, "delete failed");
+    await page.setViewportSize({ width: 1440, height: 900 });
     await nav(page, "Map");
   });
 

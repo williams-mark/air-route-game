@@ -7,6 +7,7 @@
 .map-view { position: absolute; inset: 0; }
 .map-tools { position: absolute; top: 14px; left: 14px; max-width: calc(100% - 90px); z-index: 5; display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
 .map-tools > .hud { position: static; }
+.map-tools .seg { flex-wrap: wrap; max-width: 100%; }
 
 /* Focus rings */
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -199,3 +200,7 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .rp-hours b.neg { color: var(--route-loss); }
 .fleet-scroll { overflow-x: auto; width: 100%; min-width: 0; }
 .page:has(> .fleet-scroll) { min-width: 0; }
+
+/* Twelve views: keep the whole toolbar visible on short windows (1280x720). */
+.toolbar { overflow-y: auto; scrollbar-width: none; }
+@media (max-height: 800px) { .toolbar { gap: .1rem; padding: .35rem .3rem; } .tool-btn { padding: .28rem 0 .2rem; gap: .08rem; } }

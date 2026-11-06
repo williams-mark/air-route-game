@@ -96,6 +96,50 @@ describe("damaged saves never break the running game", () => {
     });
   }
 
+  describe("bad files (text level)", () => {
+    const fileCases: Array<[string, (good: string) => string]> = [
+      ["corrupt JSON", () => "{not json at all"],
+      ["empty file", () => ""],
+      ["truncated file", (g) => g.slice(0, Math.floor(g.length / 2))],
+      ["wrong version (future)", (g) => JSON.stringify({ ...JSON.parse(g), version: 999 })],
+      ["wrong version (string)", (g) => JSON.stringify({ ...JSON.parse(g), version: "1" })],
+      ["wrong format tag", (g) => JSON.stringify({ ...JSON.parse(g), format: "other" })],
+      ["missing state", (g) => { const o = JSON.parse(g); delete o.state; return JSON.stringify(o); }],
+      ["missing world", (g) => { const o = JSON.parse(g); delete o.state.world; return JSON.stringify(o); }],
+      ["cash null (NaN serialised)", (g) => { const o = JSON.parse(g); o.state.world.cash = null; return JSON.stringify(o); }],
+      ["day negative", (g) => { const o = JSON.parse(g); o.state.world.day = -3; return JSON.stringify(o); }],
+    ];
+    for (const [name, make] of fileCases) {
+      it(`rejects ${name} and keeps the running game`, () => {
+        const target = mk(2015);
+        target.stepDays(12);
+        const before = JSON.stringify(target.simState);
+        const src = mk(77);
+        src.stepDays(12);
+        const r = loadText(target, make(stringifySave(src.serialize())));
+        expect(r.ok).toBe(false);
+        expect(r.message.length).toBeGreaterThan(10);
+        expect(JSON.stringify(target.simState)).toBe(before);
+        target.stepDays(3);
+        expect(target.getState().day).toBe(15);
+      });
+    }
+
+    it("loadGame refuses a NaN or Infinity cash passed directly (no JSON round trip) and keeps the game", () => {
+      for (const bad of [NaN, Infinity]) {
+        const target = mk(2015);
+        target.stepDays(5);
+        const before = target.getState();
+        const save = mk(77).serialize();
+        (save.state.world as any).cash = bad;
+        expect(() => target.loadGame(save)).toThrow(/damaged/);
+        expect(target.getState()).toBe(before);
+        target.stepDays(2);
+        expect(target.getState().day).toBe(7);
+      }
+    });
+  });
+
   it("rolls back if initialisation itself throws", () => {
     const target = mk(2015);
     target.stepDays(5);

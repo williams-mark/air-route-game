@@ -114,6 +114,23 @@ COUNTRY_GDP = {
  "SK":16500, "HU":12700, "RO":8900, "BG":7500, "SI":21300, "HR":12300, "GR":18100, "CY":22900, "MT":25000, "EE":17500,
  "LV":14000, "LT":14300, "RS":5200, "BA":4200, "ME":6500, "MK":5200, "AL":3900, "XK":3700, "JE":57000, "GG":57000, "IM":57000,
 }
+# Globe expansion countries (lane/globe-data): same source/caveat as above, RECALLED approximate 2015 World Bank values, rounded to 100.
+COUNTRY_GDP.update({
+ "CA":43000, "MX":9400, "GT":3900, "SV":3900, "HN":2200, "NI":2000, "CR":11800, "PA":13000, "BZ":4800, "CU":7700, "DO":6700, "PR":28500,
+ "VI":36000, "JM":4800, "BS":28000, "KY":61000, "BB":16000, "TT":17000, "AW":25000, "CW":21000, "BQ":20000, "SX":28000, "AG":14000,
+ "KN":16000, "LC":8000, "GD":9500, "VC":7000, "GP":24000, "MQ":24000, "HT":800, "BM":98000, "TC":25000,
+ "BR":8800, "AR":13700, "CO":6100, "PE":6200, "CL":13500, "EC":6200, "VE":10000, "UY":15500, "PY":5400, "BO":3100, "GY":4500, "SR":9000, "GF":17000,
+ "EG":3500, "MA":2900, "TN":3700, "DZ":4200, "SD":1900, "ET":700, "KE":1400, "TZ":900, "UG":700, "RW":700, "DJ":1900, "NG":2700, "GH":1400,
+ "SN":1000, "CI":1500, "CM":1300, "CD":450, "GA":7800, "ML":700, "AO":3500, "ZA":5700, "MZ":500, "ZW":1400, "ZM":1300, "BW":6300, "NA":4700,
+ "MU":9200, "SC":14500, "MG":450, "RE":23000, "YT":9000, "CV":3100,
+ "TR":9100, "IL":35700, "AE":38600, "QA":66000, "BH":23000, "KW":29000, "OM":16000, "SA":20800, "JO":4100, "LB":8000, "IQ":4800, "IR":5400,
+ "AM":3500, "GE":3800, "AZ":5500, "KZ":10500, "UZ":2100, "KG":1200, "TM":6500, "AF":600,
+ "IN":1600, "PK":1400, "BD":1200, "LK":3800, "NP":750, "MV":9000,
+ "JP":34500, "KR":27200, "TW":22500, "CN":8100, "HK":42400, "MO":77000, "MN":3700,
+ "TH":5800, "VN":2100, "SG":55600, "MY":9500, "BN":30900, "ID":3300, "PH":2900, "KH":1200, "LA":2400, "MM":1200, "TL":1300,
+ "AU":56000, "NZ":38000, "FJ":5000, "PG":2400, "SB":1900, "VU":2700, "NC":38000, "PF":17000, "CK":15000, "WS":4000, "TO":4000, "GU":33000,
+ "MP":20000, "PW":12000, "MH":3000, "KI":1700, "AS":11000,
+})
 # Baseline tourism index by country (ESTIMATE, 0..1): share of leisure/visitor-driven demand for an average airport there.
 COUNTRY_TOUR = {
  "US":0.15, "GB":0.25, "IE":0.35, "FR":0.40, "DE":0.20, "NL":0.20, "BE":0.15, "LU":0.10, "CH":0.30, "AT":0.35,
@@ -121,6 +138,16 @@ COUNTRY_TOUR = {
  "SK":0.15, "HU":0.25, "RO":0.15, "BG":0.30, "SI":0.30, "HR":0.55, "GR":0.55, "CY":0.55, "MT":0.60, "EE":0.20,
  "LV":0.15, "LT":0.15, "RS":0.15, "BA":0.20, "ME":0.45, "MK":0.15, "AL":0.30, "XK":0.10, "JE":0.40, "GG":0.40, "IM":0.40,
 }
+COUNTRY_TOUR_DEFAULT = 0.2  # globe expansion countries not listed below (ESTIMATE)
+COUNTRY_TOUR.update({
+ "CA":0.20, "MX":0.45, "CR":0.55, "PA":0.30, "BZ":0.60, "CU":0.55, "DO":0.65, "PR":0.50, "VI":0.70, "JM":0.65, "BS":0.75, "KY":0.80, "BB":0.70,
+ "AW":0.80, "CW":0.60, "BQ":0.60, "SX":0.80, "AG":0.80, "KN":0.70, "LC":0.80, "GD":0.70, "GP":0.55, "MQ":0.55, "BM":0.70, "TC":0.85,
+ "PE":0.40, "EC":0.35, "AR":0.30, "CL":0.30, "BR":0.30, "CO":0.25, "EG":0.55, "MA":0.55, "TN":0.55, "KE":0.35, "TZ":0.45, "ZA":0.35,
+ "MU":0.80, "SC":0.85, "RE":0.50, "CV":0.70, "TR":0.50, "AE":0.45, "QA":0.25, "JO":0.40, "LB":0.35, "OM":0.35, "IL":0.35, "IN":0.20,
+ "MV":0.90, "LK":0.45, "NP":0.50, "TH":0.55, "VN":0.40, "KH":0.50, "LA":0.45, "MY":0.35, "SG":0.40, "ID":0.35, "PH":0.35, "JP":0.30,
+ "KR":0.25, "TW":0.30, "CN":0.15, "HK":0.45, "MO":0.65, "AU":0.30, "NZ":0.45, "FJ":0.80, "VU":0.75, "PF":0.85, "CK":0.85, "WS":0.60, "TO":0.50,
+ "GU":0.70, "MP":0.70, "PW":0.75, "NC":0.55,
+})
 TOUR_R, TOUR_C = 0.35, 0.25  # added for flag R (resort/leisure) and C (major tourist city)
 US_STATES = set("DC AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY".split())
 
@@ -135,7 +162,7 @@ def est_gdp(country, pop):  # USD per head
     return rnd(COUNTRY_GDP[country] * mult, 1000)
 
 def est_tour(country, flags):
-    t = COUNTRY_TOUR[country] + (TOUR_R if "R" in flags else 0) + (TOUR_C if "C" in flags else 0)
+    t = COUNTRY_TOUR.get(country, COUNTRY_TOUR_DEFAULT) + (TOUR_R if "R" in flags else 0) + (TOUR_C if "C" in flags else 0)
     return min(0.9, max(0.05, rnd(t, 0.05)))
 
 def est_slots(pax_m):  # movements per hour the airport can be given to airlines (ESTIMATE)
@@ -156,10 +183,43 @@ ISLAND = {
  "JMK":"GR-Mykonos","EFL":"GR-Kefalonia","MJT":"GR-Lesbos","SMI":"GR-Samos","JSI":"GR-Skiathos",
  "FNC":"PT-Madeira","RNN":"DK-Bornholm","VBY":"SE-Gotland",
 }
+# Globe expansion (lane/globe-data). One landmass per country by default (COUNTRY_LAND); continental blocks share a name (see SOURCES.md "Globe expansion").
+# Islands are keyed by airport. Honshu, Shikoku and Kyushu are one landmass (bridges, tunnels, Shinkansen).
+COUNTRY_LAND = {"CA":"CA", "MX":"MX", "GT":"NA-CENTRAL", "SV":"NA-CENTRAL", "HN":"NA-CENTRAL", "NI":"NA-CENTRAL", "CR":"NA-CENTRAL", "PA":"NA-CENTRAL", "BZ":"NA-CENTRAL",
+ "CU":"CU", "DO":"DO-Hispaniola", "HT":"DO-Hispaniola", "PR":"PR", "JM":"JM", "KY":"KY", "BB":"BB", "AW":"AW", "CW":"CW", "BQ":"BQ", "AG":"AG", "KN":"KN", "LC":"LC", "GD":"GD",
+ "GP":"GP", "MQ":"MQ", "BM":"BM", "TC":"TC",
+ "BR":"SA-MAINLAND", "AR":"SA-MAINLAND", "CO":"SA-MAINLAND", "PE":"SA-MAINLAND", "CL":"SA-MAINLAND", "EC":"SA-MAINLAND", "VE":"SA-MAINLAND", "UY":"SA-MAINLAND",
+ "PY":"SA-MAINLAND", "BO":"SA-MAINLAND", "GY":"SA-MAINLAND", "SR":"SA-MAINLAND", "GF":"SA-MAINLAND",
+ "MG":"MG", "MU":"MU", "SC":"SC", "RE":"RE", "YT":"YT",
+ "BH":"BH", "LK":"LK", "MV":"MV", "TW":"TW", "AU":"AU", "NC":"NC", "GU":"GU", "TL":"TL",
+}
+for _c in "EG MA TN DZ SD ET KE TZ UG RW DJ NG GH SN CI CM CD GA ML AO ZA MZ ZW ZM BW NA".split(): COUNTRY_LAND[_c] = "AF-MAINLAND"
+for _c in ("TR IL AE QA KW OM SA JO LB IQ IR AM GE AZ KZ UZ KG TM AF IN PK BD NP BT KR CN HK MO MN TH VN SG KH LA MM MY").split(): COUNTRY_LAND[_c] = "AS-MAINLAND"
+ISLAND.update({
+ "STT":"VI-StThomas", "NAS":"BS-NewProvidence", "FPO":"BS-GrandBahama", "POS":"TT-Trinidad", "TAB":"TT-Tobago", "SXM":"SX-StMartin",
+ "GPS":"EC-Galapagos", "IPC":"CL-EasterIsland", "ADZ":"CO-SanAndres", "SID":"CV-Sal", "RAI":"CV-Santiago", "ZNZ":"TZ-Zanzibar",
+ "BKI":"MY-Borneo", "KCH":"MY-Borneo", "MYY":"MY-Borneo", "BWN":"MY-Borneo", "BPN":"ID-Kalimantan", "CJU":"KR-Jeju", "SYX":"CN-Hainan", "HAK":"CN-Hainan",
+ "LGK":"MY-Langkawi", "PEN":"MY-Penang", "USM":"TH-Samui", "HKT":"TH-Phuket", "PQC":"VN-PhuQuoc", "MZG":"TW-Penghu",
+ "CTS":"JP-Hokkaido", "HKD":"JP-Hokkaido", "AKJ":"JP-Hokkaido", "OKA":"JP-Okinawa", "ISG":"JP-Ishigaki", "MMY":"JP-Miyako",
+ "HBA":"AU-Tasmania", "LST":"AU-Tasmania", "AKL":"NZ-North", "WLG":"NZ-North", "ROT":"NZ-North", "NPE":"NZ-North", "PMR":"NZ-North",
+ "CHC":"NZ-South", "ZQN":"NZ-South", "DUD":"NZ-South", "NSN":"NZ-South", "IVC":"NZ-South",
+ "NAN":"FJ-VitiLevu", "SUV":"FJ-VitiLevu", "POM":"PG-NewGuinea", "LAE":"PG-NewGuinea", "RAB":"PG-NewBritain", "HIR":"SB-Guadalcanal", "VLI":"VU-Efate",
+ "PPT":"PF-Tahiti", "BOB":"PF-BoraBora", "RAR":"CK-Rarotonga", "APW":"WS-Upolu", "TBU":"TO-Tongatapu", "SPN":"MP-Saipan", "ROR":"PW-Babeldaob",
+ "MAJ":"MH-Majuro", "TRW":"KI-Tarawa", "PPG":"AS-Tutuila",
+ # Indonesia (island by airport)
+ "CGK":"ID-Java", "SUB":"ID-Java", "JOG":"ID-Java", "BDO":"ID-Java", "SRG":"ID-Java", "HLP":"ID-Java", "DPS":"ID-Bali", "LOP":"ID-Lombok",
+ "UPG":"ID-Sulawesi", "MDC":"ID-Sulawesi", "KNO":"ID-Sumatra", "PLM":"ID-Sumatra", "PKU":"ID-Sumatra", "PDG":"ID-Sumatra", "BTH":"ID-Batam",
+ "BIK":"ID-Biak", "AMQ":"ID-Ambon", "DJJ":"ID-Papua",
+ # Philippines (island by airport)
+ "MNL":"PH-Luzon", "CRK":"PH-Luzon", "LAO":"PH-Luzon", "CEB":"PH-Cebu", "DVO":"PH-Mindanao", "CGY":"PH-Mindanao", "ZAM":"PH-Mindanao", "GES":"PH-Mindanao",
+ "ILO":"PH-Panay", "KLO":"PH-Panay", "MPH":"PH-Panay", "BCD":"PH-Negros", "PPS":"PH-Palawan", "TAC":"PH-Leyte",
+})
+for _a in "HND NRT KIX ITM NGO FUK KOJ KMQ HIJ SDJ KMJ NGS OIT MYJ UKB KIJ TAK KCZ KMI AOJ".split(): ISLAND[_a] = "JP-Honshu"
 SINGLE = {"IE","IS","CY","MT","JE","GG","IM"}  # whole country is one landmass named by its code
 def landmass_of(iata, country, region):
     if country == "US": return {"AK":"US-AK","HI":"US-HI"}.get(region, "US-CONUS")
     if iata in ISLAND: return ISLAND[iata]
+    if country in COUNTRY_LAND: return COUNTRY_LAND[country]
     if country in SINGLE: return country
     if country == "GB": return "GB"
     return "EU-MAINLAND"
@@ -171,7 +231,15 @@ NAME_OVERRIDE = {"PBI":"Palm Beach Intl", "TXL":"Berlin Tegel", "SXF":"Berlin Sc
  "FLR":"Florence Peretola", "BGO":"Bergen Flesland", "SVG":"Stavanger Sola", "TRD":"Trondheim Vaernes", "TRF":"Sandefjord Torp",
  "RYG":"Moss Rygge", "KRS":"Kristiansand Kjevik", "HAU":"Haugesund Karmoy", "MOL":"Molde Aro", "KKN":"Kirkenes Hoybuktmoen",
  "KSU":"Kristiansund Kvernberget", "BDU":"Bardufoss", "RZE":"Rzeszow-Jasionka", "SZZ":"Szczecin-Goleniow", "BZG":"Bydgoszcz",
- "SBZ":"Sibiu Intl"}
+ "SBZ":"Sibiu Intl",
+ # Globe expansion: long or ceremonial OurAirports names shortened to the commonly used airport name
+ "GRU":"Sao Paulo Guarulhos Intl", "CGH":"Sao Paulo Congonhas", "GIG":"Rio de Janeiro Galeao Intl", "NAT":"Natal Intl", "SAL":"San Salvador Intl",
+ "REC":"Recife Guararapes Intl", "BEL":"Belem Val de Cans Intl", "KMQ":"Komatsu", "IST":"Istanbul Ataturk", "AUH":"Abu Dhabi Intl",
+ "ISB":"Islamabad Benazir Bhutto Intl", "TSN":"Tianjin Binhai Intl", "RMQ":"Taichung Intl", "BGW":"Baghdad Intl", "IXZ":"Port Blair Veer Savarkar",
+ "PKU":"Pekanbaru Sultan Syarif Kasim II Intl", "PPS":"Puerto Princesa Intl", "CRK":"Clark Intl", "CXR":"Cam Ranh Intl", "DRW":"Darwin Intl",
+ "TSV":"Townsville", "YUL":"Montreal Trudeau Intl", "YWG":"Winnipeg Richardson Intl", "YHZ":"Halifax Stanfield Intl", "YXS":"Prince George", "YXY":"Whitehorse Erik Nielsen Intl",
+ "BOM":"Mumbai Chhatrapati Shivaji Maharaj Intl", "CCU":"Kolkata Netaji Subhash Chandra Bose Intl", "FUK":"Fukuoka", "ICN":"Seoul Incheon Intl",
+ "GMP":"Seoul Gimpo Intl", "NRT":"Tokyo Narita Intl", "PVG":"Shanghai Pudong Intl", "SHA":"Shanghai Hongqiao Intl"}
 
 def clean_name(n):
     n = n.replace(" airport", " Airport")
@@ -192,7 +260,7 @@ problems = []
 world = []  # (iata, row dict)
 dropped = []
 seen = set(T)
-for fn in ("world_airports_us.tsv", "world_airports_eu.tsv"):
+for fn in ("world_airports_us.tsv", "world_airports_eu.tsv", "world_airports_amer.tsv", "world_airports_afme.tsv", "world_airports_asoc.tsv"):
     for line in open(os.path.join(HERE, fn), encoding="utf-8"):
         line = line.rstrip("\n")
         if not line.strip() or line.startswith("#"): continue

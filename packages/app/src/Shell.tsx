@@ -9,7 +9,7 @@ import { NotificationDock, minimizeDock, toggleDock } from "./notify/Notificatio
 import { TimeControls } from "./shell/TimeControls";
 import { CommandPalette } from "./shell/CommandPalette";
 import { ShortcutsOverlay } from "./shell/ShortcutsOverlay";
-import { VIEWS } from "./shell/views";
+import { VIEWS, viewForKey } from "./shell/views";
 import { MapView } from "./views/MapView";
 import { RoutePanel, usePanelOpen } from "./routes/RoutePanel";
 import { Toasts } from "./routes/Toasts";
@@ -26,6 +26,9 @@ const LAZY: Partial<Record<ViewId, ReturnType<typeof lazy>>> = {
   orders: lazy(() => import("./views/OrdersView")),
   cabin: lazy(() => import("./views/CabinView")),
   finance: lazy(() => import("./views/FinanceView")),
+  hubs: lazy(() => import("./views/HubsView")),
+  farepolicy: lazy(() => import("./views/FarePolicyView")),
+  hubboard: lazy(() => import("./views/HubBoardView")),
   rivals: lazy(() => import("./views/RivalsView")),
   settings: lazy(() => import("./views/SettingsView")),
 };
@@ -55,7 +58,8 @@ function useGlobalKeys() {
       }
       if (st.paletteOpen || st.helpOpen || st.saveDialog) return;
       if (isTyping(e.target)) return;
-      if (e.altKey && /^[1-9]$/.test(e.key) && VIEWS[Number(e.key) - 1]) { st.setView(VIEWS[Number(e.key) - 1]!.id); e.preventDefault(); return; }
+      const altView = e.altKey ? viewForKey(e) : undefined;
+      if (altView) { st.setView(altView.id); e.preventDefault(); return; }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === " " || e.code === "Space") { e.preventDefault(); if (!e.repeat) togglePause(); }
       else if (/^[1-5]$/.test(e.key)) setSpeed(Number(e.key) as Speed);

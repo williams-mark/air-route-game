@@ -11,6 +11,8 @@ import { homeHubOf } from "./fleet/hubs";
 import { plannerPrefs } from "./planner/forecast";
 import { evaluateNetwork } from "./route/network";
 import { pushEvents } from "./commands";
+import { playerHubs } from "./route/farePolicy";
+import { weeklySlotFees } from "./route/congestion";
 import { stepOffers } from "./offers";
 import { airportOpen, closureOf, dayLabel } from "./world/closures";
 import { rivalItinerariesFor, stepRivals } from "./rivals";
@@ -38,6 +40,8 @@ export type {
 
 export * from "./state";
 export * from "./route/network";
+export * from "./route/farePolicy";
+export * from "./route/congestion";
 export * from "./route/liveModel";
 export { fleetGroups, averageSeats, evaluateWithFleet } from "./route/routeModel";
 export type { FleetGroup } from "./route/routeModel";
@@ -216,6 +220,8 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     noise: () => 1 + (rng() - 0.5) * params.demandNoise,
     // Weekly step: routes with a target load factor are re-priced before they are simulated (see liveModel).
     solveFares: day % 7 === 0,
+    farePolicies: world.farePolicies,
+    hubs: playerHubs(state),
   });
   const { schedule, reports } = live;
   if (Object.keys(live.solvedFares).length > 0) {
@@ -254,7 +260,8 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   }
 
   // 6. Fleet-level costs: lease for every delivered aircraft whether or not it flies, plus overhead and checks.
-  let fleetCost = params.corporateOverheadPerDay + checkCosts;
+  // Slot and terminal fees (route/congestion.ts): weekly total / 7, a company-level line next to overhead.
+  let fleetCost = params.corporateOverheadPerDay + checkCosts + weeklySlotFees(state).total / 7;
   const priceFactor = new Map(state.orders.flatMap((o) => (o.ownershipFactor === undefined ? [] : o.aircraftIds.map((id) => [id, o.ownershipFactor!] as const))));
   for (const ac of fleet) {
     if (ac.status === "delivery") continue;

@@ -40,6 +40,16 @@ const EU_BOUNDS: Record<string, readonly [number, number, number, number]> = {
   BA: [42.5, 45.3, 15.7, 19.7], ME: [41.8, 43.6, 18.4, 20.4], MK: [40.8, 42.4, 20.4, 23.1], AL: [39.6, 42.7, 19.2, 21.1], XK: [41.8, 43.3, 20.0, 21.8],
 };
 
+// Globe expansion: generous boxes for the larger world countries (everything else gets the global lat/lon check only).
+const WORLD_BOUNDS: Record<string, readonly [number, number, number, number]> = {
+  CA: [41.6, 83.2, -141.1, -52.5], MX: [14.4, 32.8, -118.5, -86.6], BR: [-33.8, 5.4, -74.0, -34.7], AR: [-55.2, -21.7, -73.6, -53.6],
+  CL: [-56.0, -17.4, -109.6, -66.4], CO: [-4.3, 13.5, -81.8, -66.8], PE: [-18.4, 0.0, -81.4, -68.6], EG: [22.0, 31.7, 24.7, 36.9],
+  MA: [27.6, 35.9, -13.2, -1.0], ZA: [-34.9, -22.0, 16.4, 33.0], TR: [35.8, 42.2, 25.6, 44.9], SA: [16.3, 32.2, 34.5, 55.7],
+  IN: [6.7, 35.7, 68.0, 97.5], CN: [18.1, 53.6, 73.5, 135.1], JP: [24.0, 45.6, 122.9, 145.9], KR: [33.1, 38.7, 124.6, 131.0],
+  TH: [5.6, 20.5, 97.3, 105.7], ID: [-11.1, 6.1, 95.0, 141.1], PH: [4.5, 21.2, 116.9, 126.7], AU: [-43.7, -10.6, 113.0, 153.7],
+  NZ: [-47.4, -34.3, 166.3, 178.7], AE: [22.6, 26.1, 51.5, 56.4], MY: [0.8, 7.5, 99.5, 119.4], VN: [8.4, 23.4, 102.1, 109.5],
+};
+
 describe("airports", () => {
   it("distances are sane", () => {
     expect(distanceKm(ap("LAX"), ap("HNL"))).toBeGreaterThan(4000);
@@ -52,9 +62,14 @@ describe("airports", () => {
     for (const a of airports) {
       expect(a.id, a.id).toMatch(/^[A-Z]{3}$/);
       const isUs = a.country === "US";
-      expect(isUs ? US_BOUNDS[a.region] : EU_BOUNDS[a.country], `${a.id} ${a.region}/${a.country} has a bounds entry`).toBeDefined();
       if (!isUs) expect(a.region, a.id).toBe(a.country); // outside the US region is the ISO country code
-      const [la0, la1, lo0, lo1] = (isUs ? US_BOUNDS[a.region] : EU_BOUNDS[a.country])!;
+      expect(a.country, a.id).toMatch(/^[A-Z]{2}$/);
+      expect(a.lat, a.id).toBeGreaterThanOrEqual(-90); expect(a.lat, a.id).toBeLessThanOrEqual(90);
+      expect(a.lon, a.id).toBeGreaterThanOrEqual(-180); expect(a.lon, a.id).toBeLessThanOrEqual(180);
+      const box = isUs ? US_BOUNDS[a.region] : (EU_BOUNDS[a.country] ?? WORLD_BOUNDS[a.country]);
+      if (isUs) expect(box, `${a.id} ${a.region}/${a.country} has a bounds entry`).toBeDefined();
+      if (!box) { expect(a.runwayM, a.id).toBeGreaterThanOrEqual(600); continue; }
+      const [la0, la1, lo0, lo1] = box;
       expect(a.lat, a.id).toBeGreaterThan(la0); expect(a.lat, a.id).toBeLessThan(la1);
       expect(a.lon, a.id).toBeGreaterThan(lo0); expect(a.lon, a.id).toBeLessThan(lo1);
       expect(a.runwayM, a.id).toBeGreaterThanOrEqual(600);
@@ -65,7 +80,7 @@ describe("airports", () => {
   });
   it("airport counts per continent and country are in the expected range", () => {
     const us = airports.filter((a) => a.country === "US");
-    const eu = airports.filter((a) => a.country !== "US");
+    const eu = airports.filter((a) => EU_BOUNDS[a.country] !== undefined);
     expect(us.length).toBeGreaterThanOrEqual(200); expect(us.length).toBeLessThanOrEqual(320);
     expect(eu.length).toBeGreaterThanOrEqual(230); expect(eu.length).toBeLessThanOrEqual(380);
     expect(new Set(us.map((a) => a.region)).size).toBe(50); // 49 states + DC: Delaware had no scheduled service in 2015 (see SOURCES.md)
@@ -212,10 +227,10 @@ describe("landmass convention and world routes", () => {
     expect(can("A330-300", "ATL", "FRA")).toBe(true);
   });
   it("ETOPS-style limits: no alternate on the way means the maxOverwaterKm bound; alternates along the way extend it", () => {
-    // Juneau-Minneapolis (CONUS<->AK is overwater by convention): the great circle runs over Canada, more than 60 minutes from any
-    // alternate in the data set, so 60-minute types are out; 180-minute types are fine. Along the coast an E175 is covered (SFO-SIT).
+    // Juneau-Minneapolis (CONUS<->AK is overwater by convention): the great circle runs over Canada. Before the globe expansion no alternate
+    // in the data set was within 60 minutes of it (E175 barred); with Canadian airports (YXY, YZF, YEG, ...) in the data every point is covered.
     expect(distanceKm(ap("JNU"), ap("MSP"))).toBeGreaterThan(maxOverwaterKm["E175"]!);
-    expect(can("E175", "JNU", "MSP")).toBe(false);
+    expect(can("E175", "JNU", "MSP")).toBe(true);
     expect(can("A320", "JNU", "MSP")).toBe(true);
     expect(can("E175", "SFO", "SIT")).toBe(true);
     // Canary Islands from Madrid: Spanish coast, Morocco-side island chain and Lanzarote/Fuerteventura keep an alternate within 60 minutes.
@@ -231,6 +246,95 @@ describe("landmass convention and world routes", () => {
   it("Alaska", () => {
     expect(can("B737-800", "SEA", "ANC")).toBe(true);
     expect(can("E175", "ANC", "FAI")).toBe(true);
+  });
+});
+
+describe("globe expansion", () => {
+  const can = (t: string, a: string, b: string) => canFlyRoute(ac(t), ap(a), ap(b));
+  const CONTINENT: Record<string, string> = {};
+  const put = (c: string, codes: string) => codes.split(" ").forEach((x) => (CONTINENT[x] = c));
+  put("namerica", "US CA MX GT SV HN NI CR PA BZ CU DO HT PR VI JM BS KY BB TT AW CW BQ SX AG KN LC GD VC GP MQ BM TC");
+  put("samerica", "BR AR CO PE CL EC VE UY PY BO GY SR GF");
+  put("africa", "EG MA TN DZ SD ET KE TZ UG RW DJ NG GH SN CI CM CD GA ML AO ZA MZ ZW ZM BW NA MU SC MG RE YT CV");
+  put("mideast", "TR IL AE QA BH KW OM SA JO LB IQ IR AM GE AZ KZ UZ KG TM AF");
+  put("asia", "IN PK BD LK NP MV JP KR TW CN HK MO MN TH VN KH LA MM SG MY BN ID PH TL");
+  put("oceania", "AU NZ FJ PG SB VU NC PF CK WS TO GU MP PW MH KI AS");
+  const count = (c: string) => airports.filter((a) => CONTINENT[a.country] === c).length;
+  const europe = airports.filter((a) => EU_BOUNDS[a.country] !== undefined);
+
+  it("every airport has a country, a region, a landmass, positive runway and coordinates; ids and coordinates are not duplicated", () => {
+    expect(new Set(airports.map((a) => a.id)).size).toBe(airports.length);
+    const spots = new Set<string>();
+    for (const a of airports) {
+      expect(a.country, a.id).toMatch(/^[A-Z]{2}$/);
+      expect(a.region.length, a.id).toBeGreaterThan(0);
+      expect(a.landmass, a.id).toBeTruthy();
+      expect(a.runwayM, a.id).toBeGreaterThan(0);
+      expect(Number.isFinite(a.lat) && Number.isFinite(a.lon), a.id).toBe(true);
+      expect(a.name.trim().length, a.id).toBeGreaterThan(2);
+      const key = `${a.lat.toFixed(3)},${a.lon.toFixed(3)}`; // 0.001 deg is about 100 m: two airports never share a runway reference point
+      expect(spots.has(key), `${a.id} duplicates the coordinates of another airport`).toBe(false);
+      spots.add(key);
+    }
+    const names = airports.map((a) => `${a.city}|${a.name}`.toLowerCase());
+    expect(new Set(names).size, "no two airports share city and name").toBe(names.length);
+  });
+  it("every country code used is covered by a continent group", () => {
+    for (const a of airports) expect(a.country === "US" || EU_BOUNDS[a.country] !== undefined || CONTINENT[a.country] !== undefined, `${a.id} ${a.country}`).toBe(true);
+  });
+  it("the world is covered: counts per continent", () => {
+    expect(airports.length).toBeGreaterThanOrEqual(900);
+    expect(europe.length).toBeGreaterThanOrEqual(230);
+    expect(count("namerica") - airports.filter((a) => a.country === "US").length).toBeGreaterThanOrEqual(85); // Canada, Mexico, Central America, Caribbean
+    expect(count("samerica")).toBeGreaterThanOrEqual(60);
+    expect(count("africa")).toBeGreaterThanOrEqual(40);
+    expect(count("mideast")).toBeGreaterThanOrEqual(45);
+    expect(count("asia")).toBeGreaterThanOrEqual(150);
+    expect(count("oceania")).toBeGreaterThanOrEqual(30);
+    for (const id of ["YYZ", "MEX", "PTY", "SJU", "GRU", "EZE", "BOG", "CAI", "JNB", "NBO", "DXB", "IST", "DEL", "PEK", "HND", "ICN", "SIN", "CGK", "SYD", "AKL", "HNL", "ANC"]) expect(airportById.has(id), id).toBe(true);
+    expect(airports.filter((a) => a.landmass === "US-HI").length).toBeGreaterThanOrEqual(10); // Hawaii and Alaska still present
+    expect(airports.filter((a) => a.landmass === "US-AK").length).toBeGreaterThanOrEqual(5);
+  });
+  it("overwater rules: islands and continents", () => {
+    const water = (a: string, b: string) => isOverwaterRoute(ap(a), ap(b));
+    // Japan: Honshu, Shikoku and Kyushu are one landmass; Hokkaido, Okinawa and the Sakishima islands are not
+    expect(water("HND", "ITM")).toBe(false); expect(water("HND", "FUK")).toBe(false);
+    expect(water("HND", "CTS")).toBe(true); expect(water("HND", "OKA")).toBe(true); expect(water("OKA", "ISG")).toBe(true);
+    // Philippines and Indonesia: by island
+    expect(water("MNL", "CRK")).toBe(false); expect(water("MNL", "CEB")).toBe(true); expect(water("CEB", "DVO")).toBe(true); expect(water("DVO", "CGY")).toBe(false);
+    expect(water("CGK", "SUB")).toBe(false); expect(water("CGK", "DPS")).toBe(true); expect(water("CGK", "KNO")).toBe(true); expect(water("BKI", "KCH")).toBe(false);
+    expect(water("SIN", "KUL")).toBe(false); expect(water("SIN", "BKI")).toBe(true);
+    // Australia / New Zealand / Tasmania
+    expect(water("SYD", "MEL")).toBe(false); expect(water("SYD", "PER")).toBe(false); expect(water("MEL", "HBA")).toBe(true);
+    expect(water("SYD", "AKL")).toBe(true); expect(water("AKL", "WLG")).toBe(false); expect(water("AKL", "CHC")).toBe(true);
+    // Caribbean and the Americas
+    expect(water("MIA", "NAS")).toBe(true); expect(water("SJU", "STT")).toBe(true); expect(water("SDQ", "PAP")).toBe(false); expect(water("HAV", "SDQ")).toBe(true);
+    expect(water("JFK", "YYZ")).toBe(false); expect(water("LAX", "MEX")).toBe(false); expect(water("MEX", "PTY")).toBe(false); expect(water("PTY", "BOG")).toBe(true);
+    expect(water("GRU", "EZE")).toBe(false); expect(water("SEA", "YVR")).toBe(false); expect(water("ANC", "YVR")).toBe(true);
+    // Eurasia-Africa is joined by land
+    expect(water("IST", "ATH")).toBe(false); expect(water("CAI", "TLV")).toBe(false); expect(water("DEL", "DXB")).toBe(false); expect(water("PEK", "SIN")).toBe(false);
+    expect(water("CAI", "CDG")).toBe(false); expect(water("LHR", "DXB")).toBe(true); expect(water("PEK", "HND")).toBe(true); expect(water("ICN", "CJU")).toBe(true);
+    expect(water("JNB", "MRU")).toBe(true); expect(water("JNB", "TNR")).toBe(true); expect(water("DXB", "MLE")).toBe(true);
+    expect(isLandPair(ap("HND"), ap("ITM"))).toBe(true); expect(isLandPair(ap("YYZ"), ap("YUL"))).toBe(true); expect(isLandPair(ap("HND"), ap("CTS"))).toBe(false);
+  });
+  it("long-haul and island routes are judged correctly around the world", () => {
+    expect(can("B787-9", "HND", "SIN")).toBe(true);
+    expect(can("B787-9", "HND", "SYD")).toBe(true);
+    expect(can("B737-8", "SYD", "AKL")).toBe(true); // 2,150 km Tasman, ETOPS-180 narrowbody
+    expect(can("E175", "SYD", "AKL")).toBe(false); // 60-minute type, no alternate on the Tasman
+    expect(can("ATR72-600", "MNL", "CEB")).toBe(true); // 570 km across the Visayan sea
+    expect(can("ATR72-600", "DPS", "LOP")).toBe(true);
+    expect(can("B737-800", "LAX", "MEX")).toBe(true);
+    expect(can("A320", "JFK", "YYZ")).toBe(true);
+    expect(can("E175", "MIA", "NAS")).toBe(true);
+    expect(can("B777-300ER", "LHR", "HND")).toBe(true);
+    expect(can("B737-800", "HND", "OKA")).toBe(true);
+    expect(can("B737-800", "TLV", "LAX")).toBe(false); // 12,000 km exceeds the usable range
+    expect(can("A350-900", "SIN", "LHR")).toBe(true);
+  });
+  it("runway data is plausible for known airports (OurAirports longest runway)", () => {
+    expect(ap("HND").runwayM).toBeGreaterThan(3000); expect(ap("DXB").runwayM).toBeGreaterThan(4000); expect(ap("YTZ").runwayM).toBeLessThan(1500);
+    expect(ap("SDU").runwayM).toBeLessThan(1500); expect(ap("TGU").runwayM).toBeLessThan(2000);
   });
 });
 

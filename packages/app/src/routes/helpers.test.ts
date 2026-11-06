@@ -146,7 +146,7 @@ describe("validateRouteDraft", () => {
     // a twin narrowbody with too little range for the open Atlantic gets a clear message, a widebody twin may fly it
     const atl = validateRouteDraft({ origin: "BOS", destination: "LHR", weeklyFrequency: 7, fares: { Y: 400 }, typeId: "CRJ700" }, []);
     expect(atl?.code).toBe("out_of_range");
-    const ak = validateRouteDraft({ origin: "ANC", destination: "BIS", weeklyFrequency: 7, fares: { Y: 400 }, typeId: "E175" }, []);
+    const ak = validateRouteDraft({ origin: "SYD", destination: "AKL", weeklyFrequency: 7, fares: { Y: 400 }, typeId: "E175" }, []);
     expect(ak?.code).toBe("overwater_limit");
     expect(ak!.message).toMatch(/overwater route/);
     expect(validateRouteDraft({ origin: "JFK", destination: "LHR", weeklyFrequency: 7, fares: { Y: 400 }, typeId: "B787-9" }, [])).toBeNull();

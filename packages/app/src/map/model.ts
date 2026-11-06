@@ -1,5 +1,6 @@
 import type { Airport } from "@arg/contracts";
 import { displayLon, distanceKm, routePath, screenBearing } from "./geo";
+import { continentOf } from "../routes/geoNames";
 import type { MapRoute, ProfitTier } from "./types";
 
 export interface RouteGeo {
@@ -57,17 +58,38 @@ export function toDisplay(a: Airport): Airport {
 
 const bySize = (a: Airport, b: Airport) => b.slotsPerHour - a.slotsPerHour || b.metroPopulation - a.metroPopulation || (a.id < b.id ? -1 : 1);
 
-/** Hubs: the biggest airports (about 15% of a small network, up to 24 of a world-sized one), plus the biggest of every land mass. */
+/** Hubs kept per continent in a world-sized network, so corridors of far zoom have a cluster centre on every continent. */
+const HUBS_PER_CONTINENT = 4;
+
+/** Hubs: the biggest airports (about 15% of a small network, up to 32 of a world-sized one), plus the biggest of every land mass and of every continent. */
 export function pickHubs(airports: Airport[]): string[] {
   const sorted = [...airports].sort(bySize);
-  const n = airports.length <= 60 ? Math.min(8, Math.max(4, Math.round(airports.length * 0.15))) : Math.min(24, 8 + Math.round((airports.length - 60) * 0.03));
+  const n = airports.length <= 60 ? Math.min(8, Math.max(4, Math.round(airports.length * 0.15))) : Math.min(32, 8 + Math.round((airports.length - 60) * 0.03));
   const hubs = sorted.slice(0, n).map((a) => a.id);
+  // The largest few airports of each continent are protected: a global top-N alone would leave Africa or South America without a cluster centre.
+  const protectedIds = new Set<string>();
+  if (airports.length > 60) {
+    const seen = new Map<string, number>();
+    for (const a of sorted) {
+      const c = continentOf(a.country);
+      const k = seen.get(c) ?? 0;
+      if (k < HUBS_PER_CONTINENT) { seen.set(c, k + 1); protectedIds.add(a.id); }
+    }
+    const missing = sorted.filter((a) => protectedIds.has(a.id) && !hubs.includes(a.id));
+    let slot = hubs.length - 1;
+    for (const a of missing) {
+      while (slot >= 0 && protectedIds.has(hubs[slot]!)) slot--;
+      if (slot < 0) break;
+      hubs[slot--] = a.id;
+    }
+  }
   // Every land mass keeps a hub (so Hawaii, Alaska, Ireland... have a cluster centre): swap the best airport of a missing land mass into the lowest slot not already guaranteed.
   const best = new Map<string, Airport>();
   for (const a of sorted) if (!best.has(a.landmass)) best.set(a.landmass, a);
   let slot = hubs.length - 1;
   for (const a of [...best.values()].sort(bySize)) {
     if (hubs.includes(a.id)) continue;
+    while (slot >= 0 && protectedIds.has(hubs[slot]!)) slot--;
     if (slot < Math.floor(n / 2)) break;
     hubs[slot--] = a.id;
   }

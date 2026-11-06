@@ -170,6 +170,17 @@ export function validateSimState(raw: unknown): string[] {
       if (mm !== null && mm !== undefined && (!isObj(mm) || !CHECKS.includes(mm.check as string) || !isNum(mm.startDay) || !isNum(mm.endDay) || !isNum(mm.cost))) add(`aircraft "${id}" has a damaged maintenance record`);
     }
 
+    if (w.farePolicies !== undefined) {
+      if (!Array.isArray(w.farePolicies)) add("the fare policy list is damaged");
+      else for (const p of w.farePolicies as unknown[]) {
+        if (!isObj(p) || !isStr(p.id) || !isStr(p.name) || !(p.targetLoadFactor === null || isNum(p.targetLoadFactor)) || !isNum(p.connectionMarkdown) || !(p.scope === "all" || isObj(p.scope))) add("a fare policy entry is damaged");
+      }
+    }
+    if (w.hubTerminals !== undefined) {
+      if (!isObj(w.hubTerminals)) add("the hub terminal choices are damaged");
+      else for (const [k, v] of Object.entries(w.hubTerminals)) if (!airportIds.has(k) || !isStr(v)) add(`hub terminal choice for "${k}" is damaged`);
+    }
+
     const routeIds = new Set<unknown>();
     for (const r of w.routes as unknown[]) {
       if (!isObj(r) || !isStr(r.id)) { add("a route entry is damaged"); continue; }

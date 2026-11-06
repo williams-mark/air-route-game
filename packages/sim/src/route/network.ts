@@ -1,5 +1,6 @@
 import type { Aircraft, AircraftType, Airport, Day, Id, Route } from "@arg/contracts";
 import { marketOnDay } from "../demand/market";
+import { benchmarkFareFor } from "../demand/fares";
 import { distanceKm } from "../geo";
 import { evaluateRoute, LEDGER_PARAMS, type LedgerLine, type RouteEvaluation } from "../finance/ledger";
 import {
@@ -43,6 +44,12 @@ export interface NetworkInput {
   /** Round trips per week each aircraft flies on each route (route id, then aircraft id); weights mixed fleets. Optional. */
   flights?: Readonly<Record<Id, Readonly<Record<Id, number>> | undefined>>;
   operatedFraction: Readonly<Record<Id, number | undefined>>;
+  /**
+   * Fare-policy connection markdown (0..0.5) per route id. A through itinerary uses the mean of its two legs' markdowns: its fare is
+   * the default through fare x (1 - markdown), so revenue per passenger falls by the markdown and the choice model's price elasticity
+   * moves some demand to the cheaper itinerary. Absent or 0 = unchanged behaviour.
+   */
+  connectionMarkdown?: Readonly<Record<Id, number | undefined>>;
 }
 
 export interface NetworkResult {
@@ -57,6 +64,8 @@ export interface NetworkResult {
 /** At most this many through markets are evaluated per day (largest first); smaller ones are ignored. Keeps stepDay O(routes). */
 export const NETWORK_LIMITS = { maxMarkets: 12, minWeeklyDemand: 300 } as const;
 
+/** Default through fare as a share of the benchmark fare (same constant as evaluateHubConnection). */
+const THROUGH_FARE_FACTOR = 0.92;
 const P = LEDGER_PARAMS;
 const empty = (): NetworkResult => ({ evaluations: {}, connecting: {}, deltaRevenue: 0, deltaCosts: 0 });
 
@@ -112,7 +121,9 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
   const reserved: Record<Id, number> = {};
   const acc: Record<Id, RouteConnecting> = {};
   for (const c of cands) {
+    const md = ((input.connectionMarkdown?.[c.r1.id] ?? 0) + (input.connectionMarkdown?.[c.r2.id] ?? 0)) / 2;
     const conn = evaluateHubConnection({
+      connectingFare: md > 0 ? benchmarkFareFor(c.a, c.b) * THROUGH_FARE_FACTOR * (1 - md) : undefined,
       origin: c.a, hub: c.hub, destination: c.b, leg1: c.r1, leg2: c.r2, types, day,
       fleet1: input.fleet[c.r1.id], fleet2: input.fleet[c.r2.id],
       flights1: input.flights?.[c.r1.id], flights2: input.flights?.[c.r2.id],
