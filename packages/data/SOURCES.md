@@ -613,3 +613,11 @@ Groups of airports serving one city; `share` values are TUNING WEIGHTS (rounded,
 | PFO | Paphos, CY | CY | 2200 | R | LCPH | 8858 | recalled | recalled |
 | MLA | Malta, MT | MT | 5000 | R | LMML | 10991 | recalled | recalled |
 <!-- WORLD-TABLE-END -->
+
+## Terminals (src/terminals.ts, lane/terminals)
+
+Status: ALL ESTIMATE. No per-terminal fee schedule was found for any airport. The one check made: LAX, LAWA FY2026 Terminal Rates and Charges (Resolution 28188, 5 Jun 2025) https://www.lawa.org/media/45881 lists only airport-wide rates (e.g. Terminal Buildings Rate about $335/sqft/yr) plus a few per-charge terminal applicability lists; no T3 vs TBIT rates. Other airports' tariffs (e.g. MIA https://www.miami-airport.com/library/pdfdoc/Rates_Fee_Charges_Book_FY_2022.pdf) were not examined; per-airline negotiated fees are generally not public.
+
+Rule for feeMultiplier (judgement, not published): 1.2-1.5 rebuilt/flagship/international terminals with premium lounges and jet bridges; 1.0-1.1 standard; 0.7-0.9 remote, bussed, satellite, regional or low-cost. premium = feeMultiplier > 1.15. slotShare values are rough guesses of traffic share, not published. Terminal lists/names come from each airport's Wikipedia article and terminal maps, entered from memory and NOT re-fetched this session: spot-check before relying on them (JFK T1/T6 rebuild, FRA T3, LAX MSC use are time-sensitive).
+
+Airports covered (52, each terminal's `source` field starts with `estimate:`): LAX SFO SAN OAK ATL ORD DFW JFK EWR LGA BOS SEA LAS PHX IAH MSP DTW PHL HNL LHR LGW MAN CDG FRA MUC MAD BCN FCO LIS DUB DXB SIN KUL CGK MNL ICN NRT HND KIX TPE CAN PEK PVG DEL BOM SYD MEL YYZ YVR MEX GRU JNB. Omitted as effectively single-terminal: DEN MIA CLT AMS IST DOH AUH HKG BKK.
