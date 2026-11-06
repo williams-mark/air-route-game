@@ -106,8 +106,6 @@ export interface SimBridge {
   setSpeed(speed: Speed): void;
   /** Resolve a pending decision card by choosing one of its options. */
   decide(decisionId: string, optionId: string): void;
-  /** Bridges that slow or pause the clock themselves on notices implement this; the UI toggle feeds it. */
-  setAutoPause?(on: boolean): void;
   /** Save/load support (real bridge only). */
   serialize?(): SaveFile;
   loadGame?(save: SaveFile): void;

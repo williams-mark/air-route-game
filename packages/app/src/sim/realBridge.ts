@@ -18,7 +18,6 @@ export interface RealBridgeOptions {
   seed?: number;
   /** Start at speed 0. Default is speed 1 (running). */
   startPaused?: boolean;
-  autoPause?: boolean;
   /** Real-time delta is clamped to this, which bounds the days stepped per frame (max speed 30 days/s). Default 250 ms = 7 days. */
   maxDtMs?: number;
   initial?: SimState;
@@ -79,8 +78,7 @@ export class RealSimBridge implements SimBridge {
   private ledger: DayRecord[] = [];
   private pending: PendingDecision[] = [];
   private engine = new DecisionEngine();
-  /** Kept for the Settings switch. No notice or delivery pauses the clock (the owner removed those pauses). */
-  private autoPause!: boolean;
+  /** No notice or delivery pauses the clock (the owner removed those pauses). */
   private lowCash = false;
   private raf: number | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -97,7 +95,6 @@ export class RealSimBridge implements SimBridge {
     this.sim = sim;
     this.notices = []; this.nextNotice = 1; this.ledger = []; this.pending = []; this.engine = new DecisionEngine();
     this.lowCash = false; this.offersOf = null; this.viewOf = null; this.rivalsOf = null;
-    this.autoPause = this.autoPause ?? this.opts.autoPause ?? true;
     this.clock = createClock({ startDay: this.sim.world.day, speed, maxDtMs: this.opts.maxDtMs ?? 250 });
     this.sim = { ...this.sim, speed: this.clock.speed };
     if (extras) {
@@ -242,8 +239,6 @@ export class RealSimBridge implements SimBridge {
 
   /** Direct read access for tests and debugging. */
   get simState(): SimState { return this.sim; }
-
-  setAutoPause(on: boolean): void { this.autoPause = on; }
 
   setSpeed(speed: Speed): void {
     if (speed === this.clock.speed) return;

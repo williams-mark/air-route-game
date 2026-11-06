@@ -12,7 +12,6 @@ interface UiState {
   selection: Selection;
   preset: CameraPresetId;
   presetNonce: number;
-  autoPause: boolean;
   uiScale: number;
   paletteOpen: boolean;
   /** Save/load dialog (null = closed). */
@@ -29,7 +28,6 @@ interface UiState {
   setView: (v: ViewId) => void;
   select: (s: Selection) => void;
   flyTo: (p: CameraPresetId) => void;
-  setAutoPause: (v: boolean) => void;
   setUiScale: (v: number) => void;
   setPalette: (v: boolean) => void;
   setSaveDialog: (v: "save" | "load" | null) => void;
@@ -64,7 +62,6 @@ const initialScale = (() => {
   const n = Number(read("arg-scale"));
   return (UI_SCALES as readonly number[]).includes(n) ? n : 100;
 })();
-const initialAutoPause = read("arg-autopause") !== "0";
 applyTheme(initial);
 applyScale(initialScale);
 document.documentElement.dataset.view = "map";
@@ -75,7 +72,6 @@ export const useUi = create<UiState>((set) => ({
   selection: null,
   preset: "world",
   presetNonce: 0,
-  autoPause: initialAutoPause,
   uiScale: initialScale,
   paletteOpen: false,
   saveDialog: null,
@@ -89,7 +85,6 @@ export const useUi = create<UiState>((set) => ({
   setView: (view) => { document.documentElement.dataset.view = view; set({ view }); },
   select: (selection) => set({ selection }),
   flyTo: (preset) => set((s) => ({ preset, presetNonce: s.presetNonce + 1 })),
-  setAutoPause: (autoPause) => { write("arg-autopause", autoPause ? "1" : "0"); set({ autoPause }); },
   setUiScale: (uiScale) => { applyScale(uiScale); write("arg-scale", String(uiScale)); set({ uiScale }); },
   setPalette: (paletteOpen) => set({ paletteOpen }),
   setSaveDialog: (saveDialog) => set({ saveDialog }),

@@ -57,7 +57,7 @@ Fixed on lane/qa-ui: B07 narrow layouts, B08 time controls covering content, B09
 ## Manual SQA checklist (about 15 minutes, owner)
 Open the game (`pnpm dev`), try both themes at each stage.
 1. Boot (1 min): starts paused, 1 Jan 2015, cash about $150M, 4 routes visible on the map, no errors in the browser console.
-2. Time (2 min): press 1 to 5 and watch the date speed up; Space pauses and resumes; + and - change speed; confirm auto-pause when a decision card or delivery appears (Settings toggle turns it off).
+2. Time (2 min): press 1 to 5 and watch the date speed up; Space pauses and resumes; + and - change speed; confirm the game does not pause when a delivery or decision arrives (auto-pause setting was removed).
 3. Route creation (3 min): press N, type SFO then Enter, SAN then Enter, check the projection and why-ledger make sense, change frequency and fares, Open route. It shows in Routes and on the map. Try the same pair again (expect a clear error), try a pair too far for your aircraft, close a route and confirm.
 4. Ordering (2 min): Orders / Offers, order 2 of a narrowbody, check the deposit equals 15% of the net price and cash drops, the order appears under Pending, Fleet shows it "on order". Try an order you cannot afford.
 5. Offers (2 min): run at speed 5 for a year; an Offers badge appears; open the Offers tab, accept one and dismiss one, check cash and the new order.

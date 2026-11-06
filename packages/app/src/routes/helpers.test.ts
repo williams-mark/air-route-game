@@ -4,6 +4,7 @@ import { benchmarkFareFor, dayToDate, runDays, startingScenario } from "@arg/sim
 import {
   bestFrequency, bestType, eligibleTypes, fareHint, FREQ_SWEEP_MAX, frequencySweep, marketFares, midMonthDay, parseFares,
   livePreview, liveSeasonal, operatingMix, ownershipReason, profitTier, rivalPresence, seasonalProfit, substitutionText, typeOwnership, suggestAirports, validateRouteDraft, type RouteDraft, type SweepPoint,
+  describeTargetLf, formatTargetLf, parseTargetLf, TARGET_LF_MESSAGE,
 } from "./helpers";
 import { rangeNote, routeBlock, usableRangeKm } from "../aircraft/availability";
 import { airports } from "@arg/data";
@@ -219,5 +220,44 @@ describe("type ownership for the substitution banner", () => {
     const busy = fleet.filter((a) => !(a.typeId === "A330-200" && a.routes.length === 0 && a.status === "active"));
     expect(ownershipReason("A330-200", typeOwnership(busy, "A330-200", "r2"))).toBe("your 2 A330-200 are all flying other routes");
     expect(ownershipReason("A330-200", typeOwnership(busy, "A330-200", "r1"))).toBe("all 2 of your A330-200 already fly this route");
+  });
+});
+
+describe("target load factor input", () => {
+  it("blank means off and stores no target", () => {
+    expect(parseTargetLf("")).toEqual({ ok: true, value: null });
+    expect(parseTargetLf("   ")).toEqual({ ok: true, value: null });
+  });
+
+  it("accepts whole and fractional percents in 50-95 and stores a fraction", () => {
+    expect(parseTargetLf("50")).toEqual({ ok: true, value: 0.5 });
+    expect(parseTargetLf(" 80 ")).toEqual({ ok: true, value: 0.8 });
+    expect(parseTargetLf("95")).toEqual({ ok: true, value: 0.95 });
+    expect(parseTargetLf("80.5")).toEqual({ ok: true, value: 0.805 });
+  });
+
+  it("rejects values outside 50-95 and non-numbers with the shared message", () => {
+    for (const bad of ["49", "95.5", "0", "100", "-5", "abc", "NaN", "Infinity"]) {
+      expect(parseTargetLf(bad)).toEqual({ ok: false, message: TARGET_LF_MESSAGE });
+    }
+    expect(TARGET_LF_MESSAGE).toBe("Target load factor: 50-95% or blank.");
+  });
+
+  it("formats the stored fraction back to the typed percent without float noise", () => {
+    expect(formatTargetLf(undefined)).toBe("");
+    expect(formatTargetLf(null)).toBe("");
+    expect(formatTargetLf(0.7)).toBe("70");
+    expect(formatTargetLf(0.95)).toBe("95");
+    expect(formatTargetLf(0.805)).toBe("80.5");
+    for (const t of ["50", "63", "80.5", "95"]) {
+      const lf = parseTargetLf(t);
+      if (!lf.ok || lf.value === null) throw new Error("expected a value");
+      expect(formatTargetLf(lf.value)).toBe(t);
+    }
+  });
+
+  it("describes the inspector row as a percent or off", () => {
+    expect(describeTargetLf(undefined)).toBe("off");
+    expect(describeTargetLf(0.8)).toBe("80%");
   });
 });
