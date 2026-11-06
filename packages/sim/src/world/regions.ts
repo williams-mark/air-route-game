@@ -13,9 +13,35 @@ import { fractionalYear } from "../time/calendar";
 // Geography classes
 // ---------------------------------------------------------------------------
 
+
+/**
+ * Regional groups (MODEL.md section 12b). Every country in `packages/data` belongs to exactly one group; the group sets the cost and
+ * fare tier of its airports. "us" is the calibration base (and its territories), "europe" keeps the pre-globe European numbers exactly.
+ */
+export type RegionGroup = "us" | "northAmerica" | "europe" | "latinAmerica" | "middleEast" | "africa" | "southAsia" | "eastAsia" | "southeastAsia" | "oceania";
+
+const GROUP_COUNTRIES: Readonly<Record<Exclude<RegionGroup, "europe">, string>> = {
+  // US and the territories that use US operating costs (PR VI GU MP AS are separate ISO codes in the data)
+  us: "US PR VI GU MP AS",
+  northAmerica: "CA BM",
+  latinAmerica:
+    "MX PA CR SV GT HN NI BZ CU DO JM BS KY BB TT AW CW BQ SX AG KN LC GD GP MQ HT TC BR AR UY PY CL CO VE EC PE BO GY SR GF",
+  // Includes the Caucasus, Turkey and Central Asia (no group of their own)
+  middleEast: "TR IL AE QA BH KW OM SA JO LB IQ IR AM GE AZ KZ UZ KG TM",
+  africa: "EG MA TN DZ SD ET KE TZ UG RW DJ NG GH SN CI CM CD GA ML AO ZA MZ ZW ZM BW NA MU SC MG RE YT CV",
+  southAsia: "IN PK BD LK NP MV AF",
+  eastAsia: "JP KR TW CN HK MO MN",
+  southeastAsia: "TH VN KH LA MM SG MY BN ID PH TL",
+  oceania: "AU NZ FJ PG SB VU NC PF CK WS TO PW MH KI",
+};
+const GROUP_OF: ReadonlyMap<string, RegionGroup> = new Map(
+  (Object.entries(GROUP_COUNTRIES) as [RegionGroup, string][]).flatMap(([g, list]) => list.split(" ").map((c) => [c, g] as const)),
+);
+/** Region group of a country code. Unlisted codes (none in the data; a test checks) are treated as Europe, which is what the sim did before the tiers existed. */
+export const regionGroupOf = (country: string): RegionGroup => GROUP_OF.get(country) ?? "europe";
 export const isUs = (a: Airport) => a.country === "US";
-/** Europe = every non-US airport in the data (the data package covers only the US and Europe). */
-export const isEurope = (a: Airport) => a.country !== "US";
+/** Europe group (EU/EEA, UK, Switzerland, Balkans and Cyprus; not Turkey or the Caucasus). */
+export const isEurope = (a: Airport) => regionGroupOf(a.country) === "europe";
 
 /** Countries inside the EU emissions trading system (EU/EEA) plus the UK and Switzerland, which run linked or equivalent schemes. */
 const ETS_COUNTRIES = new Set([
@@ -83,9 +109,63 @@ export type FuelPlace = Airport | string;
 export function localFuelPrice(base: number, day: Day, place: FuelPlace): number {
   if (typeof place === "string") return base * (US_FUEL_MULTIPLIER_BY_STATE[place] ?? 1) + (US_FUEL_ADD_BY_STATE[place] ?? 0);
   if (place.country === "US") return base * (US_FUEL_MULTIPLIER_BY_STATE[place.region] ?? 1) + (US_FUEL_ADD_BY_STATE[place.region] ?? 0);
+  const group = regionGroupOf(place.country);
+  if (group !== "europe") {
+    const t = TIERS[group];
+    return base * (FUEL_MULTIPLIER_BY_COUNTRY[place.country] ?? t.fuel) + (group === "us" ? US_TERRITORY_FUEL_ADD : 0);
+  }
   const mult = EUROPE_FUEL_MULTIPLIER_BY_COUNTRY[place.country] ?? EUROPE_FUEL_MULTIPLIER;
   return base * mult + (ETS_COUNTRIES.has(place.country) ? etsUsdPerGallon(day) : 0);
 }
+
+// ---------------------------------------------------------------------------
+// Regional tiers outside the US and Europe (MODEL.md section 12b)
+// ---------------------------------------------------------------------------
+
+export interface RegionTier {
+  /** Jet fuel price multiplier on the West Coast series (before any country override). */
+  fuel: number;
+  /** Landing, passenger and security charges vs the US (1.0). */
+  airport: number;
+  /** Ground handling vs the US. */
+  handling: number;
+  /** Flight and cabin crew cost vs the US pay scale. */
+  labour: number;
+  /** Fare level: `clamp(fareBase x (gdp/40000)^0.3, fareRange)`, the same shape as Europe (0.8, 0.7-1.25). */
+  fareBase: number;
+  fareRange: readonly [number, number];
+}
+
+/**
+ * ALL ESTIMATES, none is a data set. Rationale per group (relative GDP per capita, fuel tax, labour cost), all vs the US West Coast = 1:
+ * - northAmerica (Canada, Bermuda): US-like fees and handling, crew a little cheaper, fares near US level.
+ * - latinAmerica: low wages (crew ~0.45), cheap handling, airport charges a bit lower; jet fuel taxed and import-dependent (1.02); fares well below US, income-driven.
+ * - middleEast (with Turkey, Caucasus, Central Asia): state-backed carriers, cheap fuel at refining hubs (0.88), moderate fees, mixed expatriate and local crew pay (0.6); fares mid.
+ * - africa: fuel dearest by logistics (1.12), airport charges not low for the income (1.0), crew cheap (0.4), thin competition keeps fares relatively high for the GDP.
+ * - southAsia: heavy fuel excise and sales tax (1.15), low airport and handling charges, crew cheapest (0.3), lowest fares.
+ * - eastAsia: high airport charges (Japan, Korea; 1.25), handling at US level, crew 0.6 (China low, Japan and Korea high, averaged); fares mid-high.
+ * - southeastAsia: fuel near the base (0.98), charges 0.9, handling 0.7, crew 0.4 (Singapore high, others low), LCC-heavy fares (0.7).
+ * - oceania: fees above US (1.1), handling 1.05, crew 0.9, fuel premium for remoteness (1.05), fares just under US.
+ * "us" (territories) has US factors but one extra remote-island fuel add. Europe keeps the pre-globe constants above.
+ */
+export const TIERS: Readonly<Record<Exclude<RegionGroup, "europe">, RegionTier>> = {
+  us: { fuel: 1, airport: 1, handling: 1, labour: 1, fareBase: 1, fareRange: [1, 1] },
+  northAmerica: { fuel: 1, airport: 1, handling: 1, labour: 0.9, fareBase: 0.95, fareRange: [0.8, 1.1] },
+  latinAmerica: { fuel: 1.02, airport: 0.9, handling: 0.7, labour: 0.45, fareBase: 0.75, fareRange: [0.5, 0.95] },
+  middleEast: { fuel: 0.88, airport: 0.9, handling: 0.8, labour: 0.6, fareBase: 0.85, fareRange: [0.6, 1.15] },
+  africa: { fuel: 1.12, airport: 1, handling: 0.8, labour: 0.4, fareBase: 0.8, fareRange: [0.55, 1] },
+  southAsia: { fuel: 1.15, airport: 0.8, handling: 0.6, labour: 0.3, fareBase: 0.6, fareRange: [0.4, 0.8] },
+  eastAsia: { fuel: 1, airport: 1.25, handling: 1, labour: 0.6, fareBase: 0.85, fareRange: [0.6, 1.2] },
+  southeastAsia: { fuel: 0.98, airport: 0.9, handling: 0.7, labour: 0.4, fareBase: 0.7, fareRange: [0.5, 0.95] },
+  oceania: { fuel: 1.05, airport: 1.1, handling: 1.05, labour: 0.9, fareBase: 0.9, fareRange: [0.75, 1.15] },
+};
+/** Country overrides of the group fuel multiplier (ESTIMATES): Gulf producers and Singapore's refining hub are cheap, island and landlocked markets dear. */
+export const FUEL_MULTIPLIER_BY_COUNTRY: Readonly<Record<string, number>> = {
+  AE: 0.85, QA: 0.85, KW: 0.85, SA: 0.85, BH: 0.85, OM: 0.85, IQ: 0.85, IR: 0.8, SG: 0.95, CN: 1.02,
+  FJ: 1.15, PF: 1.2, NC: 1.2, CK: 1.25, WS: 1.25, TO: 1.25, PW: 1.2, MH: 1.2, KI: 1.25, VU: 1.2, SB: 1.2, PG: 1.2, MV: 1.2,
+};
+/** Extra USD/gal at US territories (remote islands, like Hawaii and Alaska). ESTIMATE of the same order. */
+export const US_TERRITORY_FUEL_ADD = 0.3;
 
 // ---------------------------------------------------------------------------
 // Operating-cost multipliers
@@ -116,8 +196,15 @@ export interface CostFactors {
 
 const US_FACTORS: CostFactors = { airport: 1, handling: 1, labour: 1 };
 
+const COST_CACHE = new Map<RegionGroup, CostFactors>();
 function costOf(a: Airport): CostFactors {
   if (a.country === "US") return US_FACTORS;
+  const group = regionGroupOf(a.country);
+  if (group !== "europe") {
+    let c = COST_CACHE.get(group);
+    if (!c) { const t = TIERS[group]; c = { airport: t.airport, handling: t.handling, labour: t.labour }; COST_CACHE.set(group, c); }
+    return c;
+  }
   return {
     airport: EUROPE_AIRPORT_FEE_MULTIPLIER,
     handling: EUROPE_HANDLING_MULTIPLIER,
@@ -149,6 +236,12 @@ export const EUROPE_FARE_RANGE = [0.7, 1.25] as const;
 
 function fareLevelOf(a: Airport): number {
   if (a.country === "US") return 1;
+  const group = regionGroupOf(a.country);
+  if (group !== "europe") {
+    const t = TIERS[group];
+    const gd = (a.gdpPerCapita / EUROPE_FARE_GDP_REF) ** EUROPE_FARE_INCOME_EXP;
+    return t.fareBase * Math.min(t.fareRange[1] / t.fareBase, Math.max(t.fareRange[0] / t.fareBase, gd));
+  }
   const g = (a.gdpPerCapita / EUROPE_FARE_GDP_REF) ** EUROPE_FARE_INCOME_EXP;
   return EUROPE_FARE_BASE * Math.min(EUROPE_FARE_RANGE[1] / EUROPE_FARE_BASE, Math.max(EUROPE_FARE_RANGE[0] / EUROPE_FARE_BASE, g));
 }
