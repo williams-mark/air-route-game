@@ -7,6 +7,7 @@ import { previewNewRoute } from "./route/liveModel";
 import { airportOpen, closureOf } from "./world/closures";
 import { defaultLayout } from "./fleet/layout";
 import { distanceKm } from "./geo";
+import { regionGroupOf } from "./world/regions";
 import { makeRng, mixSeed } from "./rng";
 import { newSim, stepDay, type StartOptions } from "./index";
 import { createRivals } from "./rivals";
@@ -55,13 +56,15 @@ export interface ScenarioOptions {
 
 export const DEFAULT_HUB = "LAX";
 
+/** Shortest runway a hub may have: below this the starting 737/A320/757/777 fleet cannot operate (Sao Paulo Congonhas, 1,940 m). */
+export const HUB_MIN_RUNWAY_M = 2000;
 /**
  * The largest airports a player may pick as a hub: sorted by `slotsPerHour` (derived from 2015 passenger counts, see SOURCES.md) then by
  * metro population, only airports that exist for the whole campaign (no opening or closure dates) and that are not minor airports of a multi-airport city (metro share of 10% or less: ONT, SNA, BUR, LGB, HPN...), at most `max` of them. LAX is always
  * included and listed first (the default hub).
  */
 export function hubCandidates(airports: readonly Airport[], max = 60): Airport[] {
-  const ok = airports.filter((a) => a.id !== DEFAULT_HUB && airportOpen(a.id, 0) && !closureOf(a.id) && catchmentOf(a.id, a.metroPopulation, DEFAULT_METROS).share > 0.1);
+  const ok = airports.filter((a) => a.id !== DEFAULT_HUB && a.runwayM >= HUB_MIN_RUNWAY_M && airportOpen(a.id, 0) && !closureOf(a.id) && catchmentOf(a.id, a.metroPopulation, DEFAULT_METROS).share > 0.1);
   ok.sort((x, y) => y.slotsPerHour - x.slotsPerHour || y.metroPopulation - x.metroPopulation || (x.id < y.id ? -1 : 1));
   const lax = airports.find((a) => a.id === DEFAULT_HUB);
   return [...(lax ? [lax] : []), ...ok.slice(0, lax ? max - 1 : max)];
@@ -71,9 +74,16 @@ export function hubCandidates(airports: readonly Airport[], max = 60): Airport[]
 const REG_PREFIX: Record<string, string> = {
   GB: "G", DE: "D", FR: "F", ES: "EC", IT: "I", NL: "PH", IE: "EI", CH: "HB", AT: "OE", BE: "OO", PT: "CS", SE: "SE", NO: "LN",
   DK: "OY", FI: "OH", PL: "SP", GR: "SX", CZ: "OK", HU: "HA", IS: "TF",
+  // Outside Europe (ITU allocations: Canada C, Mexico XA, Brazil PP, Argentina LV, Chile CC, Colombia HK, Peru OB, UAE A6, Qatar A7,
+  // Saudi Arabia HZ, Turkey TC, Israel 4X, Egypt SU, Morocco CN, South Africa ZS, Kenya 5Y, Nigeria 5N, Ethiopia ET, India VT, Pakistan AP,
+  // Japan JA, Korea HL, China B, Taiwan B, Hong Kong B, Singapore 9V, Malaysia 9M, Thailand HS, Vietnam VN, Indonesia PK, Philippines RP,
+  // Australia VH, New Zealand ZK, Fiji DQ).
+  CA: "C", MX: "XA", BR: "PP", AR: "LV", CL: "CC", CO: "HK", PE: "OB", AE: "A6", QA: "A7", SA: "HZ", TR: "TC", IL: "4X", EG: "SU", MA: "CN", ZA: "ZS",
+  KE: "5Y", NG: "5N", ET: "ET", IN: "VT", PK: "AP", JP: "JA", KR: "HL", CN: "B", TW: "B", HK: "B", SG: "9V", MY: "9M", TH: "HS", VN: "VN", ID: "PK",
+  PH: "RP", AU: "VH", NZ: "ZK", FJ: "DQ",
 };
 function tailFor(n: number, hub: Airport): string {
-  if (hub.country === "US") return `N${String(n).padStart(3, "0")}SP`;
+  if (hub.country === "US" || regionGroupOf(hub.country) === "us") return `N${String(n).padStart(3, "0")}SP`;
   return `${REG_PREFIX[hub.country] ?? "XA"}-S${String(n).padStart(2, "0")}`;
 }
 
@@ -106,7 +116,7 @@ export function deriveHubRoutes(airports: Airport[], aircraftTypes: AircraftType
   const used = new Set<string>();
   const usedTypeLoad = new Map<string, number>();
 
-  const trySlot = (slot: { typeId: string; minKm: number; maxKm: number }): boolean => {
+  const trySlot = (slot: { typeId: string; minKm: number; maxKm: number }, allowLoss = false): boolean => {
     const type = typeById.get(slot.typeId);
     if (!type) return false;
     const owned = startFleetCount.get(slot.typeId) ?? 0;
@@ -129,8 +139,8 @@ export function deriveHubRoutes(airports: Airport[], aircraftTypes: AircraftType
         const need = pv.figures.aircraftEquivalent;
         if (need + (usedTypeLoad.get(slot.typeId) ?? 0) > owned) continue;
         // Profit per week, with a mild preference for routes that use the aircraft well and fill them.
-        const score = pv.figures.profit * (pv.figures.loadFactor >= 0.55 ? 1 : 0.5);
-        if (pv.figures.profit > 0 && (!best || score > best.score)) best = { route: { id: "", ...draft }, score };
+        const score = pv.figures.profit > 0 || !allowLoss ? pv.figures.profit * (pv.figures.loadFactor >= 0.55 ? 1 : 0.5) : pv.figures.profit;
+        if ((pv.figures.profit > 0 || allowLoss) && (!best || score > best.score)) best = { route: { id: "", ...draft }, score };
       }
       if (best && seen >= 8) break; // enough of the demand-ranked list looked at
     }
@@ -149,6 +159,13 @@ export function deriveHubRoutes(airports: Airport[], aircraftTypes: AircraftType
     for (const slot of HUB_SLOTS) {
       if (chosen.length >= 3) break;
       trySlot({ typeId: slot.typeId, ...widen });
+    }
+  }
+  // Thin hubs (Johannesburg, Brasilia...): still short of three routes, accept the least-losing feasible ones rather than a stub network.
+  for (const widen of [{ minKm: 100, maxKm: 4000 }, { minKm: 100, maxKm: 12000 }]) {
+    for (const slot of HUB_SLOTS) {
+      if (chosen.length >= 3) break;
+      trySlot({ typeId: slot.typeId, ...widen }, true);
     }
   }
   return chosen;

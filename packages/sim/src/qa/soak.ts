@@ -7,7 +7,7 @@ import type { SimState } from "../state";
 import { STRATEGIES } from "../bots/strategies";
 import { checkState } from "./invariants";
 
-/** Usage: pnpm --filter @arg/sim soak [--games 30] [--years 10] [--seed 1] [--det 3] */
+/** Usage: pnpm --filter @arg/sim soak [--games 30] [--years 10] [--seed 1] [--det 3] [--hub SIN] */
 function arg(name: string, dflt: number): number {
   const i = process.argv.indexOf(`--${name}`);
   const v = i >= 0 ? Number(process.argv[i + 1]) : NaN;
@@ -15,6 +15,9 @@ function arg(name: string, dflt: number): number {
 }
 const games = arg("games", 30), years = arg("years", 10), baseSeed = arg("seed", 1), detGames = arg("det", 3);
 const days = Math.round(years * 365.25);
+const hubIdx = process.argv.indexOf("--hub");
+/** Optional `--hub SIN`: every game starts at that home airport instead of LAX. */
+const hubArg: string | undefined = hubIdx >= 0 ? process.argv[hubIdx + 1] : undefined;
 
 interface Out { seed: number; strategy: string; violations: string[]; cashIdentityMax: number; cashIdentityDays: number; ms: number; json: string; finalCash: number }
 
@@ -23,7 +26,7 @@ function play(seed: number, strategyIdx: number): Out {
   const strat = STRATEGIES[strategyIdx % STRATEGIES.length]!;
   const t0 = performance.now();
   const rng = makeRng(mixSeed(seed, 0xb07));
-  let s: SimState = startingScenario(airports, aircraftTypes, seed);
+  let s: SimState = startingScenario(airports, aircraftTypes, seed, hubArg ? { hub: hubArg } : {});
   const violations: string[] = [];
   const note = (m: string) => { if (violations.length < 20) violations.push(m); };
   let idMax = 0, idDays = 0;

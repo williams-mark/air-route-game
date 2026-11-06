@@ -1,11 +1,13 @@
 import type { Airport } from "@arg/contracts";
 import { displayLon } from "./geo";
+import { regionGroupOf } from "@arg/sim";
+import { continentOf } from "../routes/geoNames";
 import type { CameraPresetId } from "./types";
 
 /** [west, south, east, north] */
 export type Bounds = [number, number, number, number];
 
-export const CAMERA_PRESETS: readonly CameraPresetId[] = ["west", "us", "europe", "alaska", "hawaii", "world"];
+export const CAMERA_PRESETS: readonly CameraPresetId[] = ["west", "us", "europe", "alaska", "hawaii", "canadaMexico", "southAmerica", "africa", "middleEast", "asia", "oceania", "world"];
 
 const FIXED: Record<Exclude<CameraPresetId, "world">, Bounds> = {
   west: [-125.0, 32.3, -114.0, 49.2],
@@ -13,9 +15,20 @@ const FIXED: Record<Exclude<CameraPresetId, "world">, Bounds> = {
   europe: [-12.5, 35.5, 32.0, 62.0],
   alaska: [-168.0, 54.0, -130.0, 71.5],
   hawaii: [-160.6, 18.7, -154.6, 22.4],
+  // Also frames Central America and the Caribbean (Puerto Rico, Panama); Iqaluit is the northernmost airport.
+  canadaMexico: [-142, 6, -52, 64],
+  southAmerica: [-83, -56, -33, 13],
+  africa: [-20, -35.5, 52, 38],
+  // Gulf, Turkey, Caucasus and Central Asia; India's west coast is just inside.
+  middleEast: [25, 10, 80, 46],
+  // India to Japan, Mongolia down to Indonesia and the Philippines.
+  asia: [66, -11, 146, 54],
+  // Australia, New Zealand and the nearer Pacific (Fiji, New Caledonia, Guam).
+  oceania: [110, -48, 180, 20],
 };
 export const PRESET_LABEL: Record<CameraPresetId, string> = {
-  west: "West Coast", us: "United States", europe: "Europe", alaska: "Alaska", hawaii: "Hawaii", world: "World",
+  west: "West Coast", us: "United States", europe: "Europe", alaska: "Alaska", hawaii: "Hawaii", canadaMexico: "Canada / Mexico", southAmerica: "South America", africa: "Africa", middleEast: "Middle East", asia: "Asia",
+  oceania: "Oceania", world: "World",
 };
 const WORLD_FALLBACK: Bounds = [-165, 18, 40, 70];
 
@@ -35,9 +48,18 @@ export function boundsFor(preset: CameraPresetId, airports: readonly Pick<Airpor
   return preset === "world" ? worldBounds(airports) : FIXED[preset];
 }
 
-/** The camera preset that frames a home airport: Hawaii, Alaska, the West Coast, the rest of the US, or Europe. */
+/** The camera preset that frames a home airport: a US preset (Hawaii, Alaska, West Coast, rest of the US), else the preset of its continent or region group. */
 export function presetForAirport(a: Pick<Airport, "country" | "region">): CameraPresetId {
-  if (a.country !== "US") return "europe";
+  if (a.country !== "US") {
+    switch (continentOf(a.country)) {
+      case "North America": return "canadaMexico";
+      case "South America": return "southAmerica";
+      case "Africa": return "africa";
+      case "Oceania": return "oceania";
+      case "Asia": return regionGroupOf(a.country) === "middleEast" ? "middleEast" : "asia";
+      default: return "europe";
+    }
+  }
   if (a.region === "HI") return "hawaii";
   if (a.region === "AK") return "alaska";
   return a.region === "CA" || a.region === "OR" || a.region === "WA" ? "west" : "us";

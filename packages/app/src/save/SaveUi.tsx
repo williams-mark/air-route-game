@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { airports } from "@arg/data";
 import { hubCandidates, STARTING_AIRLINE } from "@arg/sim";
 import { countryName } from "../routes/geoNames";
+import { hubsByContinent, START_HUB_COUNT } from "./startHubs";
 import { presetForAirport } from "../map/presets";
 import { bridge } from "../sim/useSim";
 import { formatDate, formatMoney } from "../sim/format";
@@ -114,7 +115,8 @@ export function StartScreen() {
   const [seed, setSeed] = useState("2015");
   const [hub, setHub] = useState("LAX");
   const [airline, setAirline] = useState("");
-  const hubs = useMemo(() => hubCandidates(airports), []);
+  const hubs = useMemo(() => hubCandidates(airports, START_HUB_COUNT), []);
+  const hubGroups = useMemo(() => hubsByContinent(hubs), [hubs]);
   const [msg, setMsg] = useState<Outcome | null>(null);
   const [showLoad, setShowLoad] = useState(false);
   const latest = metas ? latestSlot(metas) : null;
@@ -126,7 +128,7 @@ export function StartScreen() {
     <Modal label="Start screen" scrimClassName="start" className="start-card" initialFocus="#start-seed" closeOnEscape={false} closeOnBackdrop={false} onClose={() => undefined}>
       <>
         <h1>Air Route Game</h1>
-        <p className="start-sub">Build an airline across the United States and Europe, 2015 to 2025.</p>
+        <p className="start-sub">Build an airline anywhere in the world, 2015 to 2025.</p>
         {latest ? (
           <button className="start-primary" disabled={slotBusy} onClick={async () => { setSlotBusy(true); begin(await loadFromSlot(bridge, latest.slot)); setSlotBusy(false); }}>
             <strong>Continue</strong>
@@ -138,9 +140,9 @@ export function StartScreen() {
           <input id="start-airline" className="wide" maxLength={40} value={airline} placeholder={STARTING_AIRLINE} onChange={(e) => setAirline(e.target.value)} />
           <label htmlFor="start-hub">Home airport</label>
           <select id="start-hub" value={hub} onChange={(e) => setHub(e.target.value)}>
-            {(["US", "Europe"] as const).map((grp) => (
-              <optgroup key={grp} label={grp === "US" ? "United States" : "Europe"}>
-                {hubs.filter((h) => (h.country === "US") === (grp === "US")).map((h) => (
+            {hubGroups.map((g) => (
+              <optgroup key={g.continent} label={g.continent}>
+                {g.hubs.map((h) => (
                   <option key={h.id} value={h.id}>{h.id} {"·"} {h.city}{h.country === "US" ? `, ${h.region}` : `, ${countryName(h.country)}`}{h.id === "LAX" ? " (default)" : ""}</option>
                 ))}
               </optgroup>

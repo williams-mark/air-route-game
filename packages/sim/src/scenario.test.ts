@@ -75,7 +75,7 @@ describe("startingScenario with a chosen hub and name", () => {
     expect(() => startingScenario(airports, aircraftTypes, 2015, { hub: "ZZZ" })).toThrow();
   });
 
-  for (const hub of ["LHR", "JFK", "FRA", "ANC"]) {
+  for (const hub of ["LHR", "JFK", "FRA", "ANC", "SIN", "GRU", "DXB", "SYD", "HND", "YYZ"]) {
     it(`starting at ${hub}: feasible, fully scheduled, profitable-ish routes from the hub`, () => {
       const s = startingScenario(airports, aircraftTypes, 2015, { hub, name: "Test Air" });
       expect(s.baseAirport).toBe(hub);
@@ -110,5 +110,33 @@ describe("startingScenario with a chosen hub and name", () => {
     const a = startingScenario(airports, aircraftTypes, 9, { hub: "FRA" });
     const b = startingScenario(airports, aircraftTypes, 9, { hub: "FRA" });
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+});
+
+describe("hubs worldwide", () => {
+  it("hubCandidates lists the largest airports of every continent, none with a runway the starting fleet cannot use", () => {
+    const hubs = hubCandidates(airports, 150);
+    expect(hubs).toHaveLength(150);
+    expect(hubs[0]!.id).toBe("LAX");
+    expect(new Set(hubs.map((h) => h.id)).size).toBe(150);
+    for (const id of ["SIN", "GRU", "DXB", "SYD", "JNB", "HND", "DEL", "MEX", "YYZ"]) expect(hubs.map((h) => h.id), id).toContain(id);
+    expect(hubs.map((h) => h.id)).not.toContain("CGH"); // 1,940 m
+    for (const h of hubs.slice(1)) expect(h.runwayM, h.id).toBeGreaterThanOrEqual(2000);
+  });
+
+  it("thin or crowded hubs still start with three feasible routes (the least-losing ones are accepted)", () => {
+    for (const hub of ["JNB", "GIG", "BSB", "DMK"]) {
+      const s = startingScenario(airports, aircraftTypes, 2015, { hub });
+      expect(s.world.routes.length, hub).toBeGreaterThanOrEqual(3);
+      for (const r of s.world.routes) {
+        const empty = { ...s, world: { ...s.world, routes: [] } };
+        expect(applyCommand(empty, { kind: "openRoute", route: { origin: r.origin, destination: r.destination, weeklyFrequency: r.weeklyFrequency, fares: r.fares, typeId: r.typeId } }).result.ok, `${hub} ${r.destination}`).toBe(true);
+      }
+    }
+  }, 60_000);
+
+  it("tail numbers use the registration prefix of the hub's country", () => {
+    expect(startingScenario(airports, aircraftTypes, 2015, { hub: "SIN" }).world.fleet[0]!.tailNumber.startsWith("9V-")).toBe(true);
+    expect(startingScenario(airports, aircraftTypes, 2015, { hub: "SYD" }).world.fleet[0]!.tailNumber.startsWith("VH-")).toBe(true);
   });
 });
