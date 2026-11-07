@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { homeHubOf, typeBlockHours } from "@arg/sim";
+import { CLASS_NAME, homeHubOf, typeBlockHours } from "@arg/sim";
 import { pct, usd } from "../routes/fmt";
 import { bridge, useSim } from "../sim/useSim";
 import { boardHubOptions, buildBoardRows, buildHourRows, hubTypeIds, summarizeBoard } from "../hubboard/hubBoard";
@@ -47,7 +47,7 @@ export default function HubBoardView() {
                 <thead>
                   <tr>
                     <th scope="col">Destination</th><th scope="col">Type</th><th scope="col" className="num">Freq / wk</th>
-                    <th scope="col" className="num">Load</th><th scope="col" className="num">Connecting</th><th scope="col" className="num">Profit / wk</th>
+                    <th scope="col" className="num">Load</th><th scope="col">By cabin</th><th scope="col" className="num">Connecting</th><th scope="col" className="num">Profit / wk</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -59,6 +59,9 @@ export default function HubBoardView() {
                         {r.frequency}{r.frequency < r.requested ? ` / ${r.requested}` : ""}
                       </td>
                       <td className="num">{r.loadFactor === null ? NA : pct(r.loadFactor)}</td>
+                      <td className="hb-cabins">{r.byCabin.length === 0 ? NA : r.byCabin.map((c) => (
+                        <span key={c.cls} title={`${CLASS_NAME[c.cls]}: ${Math.round(c.passengersPerWeek)} of ${Math.round(c.seatsPerWeek)} seats a week`}>{c.cls} {pct(c.loadFactor ?? 0)}</span>
+                      ))}</td>
                       <td className="num">{r.connectingShare === null ? NA : pct(r.connectingShare)}</td>
                       <td className={`num ${r.weeklyProfit === null ? "" : r.weeklyProfit < 0 ? "neg" : "pos"}`}>{r.weeklyProfit === null ? NA : usd(r.weeklyProfit)}</td>
                     </tr>

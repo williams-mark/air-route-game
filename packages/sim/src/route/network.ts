@@ -1,8 +1,8 @@
-import type { Aircraft, AircraftType, Airport, Day, Id, Route } from "@arg/contracts";
+import type { Aircraft, AircraftType, Airport, CabinClass, Day, Id, Route, ServiceLevel } from "@arg/contracts";
 import { marketOnDay } from "../demand/market";
 import { benchmarkFareFor } from "../demand/fares";
 import { distanceKm } from "../geo";
-import { evaluateRoute, LEDGER_PARAMS, type LedgerLine, type RouteEvaluation } from "../finance/ledger";
+import { evaluateRoute, LEDGER_PARAMS, type CabinLoad, type LedgerLine, type RouteEvaluation } from "../finance/ledger";
 import {
   DEFAULT_ROUTE_MODEL_CONFIG, evaluateWithFleet, fleetGroups, evaluateHubConnection, networkContribution, type RouteWeek,
 } from "./routeModel";
@@ -50,6 +50,8 @@ export interface NetworkInput {
    * moves some demand to the cheaper itinerary. Absent or 0 = unchanged behaviour.
    */
   connectionMarkdown?: Readonly<Record<Id, number | undefined>>;
+  /** The airline's service level per cabin (absent = standard); passed to every cabin-dependent evaluation. */
+  serviceLevels?: Readonly<Partial<Record<CabinClass, ServiceLevel>>>;
 }
 
 export interface NetworkResult {
@@ -68,6 +70,19 @@ export const NETWORK_LIMITS = { maxMarkets: 12, minWeeklyDemand: 300 } as const;
 const THROUGH_FARE_FACTOR = 0.92;
 const P = LEDGER_PARAMS;
 const empty = (): NetworkResult => ({ evaluations: {}, connecting: {}, deltaRevenue: 0, deltaCosts: 0 });
+
+/**
+ * Connecting passengers added to a route's cabins. They are spread over the cabins in proportion to the empty seats each has, so
+ * per-cabin load adds up to the route total (the through traffic's own cabin mix is not modelled). Absent when the route has no
+ * per-cabin figures.
+ */
+export function addConnectingToCabins(loads: readonly CabinLoad[] | undefined, extra: number): CabinLoad[] | undefined {
+  if (!loads) return undefined;
+  const room = loads.reduce((s, c) => s + Math.max(0, c.seatsPerWeek - c.passengersPerWeek), 0);
+  if (room <= 0 || extra <= 0) return loads.map((c) => ({ ...c }));
+  const add = Math.min(extra, room);
+  return loads.map((c) => ({ ...c, passengersPerWeek: c.passengersPerWeek + (add * Math.max(0, c.seatsPerWeek - c.passengersPerWeek)) / room }));
+}
 
 /**
  * Connecting passengers for every hub market where the player offers both legs but no direct service (SAN-HNL via LAX,
@@ -130,6 +145,7 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
       operatedFraction1: input.operatedFraction[c.r1.id] ?? 1, operatedFraction2: input.operatedFraction[c.r2.id] ?? 1,
       week1: input.weeks[c.r1.id], week2: input.weeks[c.r2.id],
       reservedSeats1: reserved[c.r1.id] ?? 0, reservedSeats2: reserved[c.r2.id] ?? 0,
+      serviceLevels: input.serviceLevels,
     });
     if (!conn || conn.connectingPassengers < 0.5) continue;
     const contrib = networkContribution(conn);
@@ -161,6 +177,7 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
       route, a, b, requested: type, groups: fleetGroups(type, fleet ?? [], types, input.flights?.[routeId]), day,
       weeklyPassengers: base.passengersPerWeek + 2 * cr.passengersOneWay,
       operatedFraction: fraction, ownership: !fleet || fleet.length === 0 ? "fractional" : "excluded",
+      serviceLevels: input.serviceLevels,
     });
     const extraCost = Math.max(0, re.costs - base.costs - rate * (re.revenue - base.revenue) + rate * cr.revenue);
     cr.cost = extraCost;
@@ -184,6 +201,7 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
       ...base,
       lines,
       passengersPerWeek: pax,
+      cabinLoads: addConnectingToCabins(base.cabinLoads, 2 * cr.passengersOneWay),
       loadFactor: lf,
       revenue,
       costs,

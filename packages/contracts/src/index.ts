@@ -9,6 +9,9 @@ export type Day = number;
 
 export type CabinClass = "F" | "J" | "W" | "Y"; // first, business, premium economy, economy
 
+/** Onboard service level of one cabin, set per airline (default standard). Affects passenger experience and premium fares. */
+export type ServiceLevel = "basic" | "standard" | "superior";
+
 export interface Airport {
   id: Id; // IATA code
   name: string;
@@ -152,6 +155,8 @@ export interface WorldState {
   farePolicies?: FarePolicy[];
   /** Terminal the player occupies at each hub, keyed by airport id. Absent = airport default (first non-premium terminal). */
   hubTerminals?: Record<Id, Id>;
+  /** Service level per cabin for the player's airline. Absent = standard everywhere. */
+  serviceLevels?: Partial<Record<CabinClass, ServiceLevel>>;
 }
 
 // --- Sim <-> UI messages ---

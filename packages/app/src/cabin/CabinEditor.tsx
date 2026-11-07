@@ -10,6 +10,7 @@ import {
 } from "./helpers";
 import { SeatMap } from "./SeatMap";
 import "./cabin.css";
+import { bridge } from "../sim/useSim";
 
 interface Props {
   type: AircraftType;
@@ -41,8 +42,10 @@ export function CabinEditor({ type, layout, onChange, day, defaultRoute }: Props
   const fx = useMemo(() => layoutEffects(type, layout), [type, layout]);
   const ref = useMemo(() => layoutEffects(type, defaultLayout(type)), [type]);
   const presets = useMemo(() => suggestLayouts(type), [type]);
-  const proj = useMemo(() => projectRoute(type, layout, origin, destination, airports, aircraftTypes, day), [type, layout, origin, destination, day]);
-  const refProj = useMemo(() => projectRoute(type, defaultLayout(type), origin, destination, airports, aircraftTypes, day), [type, origin, destination, day]);
+  // Both projections use the airline's service levels, so the comparison isolates the layout change.
+  const serviceLevels = bridge.getSim?.()?.world.serviceLevels;
+  const proj = useMemo(() => projectRoute(type, layout, origin, destination, airports, aircraftTypes, day, serviceLevels), [type, layout, origin, destination, day, serviceLevels]);
+  const refProj = useMemo(() => projectRoute(type, defaultLayout(type), origin, destination, airports, aircraftTypes, day, serviceLevels), [type, origin, destination, day, serviceLevels]);
   const shares = lengthShares(layout);
   const used = v.lengthUsedM / v.lengthAvailableM;
 

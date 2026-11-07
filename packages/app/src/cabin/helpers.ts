@@ -1,5 +1,5 @@
 // Pure helpers for the cabin editor (no React). Tested in helpers.test.ts.
-import type { AircraftType, CabinClass, CabinLayout, CabinSection } from "@arg/contracts";
+import type { AircraftType, CabinClass, CabinLayout, CabinSection, ServiceLevel } from "@arg/contracts";
 import {
   allowedAcross, benchmarkFareFor, cabinGeometry, distanceKm, CABIN_CLASSES, layoutLengthM, pitchLimits, rowsFitting, SECTION_DIVIDER_M,
   simulateRouteWeek, validateCabinLayout,
@@ -93,7 +93,7 @@ export const PROJECTION_ROUTES: Array<[string, string]> = [["LAX", "SFO"], ["LAX
 /** Revenue and profit per flight for a layout on a route (full ledger via the route model, one fictional aircraft). */
 export function projectRoute(
   type: AircraftType, layout: CabinLayout, origin: string, destination: string,
-  airports: Airport[], types: AircraftType[], day: number,
+  airports: Airport[], types: AircraftType[], day: number, serviceLevels?: Partial<Record<CabinClass, ServiceLevel>>,
 ): Projection {
   const ap = new Map(airports.map((a) => [a.id, a]));
   const a = ap.get(origin), b = ap.get(destination);
@@ -102,7 +102,7 @@ export function projectRoute(
   const fare = Math.round(benchmarkFareFor(a, b, dist));
   const route = { id: "proj", origin, destination, weeklyFrequency: 7, fares: { Y: fare }, typeId: type.id };
   const ac = { id: "proj-ac", typeId: type.id, tailNumber: "PROJ", layout, status: "active" as const, ageDays: 0, hoursSinceCheck: { A: 0, B: 0, C: 0, D: 0 } };
-  const w = simulateRouteWeek(route, ap, new Map(types.map((t) => [t.id, t])), day, { fleetAircraft: [ac], chargeOwnership: true });
+  const w = simulateRouteWeek(route, ap, new Map(types.map((t) => [t.id, t])), day, { fleetAircraft: [ac], chargeOwnership: true, serviceLevels });
   if (!w || !w.evaluation.feasible) return { feasible: false, revenuePerFlight: 0, profitPerFlight: 0, loadFactor: 0, reason: w?.evaluation.infeasibleReasons[0] ?? "Route not available." };
   const e = w.evaluation;
   const flights = Math.max(1, e.flightsPerWeek);

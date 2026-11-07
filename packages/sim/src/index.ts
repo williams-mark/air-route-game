@@ -43,6 +43,8 @@ export * from "./route/network";
 export * from "./route/farePolicy";
 export * from "./route/congestion";
 export * from "./route/liveModel";
+export * from "./route/loads";
+export * from "./cabin/experience";
 export { fleetGroups, averageSeats, evaluateWithFleet } from "./route/routeModel";
 export type { FleetGroup } from "./route/routeModel";
 export * from "./commands";

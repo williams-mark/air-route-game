@@ -1,6 +1,6 @@
 // Pure rows for the Hub board view. No React, no sim calls: the caller supplies reports and block-hour figures.
 import type { Route } from "@arg/contracts";
-import type { RouteReport } from "@arg/sim";
+import { connectingShare as sharedConnectingShare, loadByCabin, type CabinLoadFactor, type RouteReport } from "@arg/sim";
 import type { FleetItem } from "../sim/bridge";
 import { hubOptions } from "../fleet/typeTable";
 
@@ -19,14 +19,21 @@ export interface BoardRow {
   weeklyProfit: number | null;
   /** Share of the route's passengers that are connecting (0..1); null when there is no report. */
   connectingShare: number | null;
+  /** Load of each cabin the route flies, empty cabins at 0%; empty when there is no report. */
+  byCabin: CabinLoadFactor[];
 }
 
 type Reports = Readonly<Record<string, RouteReport | undefined>>;
 
 /** Connecting passengers (one-way weekly figure, carried both ways) as a share of all weekly passengers, clamped to 0..1. */
 export function connectingShare(oneWay: number, passengersPerWeek: number): number {
-  if (!(passengersPerWeek > 0) || !(oneWay > 0)) return 0;
-  return Math.min(1, (2 * oneWay) / passengersPerWeek);
+  return sharedConnectingShare(oneWay, passengersPerWeek);
+}
+
+/** Cabins a route flies, with their load (sim figures; an empty cabin is 0%). */
+export function cabinLoadsOf(ev: Parameters<typeof loadByCabin>[0]): CabinLoadFactor[] {
+  const all = loadByCabin(ev);
+  return (["F", "J", "W", "Y"] as const).map((c) => all[c]).filter((c) => c.seatsPerWeek > 0);
 }
 
 /** Routes touching the hub, departures (origin = hub) first, then by weekly profit (unknown last), then by other airport. */
@@ -46,6 +53,7 @@ export function buildBoardRows(routes: readonly Route[], reports: Reports, hub: 
       loadFactor: ev ? ev.loadFactor : null,
       weeklyProfit: ev ? ev.profit : null,
       connectingShare: ev ? connectingShare(rep?.connecting?.passengersOneWay ?? 0, ev.passengersPerWeek) : null,
+      byCabin: ev ? cabinLoadsOf(ev) : [],
     });
   }
   return rows.sort((a, b) =>

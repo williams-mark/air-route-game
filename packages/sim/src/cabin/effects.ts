@@ -233,3 +233,10 @@ export function cabinFillRatios(type: AircraftType, layout: CabinLayout, paxPerF
   }
   return out;
 }
+
+/** Seat comfort per cabin class of a layout (1.0 at benchmark), for the passenger-experience model. Pure. */
+export function comfortByClass(type: AircraftType, layout: CabinLayout): Partial<Record<CabinClass, number>> {
+  const out: Partial<Record<CabinClass, number>> = {};
+  for (const c of metrics(type, layout)) out[c.cls] = c.comfort;
+  return out;
+}

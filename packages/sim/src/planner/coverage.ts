@@ -142,7 +142,7 @@ const classMix = (ac: Aircraft) => {
 function profitAt(state: SimState, route: Route, lead: Aircraft | undefined, fraction: number, day: Day): number {
   const ctx = simContext(state);
   const r = lead && lead.typeId !== route.typeId ? { ...route, typeId: lead.typeId } : route;
-  const wk = simulateRouteWeek(r, ctx.airports, ctx.types, day, { fleetAircraft: lead ? [lead] : [], operatedFraction: Math.max(0, Math.min(1, fraction)), chargeOwnership: false });
+  const wk = simulateRouteWeek(r, ctx.airports, ctx.types, day, { fleetAircraft: lead ? [lead] : [], operatedFraction: Math.max(0, Math.min(1, fraction)), chargeOwnership: false, serviceLevels: state.world.serviceLevels });
   return wk && wk.evaluation.feasible ? wk.evaluation.profit : 0;
 }
 

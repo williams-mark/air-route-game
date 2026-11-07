@@ -5,6 +5,7 @@ import type { RouteEvaluation } from "./finance/ledger";
 import type { Offer } from "./offers/types";
 import type { BankruptcyRecord, RivalsState } from "./rivals/types";
 import type { RouteConnecting } from "./route/network";
+import type { RouteExperience } from "./cabin/experience";
 import type { PlannerState } from "./planner/types";
 
 // ---------------------------------------------------------------------------
@@ -41,6 +42,8 @@ export interface RouteReport {
   scheduling: RouteScheduling | null;
   /** Connecting (hub) passengers carried on this route and already included in `evaluation`; absent when there are none. */
   connecting?: RouteConnecting;
+  /** Passenger experience of the cabins flown (score and fare multiplier per cabin). Absent in older saves. */
+  experience?: RouteExperience;
 }
 
 export interface SimParams {

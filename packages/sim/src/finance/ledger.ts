@@ -75,6 +75,13 @@ export interface LedgerLine {
   formula: string;
 }
 
+/** Seats and passengers of one cabin on a route, per week (both directions). */
+export interface CabinLoad {
+  cls: CabinClass;
+  seatsPerWeek: number;
+  passengersPerWeek: number;
+}
+
 export interface RouteEvaluation {
   feasible: boolean;
   infeasibleReasons: string[];
@@ -99,6 +106,8 @@ export interface RouteEvaluation {
   costPerPassenger: number;
   /** Approximate break-even load factor assuming revenue scales linearly with load. */
   breakEvenLoadFactor: number | null;
+  /** Seats and passengers per cabin the route flies (absent in older saves; computed by evaluateRoute). */
+  cabinLoads?: CabinLoad[];
 }
 
 const P = LEDGER_PARAMS;
@@ -271,6 +280,7 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
     revenuePerPassenger: pax > 0 ? revenue / pax : 0,
     costPerPassenger: pax > 0 ? costs / pax : 0,
     breakEvenLoadFactor: revenue > 0 && lf > 0 ? Math.min(2, (costs / revenue) * lf) : null,
+    cabinLoads: inp.cabins.map((c, i) => ({ cls: c.cls, seatsPerWeek: c.seats * flights, passengersPerWeek: cabinPax[i]! })),
   };
 }
 
@@ -321,7 +331,23 @@ export function mergeEvaluations(parts: readonly RouteEvaluation[]): RouteEvalua
     revenuePerPassenger: pax > 0 ? revenue / pax : 0,
     costPerPassenger: pax > 0 ? costs / pax : 0,
     breakEvenLoadFactor: revenue > 0 && lf > 0 ? Math.min(2, (costs / revenue) * lf) : null,
+    cabinLoads: mergeCabinLoads(parts),
   };
+}
+
+/** Per-cabin seats and passengers summed over the parts; absent when any part lacks them. */
+function mergeCabinLoads(parts: readonly RouteEvaluation[]): CabinLoad[] | undefined {
+  if (!parts.every((e) => e.cabinLoads)) return undefined;
+  const byCls = new Map<CabinClass, CabinLoad>();
+  for (const e of parts) {
+    for (const c of e.cabinLoads!) {
+      const cur = byCls.get(c.cls) ?? { cls: c.cls, seatsPerWeek: 0, passengersPerWeek: 0 };
+      cur.seatsPerWeek += c.seatsPerWeek;
+      cur.passengersPerWeek += c.passengersPerWeek;
+      byCls.set(c.cls, cur);
+    }
+  }
+  return [...byCls.values()];
 }
 
 /** Aircraft (fractional) needed to fly `weeklyFrequency` round trips on a pair. */
