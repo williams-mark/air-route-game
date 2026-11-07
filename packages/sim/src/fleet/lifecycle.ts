@@ -66,7 +66,7 @@ export function isRetired(aircraft: Pick<Aircraft, "ageDays">): boolean {
  * `aircraft.ageDays` is its age as of `asOfDay` (the sim day the state represents); the age on `day` is ageDays + (day - asOfDay).
  * Pure; fares are not changed here.
  */
-export function ageServicePenalty(aircraft: Pick<Aircraft, "ageDays">, day: Day, asOfDay: Day): number {
+export function lifecycleServicePenalty(aircraft: Pick<Aircraft, "ageDays">, day: Day, asOfDay: Day): number {
   const ageDaysOnDay = aircraft.ageDays + (day - asOfDay);
   return ageDaysOnDay > LIFECYCLE_PARAMS.servicePenaltyAfterYears * LIFECYCLE_PARAMS.daysPerYear ? LIFECYCLE_PARAMS.servicePenalty : 0;
 }

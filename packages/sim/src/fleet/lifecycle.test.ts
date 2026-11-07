@@ -3,7 +3,7 @@ import { aircraftTypes, airports } from "@arg/data";
 import type { SimState } from "../state";
 import { dayToDate } from "../time/calendar";
 import { applyCommand, defaultLayout, monthlyOwnershipUsd, startingScenario, stepDay } from "../index";
-import { ageServicePenalty, FINANCING_PARAMS, isObsolete, isRetired, LIFECYCLE_PARAMS, obsolescenceMultiplier } from "./lifecycle";
+import { lifecycleServicePenalty, FINANCING_PARAMS, isObsolete, isRetired, LIFECYCLE_PARAMS, obsolescenceMultiplier } from "./lifecycle";
 
 const type = (id: string) => aircraftTypes.find((t) => t.id === id)!;
 const sc = () => startingScenario(airports, aircraftTypes, 1);
@@ -137,19 +137,19 @@ describe("obsolescence threshold", () => {
 
 describe("passenger service age penalty", () => {
   it("is zero up to 15 years and the penalty value beyond", () => {
-    expect(ageServicePenalty({ ageDays: 15 * DAYS_PER_YEAR }, 100, 100)).toBe(0);
-    expect(ageServicePenalty({ ageDays: 15 * DAYS_PER_YEAR + 1 }, 100, 100)).toBe(LIFECYCLE_PARAMS.servicePenalty);
-    expect(ageServicePenalty({ ageDays: 20 * DAYS_PER_YEAR }, 100, 100)).toBe(LIFECYCLE_PARAMS.servicePenalty);
+    expect(lifecycleServicePenalty({ ageDays: 15 * DAYS_PER_YEAR }, 100, 100)).toBe(0);
+    expect(lifecycleServicePenalty({ ageDays: 15 * DAYS_PER_YEAR + 1 }, 100, 100)).toBe(LIFECYCLE_PARAMS.servicePenalty);
+    expect(lifecycleServicePenalty({ ageDays: 20 * DAYS_PER_YEAR }, 100, 100)).toBe(LIFECYCLE_PARAMS.servicePenalty);
   });
 
   it("evaluates age on the requested day relative to the state's day", () => {
     // 15 years old exactly on day 100; 10 days later it is past the threshold.
-    expect(ageServicePenalty({ ageDays: 15 * DAYS_PER_YEAR }, 100, 100)).toBe(0);
-    expect(ageServicePenalty({ ageDays: 15 * DAYS_PER_YEAR }, 110, 100)).toBe(LIFECYCLE_PARAMS.servicePenalty);
+    expect(lifecycleServicePenalty({ ageDays: 15 * DAYS_PER_YEAR }, 100, 100)).toBe(0);
+    expect(lifecycleServicePenalty({ ageDays: 15 * DAYS_PER_YEAR }, 110, 100)).toBe(LIFECYCLE_PARAMS.servicePenalty);
   });
 
   it("is a pure function of its inputs", () => {
     const ac = { ageDays: 16 * DAYS_PER_YEAR };
-    expect(ageServicePenalty(ac, 5, 5)).toBe(ageServicePenalty(ac, 5, 5));
+    expect(lifecycleServicePenalty(ac, 5, 5)).toBe(lifecycleServicePenalty(ac, 5, 5));
   });
 });
