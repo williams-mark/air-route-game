@@ -4,6 +4,7 @@
 - `setAircraftHub` and `orderAircraft` (new optional `deliveryHubId`, default home) refuse non-owned hubs with `not_a_hub`.
 - Fleet: move selects list owned hubs only; row checkboxes with a bulk bar (move to hub, cabin change for one type). Orders: delivery hub select. Hubs view: unlock control.
 - Not done: offers still deliver to the home hub (acceptOffer has no hub field); hub board airport dropdown still lists all airports; `setHubTerminal` is not limited to owned hubs.
+- Gate (lane/hub-fleet): `pnpm install --frozen-lockfile`, typecheck, test (data 82, sim 338, app 190), build all pass with no lane fixes needed; e2e 48/48 (24 checks x 2 themes) against a dev server on port 5260.
 
 ## lane/open-tickets (route inspector load factor, cleanup)
 - Route inspector: "Target load factor" row (value or "off") in Schedule and fares, and a field in Adjust (50-95, blank = off) that dispatches `updateRoute` with `targetLoadFactor` number or null; sim errors (`invalid_target_load_factor`) shown inline and as a toast. Parse/format/describe helpers in `routes/helpers.ts` (shared with the creator, tested in `helpers.test.ts`). RouteCreator no longer carries a local cast (fixed in 94e1cb5).
