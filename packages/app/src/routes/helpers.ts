@@ -1,6 +1,6 @@
 // Pure helpers for the route inspector, creation sandbox and Routes view.
 // Projections call @arg/sim (simulateRouteWeek / evaluateRoute) with real @arg/data inputs; nothing here has side effects.
-import type { AircraftType, Airport, CabinClass, Day, Fares, Id, Route } from "@arg/contracts";
+import type { AircraftType, Airport, CabinClass, Day, Fares, Id, Route, ServiceLevel } from "@arg/contracts";
 import { aircraftTypes, airports, canFlyRoute, distanceKm } from "@arg/data";
 import {
   benchmarkFare, benchmarkFareFor, routeFeasibilityError, daysInMonth, dayToDate, pairMarket, previewNewRoute, previewRoutePatch, seasonalRouteProfit, simulateRouteWeek,
@@ -30,8 +30,8 @@ export const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "A
 export const routeName = (r: Pick<Route, "origin" | "destination">) => `${r.origin}–${r.destination}`;
 
 /** Full weekly picture for a route on `day`, or null for unknown airports/types. */
-export function projectRoute(route: Route, day: Day, world: World = dataWorld): RouteWeek | null {
-  return simulateRouteWeek(route, world.airports, world.types, day);
+export function projectRoute(route: Route, day: Day, world: World = dataWorld, serviceLevels?: Partial<Record<CabinClass, ServiceLevel>>): RouteWeek | null {
+  return simulateRouteWeek(route, world.airports, world.types, day, { serviceLevels });
 }
 
 // --- Live forecasts --------------------------------------------------------

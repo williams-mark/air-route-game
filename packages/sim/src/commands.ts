@@ -1,4 +1,4 @@
-import type { Aircraft, AircraftType, Airport, Command, Day, FarePolicy, Fares, Id, Route, RouteCategory, SimEvent } from "@arg/contracts";
+import type { Aircraft, AircraftType, Airport, CabinClass, Command, Day, FarePolicy, Fares, Id, Route, RouteCategory, ServiceLevel, SimEvent } from "@arg/contracts";
 import { canFlyOverwater, isOverwaterRoute } from "@arg/data";
 import { distanceKm, simRunwayM } from "./geo";
 import { airportOpen, closureOf, dayLabel } from "./world/closures";
@@ -15,6 +15,8 @@ import type { AircraftOrder, SimState } from "./state";
 import { dayToDate, START_YEAR, isLeapYear } from "./time/calendar";
 import { applyOfferCommand, type OfferCommand, type OfferResult } from "./offers";
 import { applyRefit, type CabinCommand, type RefitResult } from "./cabin/refit";
+import { DEFAULT_SERVICE_LEVEL, SERVICE_LEVEL_NAME, SERVICE_LEVELS } from "./cabin/experience";
+import { CLASS_NAME } from "./cabin/rules";
 import { applyPlannerCommand, type PlannerOk } from "./planner/commands";
 import type { PlannerCommand } from "./planner/types";
 
@@ -73,7 +75,8 @@ export type CommandErrorCode =
   | "insufficient_slots"
   | "invalid_fare_policy"
   | "unknown_policy"
-  | "unknown_terminal";
+  | "unknown_terminal"
+  | "invalid_service_level";
 
 export interface CommandError {
   ok: false;
@@ -89,6 +92,7 @@ export interface CommandResultMap {
   setFarePolicy: { ok: true; kind: "setFarePolicy"; policy: FarePolicy; replaced: boolean };
   removeFarePolicy: { ok: true; kind: "removeFarePolicy"; id: Id };
   setHubTerminal: { ok: true; kind: "setHubTerminal"; airportId: Id; terminalId: Id };
+  setServiceLevel: { ok: true; kind: "setServiceLevel"; cabin: CabinClass; level: ServiceLevel };
   setAircraftHub: { ok: true; kind: "setAircraftHub"; aircraftId: Id; hubId: Id };
   orderAircraft: {
     ok: true;
@@ -103,7 +107,10 @@ export interface CommandResultMap {
 }
 
 /** Assign an active aircraft to a base hub (fleet/hubs.ts). Routes it flies must start at that hub. */
-export type HubCommand = { kind: "setAircraftHub"; aircraftId: Id; hubId: Id };
+/** Service level of one cabin for the airline (passenger experience and premium fares). */
+export type ServiceCommand = { kind: "setServiceLevel"; cabin: CabinClass; level: ServiceLevel };
+
+export type HubCommand = { kind: "setAircraftHub"; aircraftId: Id; hubId: Id } | ServiceCommand;
 
 export type AnyCommand = Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand;
 type OfferOk = Exclude<OfferResult, CommandError>;
@@ -476,6 +483,17 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
       return {
         state: pushEvents({ ...state, world: { ...state.world, hubTerminals: { ...state.world.hubTerminals, [ap.id]: t.id } } }, [notice(state, `${ap.id}: now operating from ${t.name} (fee x${t.feeMultiplier}, $${Math.round(baseSlotFeeUsd(ap) * t.feeMultiplier)} a slot).`)]),
         result: { ok: true, kind: "setHubTerminal", airportId: ap.id, terminalId: t.id },
+      };
+    }
+    case "setServiceLevel": {
+      if (!SERVICE_LEVELS.includes(cmd.level)) return { state, result: fail("invalid_service_level", `Unknown service level "${String(cmd.level)}".`) };
+      if (!(cmd.cabin in CLASS_NAME)) return { state, result: fail("invalid_service_level", `Unknown cabin "${String(cmd.cabin)}".`) };
+      const cur = state.world.serviceLevels?.[cmd.cabin] ?? DEFAULT_SERVICE_LEVEL;
+      if (cur === cmd.level) return { state, result: fail("no_change", `${CLASS_NAME[cmd.cabin]} service is already ${SERVICE_LEVEL_NAME[cmd.level].toLowerCase()}.`) };
+      const serviceLevels = { ...state.world.serviceLevels, [cmd.cabin]: cmd.level };
+      return {
+        state: pushEvents({ ...state, world: { ...state.world, serviceLevels } }, [notice(state, `${CLASS_NAME[cmd.cabin]} service set to ${SERVICE_LEVEL_NAME[cmd.level].toLowerCase()}.`)]),
+        result: { ok: true, kind: "setServiceLevel", cabin: cmd.cabin, level: cmd.level },
       };
     }
     case "setAircraftHub": {

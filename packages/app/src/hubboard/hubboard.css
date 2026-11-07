@@ -28,3 +28,5 @@
 .hb-note { margin: 0; padding: .1rem .9rem .7rem; font-size: .78rem; color: var(--text-dim); }
 .hb-empty { padding: 1rem .9rem; color: var(--text-dim); font-size: .88rem; margin: 0; }
 @media (max-width: 900px) { .hb-grid { grid-template-columns: 1fr; overflow: auto; } .hb-stats { margin-left: 0; } }
+
+.hb-cabins span + span::before { content: " · "; color: var(--text-dim); }

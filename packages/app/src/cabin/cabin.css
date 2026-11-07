@@ -54,3 +54,6 @@ fieldset.sec legend { display: flex; gap: .8rem; align-items: baseline; padding:
 .cabin-picker { flex: 1 1 24rem; max-width: 40rem; }
 
 @media (max-width: 560px) { .sec-body { grid-template-columns: minmax(0, 1fr); } .sec-body input, .sec-body select { min-width: 0; max-width: 100%; } }
+.svc-levels { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: .5rem .8rem; margin: 0; }
+.svc-levels legend { padding: 0 .3rem; }
+.svc-level { display: inline-flex; gap: .4rem; align-items: center; }

@@ -1,4 +1,4 @@
-import type { Aircraft, AircraftType, Airport, Day, FarePolicy, Fares, Id, Route } from "@arg/contracts";
+import type { Aircraft, AircraftType, Airport, CabinClass, Day, FarePolicy, Fares, Id, Route, ServiceLevel } from "@arg/contracts";
 import { effectiveConnectionMarkdown, effectiveTargetLoadFactor, playerHubs } from "./farePolicy";
 import { assign, type AssignPrefs, type ScheduleResult } from "../fleet/scheduler";
 import { plannerPrefs } from "../planner/forecast";
@@ -33,6 +33,8 @@ export interface LiveModelInput {
   farePolicies?: readonly FarePolicy[];
   /** Player hub airport ids, for the "hub-spoke" policy category (see playerHubs). */
   hubs?: readonly Id[];
+  /** The airline's service level per cabin (WorldState.serviceLevels). Absent = standard. */
+  serviceLevels?: Partial<Record<CabinClass, ServiceLevel>>;
 }
 
 export interface LiveModelResult {
@@ -82,6 +84,7 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
       demandScale: noise,
       chargeOwnership: notional,
       rivalItineraries: a && b ? rivalItinerariesFor(inp.rivals, a, b, types) : undefined,
+      serviceLevels: inp.serviceLevels,
     };
     const weekAt = (r: Route) => (a && b ? simulateRouteWeek(r, airports, types, day, weekOpts) : null);
     let priced = route;
@@ -112,6 +115,7 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
       notionalFleet: notional,
       demandScale: noise,
       scheduling: notional ? null : sched ?? null,
+      experience: week.experience,
     };
   }
   // Hub connecting passengers (SAN-HNL via LAX ...): extra revenue and cost on the legs, load factors updated.
@@ -120,7 +124,7 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
     markdown = {};
     for (const r of routes) markdown[r.id] = effectiveConnectionMarkdown(r, inp.farePolicies, airports, inp.hubs);
   }
-  const net = evaluateNetwork({ connectionMarkdown: markdown, routes: pricedRoutes, airports, types, day, weeks, fleet: routeFleet, flights: routeFlights, operatedFraction: routeFraction });
+  const net = evaluateNetwork({ connectionMarkdown: markdown, routes: pricedRoutes, airports, types, day, weeks, fleet: routeFleet, flights: routeFlights, operatedFraction: routeFraction, serviceLevels: inp.serviceLevels });
   revenue += net.deltaRevenue / 7;
   routeCosts += net.deltaCosts / 7;
   for (const [id, evaluation] of Object.entries(net.evaluations)) {
@@ -199,6 +203,7 @@ function liveInput(state: SimState, day: Day, routes: readonly Route[], noise: (
     prefs: plannerPrefs(state, day),
     farePolicies: state.world.farePolicies,
     hubs: playerHubs(state),
+    serviceLevels: state.world.serviceLevels,
     noise,
   };
 }

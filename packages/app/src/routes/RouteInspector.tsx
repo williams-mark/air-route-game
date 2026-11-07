@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { CabinClass, Route } from "@arg/contracts";
 import { airportById, aircraftTypes } from "@arg/data";
-import { dayToDate } from "@arg/sim";
+import { SERVICE_LEVEL_NAME, connectingShare, dayToDate } from "@arg/sim";
+import { cabinLoadsOf } from "../hubboard/hubBoard";
 import { useUi } from "../store";
 import { bridge, useSim } from "../sim/useSim";
 import { IconAlert } from "../shell/icons";
@@ -56,6 +57,15 @@ export function RouteInspector({ route }: { route: Route }) {
   const week = report ? { evaluation: report.evaluation, snapshot: report.market } : projected;
   const sched = report?.scheduling ?? null;
   const ev = week?.evaluation;
+  // Passengers and experience: per-cabin load (flown cabins only; an empty one shows 0%), connecting share, experience per cabin.
+  const paxCabins = ev ? cabinLoadsOf(ev) : [];
+  const connPax = report?.connecting?.passengersOneWay ?? 0;
+  const connShare = ev ? connectingShare(connPax, ev.passengersPerWeek) : 0;
+  const exp = report?.experience;
+  const cabinExpText = (cls: CabinClass) => {
+    const e = exp?.byCabin[cls];
+    return e ? ` · ${SERVICE_LEVEL_NAME[e.serviceLevel]} service, fares x${e.fareMultiplier.toFixed(2)}` : "";
+  };
   // Forecasts run the same model as the daily report (assigned aircraft, real rivals, hub traffic, ownership treatment); the mock bridge has no sim and keeps the standalone projection.
   const sim = bridge.getSim?.() ?? null;
   const live = sim !== null;
@@ -156,6 +166,25 @@ export function RouteInspector({ route }: { route: Route }) {
             {CABINS.slice().reverse().map((c) => cabinFare(c) !== undefined && (<Fragment key={c}><dt>{CABIN_NAME[c]}</dt><dd>{usd(cabinFare(c)!)}</dd></Fragment>))}
           </dl>
         </section>
+
+        {ev && (
+          <section aria-labelledby="rp-pax" className="rp-sec">
+            <h3 id="rp-pax">Passengers <span className="hint">(per week, both directions)</span></h3>
+            <dl className="mini rp-dl">
+              <dt>Load factor</dt><dd>{pct(ev.loadFactor)} overall, {Math.round(ev.passengersPerWeek).toLocaleString()} of {Math.round(ev.seatsPerWeek).toLocaleString()} seats</dd>
+              {paxCabins.map((c) => (
+                <Fragment key={c.cls}>
+                  <dt>{CABIN_NAME[c.cls]} load</dt>
+                  <dd>{pct(c.loadFactor ?? 0)}, {Math.round(c.passengersPerWeek).toLocaleString()} of {Math.round(c.seatsPerWeek).toLocaleString()} seats{cabinExpText(c.cls)}</dd>
+                </Fragment>
+              ))}
+              <dt>Connecting</dt>
+              <dd>{pct(connShare)} of passengers{connPax > 0 ? `, ${Math.round(connPax).toLocaleString()} a week each way` : " (no hub connections on this route)"}</dd>
+              <dt>Passenger experience</dt>
+              <dd>{exp ? `${Math.round(exp.score)} / 100` : "shown after the next daily report"}</dd>
+            </dl>
+          </section>
+        )}
 
         <RouteAircraft route={route} />
 

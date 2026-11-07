@@ -1,16 +1,41 @@
 import { useMemo, useState } from "react";
 import { aircraftTypes } from "@arg/data";
-import { dayToDate, defaultLayout, layoutSeats } from "@arg/sim";
-import type { CabinLayout } from "@arg/contracts";
+import { CLASS_NAME, SERVICE_LEVELS, SERVICE_LEVEL_NAME, dayToDate, defaultLayout, layoutSeats } from "@arg/sim";
+import type { CabinClass, CabinLayout, ServiceLevel } from "@arg/contracts";
 import { CabinEditor } from "../cabin/CabinEditor";
 import { conform } from "../cabin/helpers";
 import { useCabinDrafts } from "../cabin/store";
-import { useSim } from "../sim/useSim";
+import { bridge, useSim } from "../sim/useSim";
 import { useToasts } from "../routes/store";
 import { usePickerMemory } from "../aircraft/memory";
 import { AircraftPicker } from "../aircraft/AircraftPicker";
 
 const TYPES = [...aircraftTypes].sort((a, b) => a.maxSeats - b.maxSeats);
+const SERVICE_CABINS: CabinClass[] = ["F", "J", "W", "Y"];
+
+/** Airline-wide service level per cabin. Superior service supports higher premium fares; basic service earns less. */
+function ServiceLevels() {
+  const push = useToasts((s) => s.push);
+  const levels = bridge.getSim?.()?.world.serviceLevels ?? {};
+  const set = (cabin: CabinClass, level: ServiceLevel) => {
+    const res = bridge.dispatch({ kind: "setServiceLevel", cabin, level });
+    if (res && !res.ok) push("alert", res.error.message);
+    else if (res && res.ok) push("good", `${CLASS_NAME[cabin]} service is now ${SERVICE_LEVEL_NAME[level].toLowerCase()}.`);
+  };
+  return (
+    <fieldset className="svc-levels">
+      <legend>Service level by cabin <span className="hint">airline-wide</span></legend>
+      {SERVICE_CABINS.map((c) => (
+        <label key={c} className="svc-level">
+          <span>{CLASS_NAME[c]}</span>
+          <select value={levels[c] ?? "standard"} onChange={(e) => set(c, e.target.value as ServiceLevel)} aria-label={`${CLASS_NAME[c]} service level`}>
+            {SERVICE_LEVELS.map((l) => <option key={l} value={l}>{SERVICE_LEVEL_NAME[l]}</option>)}
+          </select>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
 
 /** Standalone cabin designer: pick a type, design, and save the design as the cabin for new orders of that type. */
 export default function CabinView() {
@@ -42,6 +67,7 @@ export default function CabinView() {
         >{saved[type.id] ? (isSaved ? "Saved for new orders" : "Update saved design") : "Use for new orders"}</button>
         {saved[type.id] && <button type="button" onClick={() => { save(type.id, null); push("info", `New ${type.id} orders use the standard cabin again.`); }}>Clear saved design</button>}
       </div>
+      <ServiceLevels />
       <div className="panel-box"><CabinEditor type={type} layout={layout} onChange={set} day={day} /></div>
     </div>
   );
