@@ -227,3 +227,20 @@ Playtested the expanded world through the UI (Playwright, `packages/app/scripts/
 - Soak (`pnpm --filter @arg/sim soak --hub SIN ...`, new `--hub` flag): SIN 4 games x 5 years, 0 violations, cash identity exact, replay identical; GRU, DXB, SYD 4 games x 10 years each: 0 violations, cash identity exact, replays byte-identical.
 - Rival data MISSING for non-US/non-European regions: no sourced airline list, fleets or route networks for Asia, Middle East, Africa, Latin America or Oceania, so none was invented. A hub there plays against the existing 13 US/European carriers only (they do not enter that region) and no local rivals; the rivals view is correspondingly empty there. A later lane needs sourced carriers (RIVALS.md "World field") per region.
 - Caveats left: demand still uses the Europe income reference (`europeIncomeRefUsd`) for every non-US pair, ground/rail alternatives and `groundKm` are US/Europe-only (no road or rail across new borders), no seasonality tags outside US/Europe, no closure/opening calendar for new airports, Europe camera preset is unchanged (Canaries and northern Scandinavia fall outside it), Pacific islands east of the date line (Samoa, Tonga, Cook Islands) fall outside the Oceania preset. Playwright e2e and screenshots not run.
+
+## Backlog from Mark (Nov 6, not started)
+- Bug: map is gray outside US and Europe (leftover from when the world was only partly available).
+- Hubs: only the starting airport is free; unlocking a hub costs money (about $50M proposed). Aircraft can only be assigned to hub airports. At order time, pick the delivery hub (new aircraft currently all land at LAX). Multiselect for aircraft being redesigned.
+- Retire the planning panel (disable; code may stay).
+- Start year optional, 1965 to present. Endless play after the present day with current aircraft; add prior types (707, DC-9, and others) for earlier starts.
+- Remove the routes panel on the right of the map screen (the openable routes panel stays).
+- Map: globe/flat toggle (low priority).
+- Airport maps for hubs (simple, matching style). Terminal selection for the starting hub is broken.
+- Route and cabin load factor reporting: overall LF, LF by cabin (empty business should be visible), percent of passengers connecting.
+- Remove the auto-zoom region selector at the top of the map.
+- Orders and aircraft-order pages: make the All > Airbus > A350 breadcrumb card-based, not hyperlink-style.
+- Seat maps: two-deck aircraft (747, A380) show both decks in the cabin designer.
+- Hub board: the airport dropdown shows all airports; should show only owned hubs. %connecting reads 0 everywhere. Check whether this is faulty logic or faulty reporting (10% connecting-fare markdown in effect).
+- Economy: order options for lease (down payment, higher operating cost at delivery) or purchase (20% down, 80% at delivery).
+- Aircraft lifecycle: hard cap at 30 years. Price rises considerably 15 years after out of production (parts shortage). Passenger-experience penalty.
+- Passenger experience: cabin config and service quality drive fares (e.g., 1-2-1 business with superior service commands a higher fare than 2-2-2 with weaker service).
