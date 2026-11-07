@@ -36,6 +36,8 @@ const rows: Row[] = [
   ["A350-900", "Airbus", "Airbus A350-900", 15750, 903, 440, 5.7, 2600, 317.4, 2015, null, true],
   ["A350-1000", "Airbus", "Airbus A350-1000", 16700, 903, 480, 6.2, 2700, 366.5, 2018, null, true],
   ["B747-400", "Boeing", "Boeing 747-400", 13490, 910, 660, 11.5, 2955, 250, 1989, 2007, true],
+  // Prior generation (see SOURCES.md, "Prior-generation aircraft"). Only types with every field sourced; the rest are not in the data yet.
+  ["DC10-30", "McDonnell Douglas", "McDonnell Douglas DC-10-30", 9600, 876, 380, 6.3, 3200, 120, 1972, 1988, true],
 ];
 
 export const aircraftTypes: AircraftType[] = rows.map(

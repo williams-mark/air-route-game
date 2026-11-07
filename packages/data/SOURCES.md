@@ -1158,3 +1158,40 @@ No new aircraft or airport data fields were added; this lane reads the existing 
 | Passenger service penalty (aircraft older than 15 years) | 0.10 flat | DESIGN, not sourced |
 
 Types with `endYear` null (still in production) never become obsolete. Every type with a recorded `endYear` gets the obsolescence rule.
+## Prior-generation aircraft and start year (lane/start-year)
+
+Scope: campaign start years from 1972 (the earliest year the data has an aircraft in production for, see "Start year" below) to the present. The game always had a 2015 start; the sim now builds a start in any year by putting the calendar on absolute days (day 0 = 2015-01-01, negative before) and choosing the aircraft in production that year.
+
+### Rows added (src/aircraft.ts)
+
+| Type | Fields | Status | Source |
+|---|---|---|---|
+| DC10-30 (McDonnell Douglas DC-10-30) | rangeKm 9600 | recalled, verify; fetched Wikipedia summary | https://en.wikipedia.org/wiki/McDonnell_Douglas_DC-10: "5,200 nmi (9,600 km; 6,000 mi)" for the -30 |
+| | cruiseKmh 876 | recalled, verify; fetched | same page: "Mach 0.82 (473 kn; 876 km/h; 544 mph) typical" (family line) |
+| | maxSeats 380 | recalled, verify; fetched | same page: 380 is the FAA exit limit; the table's 399 is a 10-abreast economy maximum and is not used |
+| | runwayNeededM 3200 | recalled, verify; fetched | same page: takeoff "10,500 ft (3,200 m)" for the -30 |
+| | introYear 1972, endYear 1988 | recalled, verify; fetched | same page: "first introduced in service on December 15, 1972"; "A total of 163 were built from 1972 to 1988" |
+| | listPriceUsdM 120 | DERIVED: type-level 1972 unit cost, CPI-adjusted | same page: "the DC-10's listed unit cost was reportedly US$20M" (1972, not variant-specific). Converted with CPI-U (about 41.8 in 1972, about 251.1 in 2018, recalled): 20 x 251.1 / 41.8 = 120 |
+| | fuelBurnKgPerKm 6.3 | ESTIMATE | general cruise fuel flow, not sourced (same status as the rest of the table) |
+| | widebody true, three engines | recalled | DC-10 is a trijet, so overwater is unlimited in overwater.ts (ETOPS applies to twins) |
+
+Cabin geometry (src/cabin/geometry.ts, DC10-30 row): ESTIMATE. Cabin length about 42 m (overall length about 55 m less nose and tail cone), width 5.5 m, economy 8 or 9 abreast. Needed so the default layout fits the cabin; no source for the cabin length was fetched.
+
+### Aircraft considered and omitted (no sourced figure for a required field)
+
+Each is left out until its missing fields are confirmed. Fetched Wikipedia summaries did not give these values for the named variant:
+- Boeing 707-120 / -320 / -320B / -320C: list price not stated; -320 production end not stated; 707-320B cruise and seats not stated. (Entry into service: -120 26 Oct 1958; -320 1959; -320B June 1962; -320C 1963.)
+- Douglas DC-8 (all series): no unit price; no variant entry or production-end dates; no takeoff length.
+- Douglas DC-9-10 / -30 / -50: no unit price, no takeoff length, and the DC-9-30 cruise speed is not stated. (DC-9-10 entered service 8 Dec 1965; -30 Feb 1967, last delivered 1982.)
+- Boeing 727-100 / -200: no unit price. (-100 Feb 1964, last Oct 1972; -200 Dec 1967.)
+- Boeing 737-100 / -200: no range, cruise or takeoff length found. (-100 entered service Feb 1968, last delivered Oct 1969, unit cost $3.6M 1968; -200 Apr 1968, last delivered Aug 1988, unit cost $4.0M 1968.) Once range, cruise and runway are sourced these two can be added at once: the 1968 unit costs CPI-adjust to about 26 and 29 (2018 USD).
+- Boeing 747-100 / -200 / -300: variant production end, cruise, seats and takeoff length not stated. (-100 entered service 22 Jan 1970; -100 order of 25 in 1966 for $525M, about $21M each.)
+- Lockheed L-1011-1 / -500: no takeoff length for the -1 (intro 1972, production ended 1983). The -500 has no unit price.
+- Boeing 767-200 / -200ER: no unit price; cruise not stated. (767-200 Sept 1982, produced to 1987; range 7,200 km; takeoff 1,920 m.)
+- Airbus A300B2 / B4: the A300B4-200 range (5,375 km) is the -200 figure while the intro year (Dec 1975) is the B4 family date, so the row is not safe to add. Price is family-level ($17.5M, 1972).
+
+### Start year (src/time/startYear.ts, src/time/calendar.ts)
+- MIN_START_YEAR = 1965 is the policy floor the spec asked for. A year is also rejected when no aircraft type is in production that year, because the starting fleet is built from types in production. The earliest year with a fleet is the first introduction year in the data (1972 with the DC-10-30). The error text names it.
+- Economic curves are still the 2015-2025 calibration: the Jet-A series (finance/fuel.ts) and carbon anchors (world/regions.ts) clamp to their first value before 2015, so pre-2015 fuel is 1.8 USD/gal, not the historical price. No pre-2015 fuel series is sourced.
+- Demand growth (demand/market.ts, 2.5% a year from 2015) compounds backward before 2015 and forward after it.
+- Airport opening and closing dates are absolute (world/closures.ts), so a 1972 start has the 2015 airports open at their 1972 status (closed airports only close later).

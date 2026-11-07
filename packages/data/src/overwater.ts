@@ -6,7 +6,7 @@ import { aircraftTypes } from "./aircraft.js";
  * maxOverwaterKm[type] = longest single route (great-circle km) with no suitable alternate en route that the type may be
  * scheduled on. Derived as: 2 x (diversion minutes / 60 x ONE_ENGINE_SPEED_FRACTION x cruiseKmh), i.e. the route midpoint may be
  * no further than the ETOPS diversion radius from the route's two end airports.
- *  - Four-engine types: unlimited.
+ *  - Three- and four-engine types (DC-10 trijet, 747): unlimited; ETOPS applies to twins only.
  *  - Twin jets with ETOPS approval: ETOPS minutes below.
  *  - Twin types without ETOPS (E175, CRJ, ATR): US "60-minute rule" (FAR 121.161), 60 min.
  *
@@ -17,7 +17,7 @@ import { aircraftTypes } from "./aircraft.js";
  */
 export const ONE_ENGINE_SPEED_FRACTION = 0.9; // ESTIMATE: one-engine-inoperative cruise speed as a fraction of normal cruise.
 
-/** Diversion time in minutes; null = four engines (no limit). */
+/** Diversion time in minutes; null = three or four engines (no limit). */
 const diversionMinutes: Record<string, number | null> = {
   "B737-700": 180, "B737-800": 180, "B737-900ER": 180, "B737-8": 180, "B737-9": 180,
   A319: 180, A320: 180, A321: 180, A320N: 180, A321N: 180,
@@ -28,6 +28,7 @@ const diversionMinutes: Record<string, number | null> = {
   "A330-200": 240, "A330-300": 240, "A330-900": 240,
   "A350-900": 370, "A350-1000": 370,
   "B747-400": null,
+  "DC10-30": null,
   E175: 60, CRJ700: 60, CRJ900: 60, "ATR72-600": 60,
 };
 

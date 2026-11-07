@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { aircraftTypes } from "@arg/data";
-import { COMMAND_PARAMS, dayToDate, defaultLayout, FINANCING_PARAMS, layoutSeats, orderDiscount } from "@arg/sim";
+import { COMMAND_PARAMS, dayToDate, defaultLayout, FINANCING_PARAMS, layoutSeats, orderableTypes, orderDiscount } from "@arg/sim";
 import { bridge, useSim } from "../sim/useSim";
 import { formatDate, formatMoney, formatMonthYear } from "../sim/format";
 import { useToasts } from "../routes/store";
@@ -12,13 +12,6 @@ import { useOffersUi } from "../offers/store";
 import { CabinDialog } from "../cabin/CabinDialog";
 import { useCabinDrafts } from "../cabin/store";
 
-/** Types the sim will take an order for in `year` (not out of production, not more than three years before introduction). */
-export function orderableTypes(year: number) {
-  return aircraftTypes
-    .filter((t) => (t.endYear === null || t.endYear >= year) && t.introYear <= year + COMMAND_PARAMS.orderLeadYears)
-    .sort((a, b) => a.maxSeats - b.maxSeats);
-}
-
 type Financing = "purchase" | "lease";
 
 export default function OrdersView() {
@@ -27,7 +20,8 @@ export default function OrdersView() {
   const setTab = useOffersUi((s) => s.setTab);
   const push = useToasts((s) => s.push);
   const year = dayToDate(day).year;
-  const types = useMemo(() => orderableTypes(year), [year]);
+  // The order list is what the sim will take an order for on this date (in production or recently out, introduced by the order lead).
+  const types = useMemo(() => orderableTypes(aircraftTypes, year, COMMAND_PARAMS.orderLeadYears), [year]);
   const remembered = usePickerMemory((s) => s.last.order);
   const [typeId, setTypeId] = useState(remembered ?? "");
   // A "order this type" link elsewhere (route aircraft section) updates the remembered choice while this view is mounted.
@@ -74,7 +68,7 @@ export default function OrdersView() {
         <h2 id="order-h">New order</h2>
         <form className="order-form" onSubmit={submit}>
           <div className="rp-field">
-            <AircraftPicker label="Aircraft type" value={type?.id ?? ""} onChange={setTypeId} year={year} types={aircraftTypes} block={(t) => orderBlock(t, year)} memoryKey="order" />
+            <AircraftPicker label="Aircraft type" value={type?.id ?? ""} onChange={setTypeId} year={year} types={types} block={(t) => orderBlock(t, year)} memoryKey="order" />
           </div>
           <div className="rp-field">
             <label htmlFor="ord-qty">Quantity</label>

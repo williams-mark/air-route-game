@@ -1,6 +1,6 @@
 import type { AircraftType, Airport } from "@arg/contracts";
 import { canFlyRoute, distanceKm, USABLE_RANGE_FRACTION } from "@arg/data";
-import { COMMAND_PARAMS, LEDGER_PARAMS, defaultLayout, layoutSeats, maxRouteKm } from "@arg/sim";
+import { canOrderNew, COMMAND_PARAMS, LEDGER_PARAMS, defaultLayout, layoutSeats, maxRouteKm, RECENT_OUT_OF_PRODUCTION_YEARS } from "@arg/sim";
 
 export type Availability = "future" | "current" | "ended";
 
@@ -17,9 +17,9 @@ export const typicalSeats = (t: AircraftType): number => layoutSeats(defaultLayo
 
 /** Why a type cannot be ordered in `year`, or null if it can (mirrors the sim's orderAircraft rules). */
 export function orderBlock(t: AircraftType, year: number): string | null {
-  if (t.endYear !== null && t.endYear < year) return `Out of production since ${t.endYear}; buy used via Offers`;
-  if (t.introYear > year + COMMAND_PARAMS.orderLeadYears) return `Orders open in ${t.introYear - COMMAND_PARAMS.orderLeadYears} (enters service ${t.introYear})`;
-  return null;
+  if (canOrderNew(t, year, COMMAND_PARAMS.orderLeadYears)) return null;
+  if (t.endYear !== null && t.endYear + RECENT_OUT_OF_PRODUCTION_YEARS < year) return `Out of production since ${t.endYear}; buy used via Offers`;
+  return `Orders open in ${t.introYear - COMMAND_PARAMS.orderLeadYears} (enters service ${t.introYear})`;
 }
 
 /**

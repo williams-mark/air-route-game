@@ -114,7 +114,7 @@ export interface SimBridge {
   /** Save/load support (real bridge only). */
   serialize?(): SaveFile;
   loadGame?(save: SaveFile): void;
-  newGame?(seed: number, options?: { hub?: string; name?: string }): void;
+  newGame?(seed: number, options?: { hub?: string; name?: string; startYear?: number; presentYear?: number }): void;
 }
 
 export const DAYS_PER_SECOND: Record<Speed, number> = { 0: 0, 1: 1, 2: 3, 3: 7, 4: 14, 5: 30 };

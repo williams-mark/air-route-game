@@ -10,6 +10,9 @@ import { distanceKm } from "./geo";
 import { regionGroupOf } from "./world/regions";
 import { makeRng, mixSeed } from "./rng";
 import { newSim, stepDay, type StartOptions } from "./index";
+import { inProduction } from "./fleet/availability";
+import { jan1Day, START_YEAR } from "./time/calendar";
+import { startYearError } from "./time/startYear";
 import { createRivals } from "./rivals";
 import type { SimState } from "./state";
 
@@ -52,6 +55,46 @@ export interface ScenarioOptions {
   hub?: string;
   /** Airline name (trimmed, at most 40 characters). */
   name?: string;
+  /** Campaign start year (whole year, 1965 or later, see `startYearError`). Default 2015, the original scenario. */
+  startYear?: number;
+  /** The caller's notion of the current year, for validating `startYear` (the sim never reads a clock). Default: the start year. */
+  presentYear?: number;
+}
+
+/** Fleet plan of a start year: aircraft type ids with counts, and the hub slots (type id and distance band) for derived routes. */
+export interface EraPlan {
+  fleet: ReadonlyArray<readonly [typeId: string, count: number]>;
+  slots: ReadonlyArray<{ typeId: string; minKm: number; maxKm: number }>;
+  day: number;
+}
+
+/**
+ * The aircraft type that stands in for `typeId` in a start year: a type in production that year, preferring the same wide/narrow body
+ * class, nearest in seats to the original. Deterministic (ties by id). Undefined when nothing is in production that year.
+ */
+export function eraTypeFor(types: readonly AircraftType[], typeId: string, year: number): AircraftType | undefined {
+  const orig = types.find((t) => t.id === typeId);
+  const pool = types.filter((t) => inProduction(t, year));
+  if (!orig || pool.length === 0) return undefined;
+  const sameBody = pool.filter((t) => t.widebody === orig.widebody);
+  const cands = sameBody.length > 0 ? sameBody : pool;
+  return [...cands].sort((a, b) => Math.abs(a.maxSeats - orig.maxSeats) - Math.abs(b.maxSeats - orig.maxSeats) || (a.id < b.id ? -1 : 1))[0];
+}
+
+/** Era fleet and hub slots for a start year other than 2015: the default plan with each type replaced by `eraTypeFor`. */
+export function eraPlanFor(types: readonly AircraftType[], year: number): EraPlan {
+  const counts = new Map<string, number>();
+  for (const [typeId, n] of STARTING_FLEET) {
+    const t = eraTypeFor(types, typeId, year);
+    if (!t) throw new Error(`startingScenario: no aircraft in production in ${year}`);
+    counts.set(t.id, (counts.get(t.id) ?? 0) + n);
+  }
+  const slots = HUB_SLOTS.map((s) => {
+    const t = eraTypeFor(types, s.typeId, year);
+    if (!t) throw new Error(`startingScenario: no aircraft in production in ${year}`);
+    return { typeId: t.id, minKm: s.minKm, maxKm: s.maxKm };
+  });
+  return { fleet: [...counts], slots, day: jan1Day(year) };
 }
 
 export const DEFAULT_HUB = "LAX";
@@ -103,15 +146,17 @@ const HUB_CANDIDATE_LIMIT = 40;
  * actually operate it. A destination whose best option loses money is skipped; if fewer than three routes are found the bands are
  * widened. Pure and deterministic (no randomness); every returned route passes the same checks as the player's open-route command.
  */
-export function deriveHubRoutes(airports: Airport[], aircraftTypes: AircraftType[], fleet: Aircraft[], hub: Airport, seed: number): Route[] {
+export function deriveHubRoutes(airports: Airport[], aircraftTypes: AircraftType[], fleet: Aircraft[], hub: Airport, seed: number, era?: EraPlan): Route[] {
   const typeById = new Map(aircraftTypes.map((t) => [t.id, t]));
-  const startFleetCount = new Map(STARTING_FLEET);
+  const startFleetCount = new Map(era ? era.fleet : STARTING_FLEET);
+  const slots = era ? era.slots : HUB_SLOTS;
+  const day = era ? era.day : 0;
   const byDemand = airports
-    .filter((o) => o.id !== hub.id && airportOpen(o.id, 0))
+    .filter((o) => o.id !== hub.id && airportOpen(o.id, day))
     .map((o) => ({ o, w: pairMarket(hub, o).baseWeekly }))
     .sort((x, y) => y.w - x.w || (x.o.id < y.o.id ? -1 : 1))
     .map((x) => x.o);
-  const base = newSim(seed, airports, aircraftTypes, { notionalFleet: false }, { cash: STARTING_CASH_USD, fleet, routes: [], airlineName: STARTING_AIRLINE, baseAirport: hub.id });
+  const base = newSim(seed, airports, aircraftTypes, { notionalFleet: false }, { cash: STARTING_CASH_USD, fleet, routes: [], airlineName: STARTING_AIRLINE, baseAirport: hub.id, day });
   const chosen: Route[] = [];
   const used = new Set<string>();
   const usedTypeLoad = new Map<string, number>();
@@ -153,17 +198,17 @@ export function deriveHubRoutes(airports: Airport[], aircraftTypes: AircraftType
     return true;
   };
 
-  for (const slot of HUB_SLOTS) trySlot(slot);
+  for (const slot of slots) trySlot(slot);
   // Remote or thin hubs: widen the bands until there are at least three routes.
   for (const widen of [{ minKm: 100, maxKm: 4000 }, { minKm: 100, maxKm: 12000 }]) {
-    for (const slot of HUB_SLOTS) {
+    for (const slot of slots) {
       if (chosen.length >= 3) break;
       trySlot({ typeId: slot.typeId, ...widen });
     }
   }
   // Thin hubs (Johannesburg, Brasilia...): still short of three routes, accept the least-losing feasible ones rather than a stub network.
   for (const widen of [{ minKm: 100, maxKm: 4000 }, { minKm: 100, maxKm: 12000 }]) {
-    for (const slot of HUB_SLOTS) {
+    for (const slot of slots) {
       if (chosen.length >= 3) break;
       trySlot({ typeId: slot.typeId, ...widen }, true);
     }
@@ -176,11 +221,11 @@ export function deriveHubRoutes(airports: Airport[], aircraftTypes: AircraftType
  * looked fully flown on its own can end up short once the others are added) until the whole network is fully scheduled, using one real
  * day of the sim. Also reports which aircraft the scheduler used.
  */
-function settleRoutes(airports: Airport[], aircraftTypes: AircraftType[], fleet: Aircraft[], routes: Route[], seed: number, hub: Airport): { routes: Route[]; usedAircraft: Set<string> } {
+function settleRoutes(airports: Airport[], aircraftTypes: AircraftType[], fleet: Aircraft[], routes: Route[], seed: number, hub: Airport, day = 0): { routes: Route[]; usedAircraft: Set<string> } {
   let cur = routes.map((r) => ({ ...r, fares: { ...r.fares } }));
   let used = new Set<string>();
   for (let iter = 0; iter < 40; iter++) {
-    const probe = newSim(seed, airports, aircraftTypes, { notionalFleet: false }, { cash: STARTING_CASH_USD, fleet, routes: cur, airlineName: STARTING_AIRLINE, baseAirport: hub.id });
+    const probe = newSim(seed, airports, aircraftTypes, { notionalFleet: false }, { cash: STARTING_CASH_USD, fleet, routes: cur, airlineName: STARTING_AIRLINE, baseAirport: hub.id, day });
     const st = stepDay(probe);
     used = new Set<string>();
     let worst: { r: Route; frac: number } | null = null;
@@ -212,12 +257,19 @@ export function startingScenario(airports: Airport[], aircraftTypes: AircraftTyp
   if (!hub) throw new Error(`startingScenario: hub airport ${hubId} not in data`);
   const airlineName = (options.name ?? "").trim().slice(0, 40) || STARTING_AIRLINE;
   const custom = hubId !== DEFAULT_HUB;
+  const startYear = options.startYear ?? START_YEAR;
+  const yearErr = startYearError(startYear, options.presentYear ?? startYear, aircraftTypes);
+  if (yearErr) throw new Error(`startingScenario: ${yearErr}`);
+  // 2015 keeps the hand-tuned scenario exactly; any other start year uses the aircraft in production that year.
+  const era = startYear === START_YEAR ? null : eraPlanFor(aircraftTypes, startYear);
+  const plan: ReadonlyArray<readonly [string, number]> = era ? era.fleet : STARTING_FLEET;
+  const startDay = era ? era.day : 0;
 
   const buildFleet = (counts: ReadonlyMap<string, number>): Aircraft[] => {
     const rng = makeRng(mixSeed(seed, 0xf1ee7));
     const fleet: Aircraft[] = [];
     let n = 0;
-    for (const [typeId, count] of STARTING_FLEET) {
+    for (const [typeId, count] of plan) {
       const type = typeById.get(typeId);
       if (!type) throw new Error(`startingScenario: aircraft type ${typeId} not in data`);
       for (let i = 0; i < count; i++) {
@@ -239,12 +291,12 @@ export function startingScenario(airports: Airport[], aircraftTypes: AircraftTyp
     }
     return fleet;
   };
-  const full = new Map(STARTING_FLEET);
+  const full = new Map(plan);
   const fleetFull = buildFleet(full);
 
   let routes: Route[];
   let fleet = fleetFull;
-  if (!custom) {
+  if (!custom && !era) {
     routes = STARTING_ROUTES.map(([o, d, freq, typeId], i) => {
       const a = apById.get(o);
       const b = apById.get(d);
@@ -261,16 +313,17 @@ export function startingScenario(airports: Airport[], aircraftTypes: AircraftTyp
       };
     });
   } else {
-    const first = settleRoutes(airports, aircraftTypes, fleetFull, deriveHubRoutes(airports, aircraftTypes, fleetFull, hub, seed), seed, hub);
+    const derive = era ?? undefined;
+    const first = settleRoutes(airports, aircraftTypes, fleetFull, deriveHubRoutes(airports, aircraftTypes, fleetFull, hub, seed, derive), seed, hub, startDay);
     // Keep only the aircraft the scheduler actually used (at least one of each type that has a route), so the airline starts without idle metal.
     const keep = new Map<string, number>();
     const byId = new Map(fleetFull.map((a) => [a.id, a]));
     for (const id of first.usedAircraft) { const t = byId.get(id)!.typeId; keep.set(t, (keep.get(t) ?? 0) + 1); }
     for (const r of first.routes) if (!keep.has(r.typeId)) keep.set(r.typeId, 1);
     fleet = buildFleet(keep);
-    routes = settleRoutes(airports, aircraftTypes, fleet, first.routes, seed, hub).routes;
+    routes = settleRoutes(airports, aircraftTypes, fleet, first.routes, seed, hub, startDay).routes;
   }
-  const opts: StartOptions = { cash: STARTING_CASH_USD, fleet, routes, airlineName, baseAirport: hubId };
+  const opts: StartOptions = { cash: STARTING_CASH_USD, fleet, routes, airlineName, baseAirport: hubId, day: startDay };
   const sim = newSim(seed, airports, aircraftTypes, { notionalFleet: false }, opts);
-  return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, sim.world.routes) };
+  return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, sim.world.routes, startDay) };
 }

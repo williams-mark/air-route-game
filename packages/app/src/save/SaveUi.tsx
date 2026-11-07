@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { airports } from "@arg/data";
-import { hubCandidates, STARTING_AIRLINE } from "@arg/sim";
+import { aircraftTypes, airports } from "@arg/data";
+import { earliestFleetYear, hubCandidates, MIN_START_YEAR, startYearError, STARTING_AIRLINE } from "@arg/sim";
 import { countryName } from "../routes/geoNames";
 import { hubsByContinent, START_HUB_COUNT } from "./startHubs";
 import { presetForAirport } from "../map/presets";
@@ -113,6 +113,12 @@ export function StartScreen() {
   const push = useToasts((s) => s.push);
   const { metas, error } = useSlots();
   const [seed, setSeed] = useState("2015");
+  // Start year: 2015 is the standard start. The floor is the policy minimum or the first year the data has aircraft in production, if later.
+  const presentYear = useMemo(() => new Date().getFullYear(), []);
+  const minYear = Math.max(MIN_START_YEAR, earliestFleetYear(aircraftTypes) ?? MIN_START_YEAR);
+  const [yearText, setYearText] = useState("2015");
+  const yearNum = yearText.trim() === "" ? NaN : Number(yearText);
+  const yearErr = Number.isNaN(yearNum) ? "Start year must be a whole number." : startYearError(yearNum, presentYear, aircraftTypes);
   const [hub, setHub] = useState("LAX");
   const [airline, setAirline] = useState("");
   const hubs = useMemo(() => hubCandidates(airports, START_HUB_COUNT), []);
@@ -128,14 +134,14 @@ export function StartScreen() {
     <Modal label="Start screen" scrimClassName="start" className="start-card" initialFocus="#start-seed" closeOnEscape={false} closeOnBackdrop={false} onClose={() => undefined}>
       <>
         <h1>Air Route Game</h1>
-        <p className="start-sub">Build an airline anywhere in the world, 2015 to 2025.</p>
+        <p className="start-sub">Build an airline anywhere in the world, starting in any year from {minYear} to {presentYear}.</p>
         {latest ? (
           <button className="start-primary" disabled={slotBusy} onClick={async () => { setSlotBusy(true); begin(await loadFromSlot(bridge, latest.slot)); setSlotBusy(false); }}>
             <strong>Continue</strong>
             <span>{latest.airline} {"·"} {formatDate(latest.day)} {"·"} {slotName(latest.slot)}</span>
           </button>
         ) : (<p className="start-none">{metas === null ? "Looking for saved games…" : "No saved game yet."}</p>)}
-        <form className="start-new" onSubmit={(e) => { e.preventDefault(); if (parsed === null) { setMsg({ ok: false, message: "Seed must be a whole number from 0 to 999999999." }); return; } bridge.newGame?.(parsed, { hub, name: airline }); const home = airports.find((x) => x.id === hub); if (home && hub !== "LAX") useUi.getState().flyTo(presetForAirport(home)); begin({ ok: true, message: `New game, seed ${parsed}, ${airline.trim() || STARTING_AIRLINE} at ${hub}.` }); }}>
+        <form className="start-new" onSubmit={(e) => { e.preventDefault(); if (parsed === null) { setMsg({ ok: false, message: "Seed must be a whole number from 0 to 999999999." }); return; } if (yearErr) { setMsg({ ok: false, message: yearErr }); return; } bridge.newGame?.(parsed, { hub, name: airline, startYear: yearNum, presentYear }); const home = airports.find((x) => x.id === hub); if (home && hub !== "LAX") useUi.getState().flyTo(presetForAirport(home)); begin({ ok: true, message: `New game, seed ${parsed}, ${yearNum}, ${airline.trim() || STARTING_AIRLINE} at ${hub}.` }); }}>
           <label htmlFor="start-airline">Airline name</label>
           <input id="start-airline" className="wide" maxLength={40} value={airline} placeholder={STARTING_AIRLINE} onChange={(e) => setAirline(e.target.value)} />
           <label htmlFor="start-hub">Home airport</label>
@@ -148,6 +154,9 @@ export function StartScreen() {
               </optgroup>
             ))}
           </select>
+          <label htmlFor="start-year">Start year</label>
+          <input id="start-year" inputMode="numeric" value={yearText} onChange={(e) => setYearText(e.target.value)} aria-invalid={yearErr !== null} aria-describedby="start-year-hint" />
+          <p id="start-year-hint" className="start-hint">{yearErr ?? `${minYear} to ${presentYear}. Older starts use the aircraft that were in production that year.`}</p>
           <label htmlFor="start-seed">Seed</label>
           <input id="start-seed" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} aria-invalid={parsed === null} />
           <button type="submit" className="primary">New game</button>
