@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
 import type { Aircraft, Route } from "@arg/contracts";
-import { applyCommand } from "../commands";
-import { blockHoursPerFrequency, hubBlockHours, homeHubOf, routeHourSummary, typeBlockHours } from "./hubs";
+import { applyCommand, COMMAND_PARAMS } from "../commands";
+import { blockHoursPerFrequency, hubBlockHours, homeHubOf, isOwnedHub, ownedHubsOf, routeHourSummary, typeBlockHours } from "./hubs";
 import { assign, weeklyCapacityHours } from "./scheduler";
 import { blockHours } from "../finance/ledger";
 import { distanceKm } from "../geo";
@@ -117,13 +117,84 @@ describe("openRoute block-hour check", () => {
   });
 });
 
-describe("setAircraftHub", () => {
-  it("moves an active aircraft to a hub airport", () => {
+describe("unlockHub", () => {
+  it("only the starting airport is a hub at the start", () => {
     const base = sc();
+    expect(ownedHubsOf(base)).toEqual(["LAX"]);
+    expect(isOwnedHub(base, "SFO")).toBe(false);
+  });
+
+  it("charges the unlock cost, adds the hub and records the payment in the cash log", () => {
+    const base = sc();
+    const r = applyCommand(base, { kind: "unlockHub", airportId: "SFO" });
+    expect(r.result).toMatchObject({ ok: true, kind: "unlockHub", airportId: "SFO", costUsd: COMMAND_PARAMS.hubUnlockUsd });
+    expect(COMMAND_PARAMS.hubUnlockUsd).toBe(50_000_000);
+    expect(r.state.world.cash).toBe(base.world.cash - 50_000_000);
+    expect(ownedHubsOf(r.state)).toEqual(["LAX", "SFO"]);
+    expect(r.state.world.cashLog).toEqual([{ day: base.world.day, amountUsd: -50_000_000, text: expect.stringContaining("SFO") }]);
+    expect(base.world.ownedHubs).toEqual(["LAX"]); // input state untouched
+  });
+
+  it("refuses with already_hub for an owned hub, and insufficient_cash without the money; state unchanged", () => {
+    const base = sc();
+    expect(applyCommand(base, { kind: "unlockHub", airportId: "LAX" }).result).toMatchObject({ ok: false, error: "already_hub" });
+    const poor: SimState = { ...base, world: { ...base.world, cash: 49_000_000 } };
+    const r = applyCommand(poor, { kind: "unlockHub", airportId: "SFO" });
+    expect(r.result).toMatchObject({ ok: false, error: "insufficient_cash" });
+    expect(r.state).toBe(poor);
+  });
+
+  it("refuses an unknown airport", () => {
+    expect(applyCommand(sc(), { kind: "unlockHub", airportId: "ZZZ" }).result).toMatchObject({ ok: false, error: "unknown_airport" });
+  });
+
+  it("an old save with no ownedHubs keeps the hubs it already uses (fleet bases and terminals)", () => {
+    const base = sc();
+    const old: SimState = {
+      ...base,
+      world: { ...base.world, ownedHubs: undefined, fleet: [ac("x", "B737-800", "JFK")], hubTerminals: { ORD: "T1" } },
+    };
+    expect(ownedHubsOf(old)).toEqual(["JFK", "LAX", "ORD"]);
+  });
+});
+
+describe("hub-only aircraft assignment", () => {
+  it("an order delivers to the home hub by default, and to a chosen owned hub", () => {
+    const base = sc();
+    const r = applyCommand(base, { kind: "orderAircraft", typeId: "B737-800", count: 1, layout: { sections: [] } });
+    expect(r.result.ok).toBe(true);
+    const id = r.result.ok ? r.result.aircraftIds[0]! : "";
+    expect(r.state.world.fleet.find((x) => x.id === id)!.hubId).toBe("LAX");
+    const unlocked = applyCommand(base, { kind: "unlockHub", airportId: "SFO" }).state;
+    const o = applyCommand(unlocked, { kind: "orderAircraft", typeId: "B737-800", count: 1, layout: { sections: [] }, deliveryHubId: "SFO" });
+    expect(o.result.ok).toBe(true);
+    const id2 = o.result.ok ? o.result.aircraftIds[0]! : "";
+    expect(o.state.world.fleet.find((x) => x.id === id2)!.hubId).toBe("SFO");
+  });
+
+  it("an order to a hub the player does not own is refused with not_a_hub and changes nothing", () => {
+    const base = sc();
+    const r = applyCommand(base, { kind: "orderAircraft", typeId: "B737-800", count: 1, layout: { sections: [] }, deliveryHubId: "SFO" });
+    expect(r.result).toMatchObject({ ok: false, error: "not_a_hub" });
+    expect(r.state).toBe(base);
+  });
+});
+
+describe("setAircraftHub", () => {
+  it("moves an active aircraft to an owned hub", () => {
+    const base = applyCommand(sc(), { kind: "unlockHub", airportId: "SFO" }).state;
     const id = base.world.fleet[0]!.id;
     const r = applyCommand(base, { kind: "setAircraftHub", aircraftId: id, hubId: "SFO" });
     expect(r.result).toMatchObject({ ok: true, aircraftId: id, hubId: "SFO" });
     expect(r.state.world.fleet.find((x) => x.id === id)!.hubId).toBe("SFO");
+  });
+
+  it("refuses an airport that is not an owned hub with not_a_hub, and leaves the fleet unchanged", () => {
+    const base = sc();
+    const id = base.world.fleet[0]!.id;
+    const r = applyCommand(base, { kind: "setAircraftHub", aircraftId: id, hubId: "SFO" });
+    expect(r.result).toMatchObject({ ok: false, error: "not_a_hub" });
+    expect(r.state).toBe(base);
   });
 
   it("rejects unknown aircraft, non-active aircraft and unknown hubs", () => {

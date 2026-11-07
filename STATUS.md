@@ -1,3 +1,10 @@
+## lane/hub-fleet (hub rules, fleet multiselect; from Mark's backlog)
+- Only the home hub is owned at the start. `unlockHub` (cost `COMMAND_PARAMS.hubUnlockUsd` = $50M) adds a hub, charges cash and writes a `world.cashLog` entry. Errors: `already_hub`, `insufficient_cash`, `unknown_airport`.
+- `world.ownedHubs` is the hub list. Saves without it keep the old derived set (home, aircraft bases, terminal keys), see `ownedHubsOf` in sim fleet/hubs.ts.
+- `setAircraftHub` and `orderAircraft` (new optional `deliveryHubId`, default home) refuse non-owned hubs with `not_a_hub`.
+- Fleet: move selects list owned hubs only; row checkboxes with a bulk bar (move to hub, cabin change for one type). Orders: delivery hub select. Hubs view: unlock control.
+- Not done: offers still deliver to the home hub (acceptOffer has no hub field); hub board airport dropdown still lists all airports; `setHubTerminal` is not limited to owned hubs.
+
 ## lane/open-tickets (route inspector load factor, cleanup)
 - Route inspector: "Target load factor" row (value or "off") in Schedule and fares, and a field in Adjust (50-95, blank = off) that dispatches `updateRoute` with `targetLoadFactor` number or null; sim errors (`invalid_target_load_factor`) shown inline and as a toast. Parse/format/describe helpers in `routes/helpers.ts` (shared with the creator, tested in `helpers.test.ts`). RouteCreator no longer carries a local cast (fixed in 94e1cb5).
 - Removed the "Auto-pause on events" setting: store field and localStorage key, `useSim` feed, bridge `setAutoPause` and `autoPause` option, Settings switch, and the e2e toggling around the speed checks.

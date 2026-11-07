@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Airport, Id } from "@arg/contracts";
-import { baseSlotFeeUsd, homeHubOf, hubCongestion, playerHubs, playerTerminalOf, terminalsOf, weeklySlotFees } from "@arg/sim";
+import { COMMAND_PARAMS, baseSlotFeeUsd, homeHubOf, hubCongestion, ownedHubsOf, playerHubs, playerTerminalOf, terminalsOf, weeklySlotFees } from "@arg/sim";
 import { Modal } from "../shell/Modal";
 import { usd } from "../routes/fmt";
 import { bridge, useSim } from "../sim/useSim";
@@ -14,9 +14,22 @@ interface Move { airport: Airport; from: TerminalRow; to: TerminalRow }
 
 /** Hubs: slot congestion at each of your non-home hubs and the terminal you occupy there (estimated slot and terminal fees). */
 export default function HubsView() {
-  useSim(); // re-render on every snapshot (day steps, commands)
+  const { cash } = useSim(); // re-render on every snapshot (day steps, commands)
   const sim = bridge.getSim?.() ?? null;
   const [move, setMove] = useState<Move | null>(null);
+  const [unlockId, setUnlockId] = useState("");
+  const owned = sim ? ownedHubsOf(sim) : [];
+  const unlockable = useMemo(
+    () => (sim?.airports ?? []).filter((a) => !owned.includes(a.id)).sort((a, b) => a.id.localeCompare(b.id, "en")),
+    [sim?.airports, owned.join()], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const unlockCost = COMMAND_PARAMS.hubUnlockUsd;
+  const unlock = () => {
+    const res = bridge.dispatch({ kind: "unlockHub", airportId: unlockId });
+    if (res && !res.ok) useToasts.getState().push("alert", res.error.message);
+    else useToasts.getState().push("good", `${unlockId} is now one of your hubs.`);
+    setUnlockId("");
+  };
   const [staged, setStaged] = useState<Record<Id, Id>>({});
   const home = sim ? homeHubOf(sim) : bridge.getState().airline.hub;
   const hubs = sim ? otherHubs(playerHubs(sim), home) : [];
@@ -40,6 +53,20 @@ export default function HubsView() {
         {sim && <span className="hubs-total">Slot and terminal fees across all airports <b>{usd(total)}</b> a week</span>}
       </header>
       <p className="hubs-intro">Each round trip a week uses 2 slots at both of its airports. Slot counts, slot fees and the terminal fee tiers below are estimates built for this game, not published airport figures.</p>
+      {sim && (
+        <div className="hubs-unlock">
+          <label>Unlock a hub
+            <select value={unlockId} onChange={(e) => setUnlockId(e.target.value)} aria-label="Airport to unlock as a hub">
+              <option value="">Choose an airport</option>
+              {unlockable.map((a) => <option key={a.id} value={a.id}>{a.id} {a.name}</option>)}
+            </select>
+          </label>
+          <button className="primary" disabled={!unlockId || cash < unlockCost} onClick={unlock} title={cash < unlockCost ? "Not enough cash" : undefined}>
+            Unlock hub for {usd(unlockCost)}
+          </button>
+          <span className="dim">Only your hubs can base aircraft or receive new deliveries.</span>
+        </div>
+      )}
       {!sim ? (
         <div className="empty-state"><h2>Needs the full simulation</h2><p>Slots and terminals are not modelled in the mock game (?mock), so there is nothing to show here.</p></div>
       ) : hubs.length === 0 ? (

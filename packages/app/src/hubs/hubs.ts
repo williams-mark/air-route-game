@@ -72,3 +72,8 @@ export function deltaText(deltaUsd: number): string {
 
 /** Short name for an airport row in the panel. */
 export const hubTitle = (a: Pick<Airport, "id" | "city" | "name">): string => `${a.id} ${a.city || a.name}`;
+
+/** Owned hubs for a select: the home hub first, then the rest alphabetically. */
+export function ownedHubChoices(owned: readonly string[], home?: string): string[] {
+  return [...new Set(owned)].sort((x, y) => (x === home ? -1 : y === home ? 1 : x.localeCompare(y, "en")));
+}

@@ -9,7 +9,7 @@ import { baseSlotFeeUsd, playerSlotsAt, rivalSlotsAt, backgroundSlots, routeSlot
 import { defaultLayout, validateLayout } from "./fleet/layout";
 import { initialMeta } from "./fleet/maintenance";
 import { typeCanServe } from "./fleet/scheduler";
-import { routeHourSummary } from "./fleet/hubs";
+import { homeHubOf, isOwnedHub, ownedHubsOf, routeHourSummary } from "./fleet/hubs";
 import { makeRng, mixSeed } from "./rng";
 import type { AircraftOrder, SimState } from "./state";
 import { dayToDate, START_YEAR, isLeapYear } from "./time/calendar";
@@ -35,6 +35,8 @@ export const COMMAND_PARAMS = {
   /** Orders accepted for types up to this many years before their introYear. */
   orderLeadYears: 3,
   daysPerMonth: 30.4375,
+  /** Cost to unlock a hub other than the home hub (the home hub is free). */
+  hubUnlockUsd: 50_000_000,
 } as const;
 
 export function orderDiscount(count: number): number {
@@ -73,7 +75,9 @@ export type CommandErrorCode =
   | "insufficient_slots"
   | "invalid_fare_policy"
   | "unknown_policy"
-  | "unknown_terminal";
+  | "unknown_terminal"
+  | "already_hub"
+  | "not_a_hub";
 
 export interface CommandError {
   ok: false;
@@ -90,6 +94,7 @@ export interface CommandResultMap {
   removeFarePolicy: { ok: true; kind: "removeFarePolicy"; id: Id };
   setHubTerminal: { ok: true; kind: "setHubTerminal"; airportId: Id; terminalId: Id };
   setAircraftHub: { ok: true; kind: "setAircraftHub"; aircraftId: Id; hubId: Id };
+  unlockHub: { ok: true; kind: "unlockHub"; airportId: Id; costUsd: number };
   orderAircraft: {
     ok: true;
     kind: "orderAircraft";
@@ -264,6 +269,10 @@ function yearStartDay(year: number): Day {
 function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" }>): { state: SimState; result: CommandResult<"orderAircraft"> } {
   const type = state.aircraftTypes.find((t) => t.id === cmd.typeId);
   if (!type) return { state, result: fail("unknown_type", `Unknown aircraft type "${cmd.typeId}".`) };
+  const deliveryHub = cmd.deliveryHubId ?? homeHubOf(state);
+  if (!isOwnedHub(state, deliveryHub)) {
+    return { state, result: fail("not_a_hub", `${deliveryHub} is not one of your hubs; new aircraft can only be delivered to a hub you own.`) };
+  }
   if (!Number.isInteger(cmd.count) || cmd.count < 1 || cmd.count > COMMAND_PARAMS.maxOrderCount) {
     return { state, result: fail("invalid_count", `Order size must be a whole number from 1 to ${COMMAND_PARAMS.maxOrderCount}.`) };
   }
@@ -316,6 +325,7 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
       tailNumber: `N${String(n.id).padStart(3, "0")}SP`,
       layout,
       status: "delivery",
+      hubId: deliveryHub,
       ageDays: 0,
       hoursSinceCheck: { A: 0, B: 0, C: 0, D: 0 },
     };
@@ -483,11 +493,35 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
       if (!ac) return { state, result: fail("unknown_aircraft", `No aircraft "${cmd.aircraftId}".`) };
       if (ac.status !== "active") return { state, result: fail("aircraft_unavailable", `${ac.tailNumber} is ${ac.status}; only active aircraft can be based at a hub.`) };
       if (!state.airports.some((x) => x.id === cmd.hubId)) return { state, result: fail("unknown_airport", `Unknown hub airport "${cmd.hubId}".`) };
+      if (!isOwnedHub(state, cmd.hubId)) return { state, result: fail("not_a_hub", `${cmd.hubId} is not one of your hubs. Unlock it first ($${(COMMAND_PARAMS.hubUnlockUsd / 1e6).toFixed(1)}M).`) };
       const fleet = state.world.fleet.map((x) => (x.id === ac.id ? { ...x, hubId: cmd.hubId } : x));
       return {
         state: pushEvents({ ...state, world: { ...state.world, fleet } }, [notice(state, `${ac.tailNumber} now based at ${cmd.hubId}.`)]),
         result: { ok: true, kind: "setAircraftHub", aircraftId: ac.id, hubId: cmd.hubId },
       };
+    }
+    case "unlockHub": {
+      const ap = state.airports.find((x) => x.id === cmd.airportId);
+      if (!ap) return { state, result: fail("unknown_airport", `Unknown airport "${cmd.airportId}".`) };
+      if (isOwnedHub(state, ap.id)) return { state, result: fail("already_hub", `${ap.id} is already one of your hubs.`) };
+      const cost = COMMAND_PARAMS.hubUnlockUsd;
+      if (state.world.cash < cost) {
+        return { state, result: fail("insufficient_cash", `Unlocking ${ap.id} costs $${(cost / 1e6).toFixed(1)}M but cash is $${(state.world.cash / 1e6).toFixed(1)}M.`) };
+      }
+      const text = `Unlocked ${ap.id} (${ap.name}) as a hub for $${(cost / 1e6).toFixed(1)}M.`;
+      const next = pushEvents(
+        {
+          ...state,
+          world: {
+            ...state.world,
+            cash: state.world.cash - cost,
+            ownedHubs: [...ownedHubsOf(state), ap.id].sort(),
+            cashLog: [...(state.world.cashLog ?? []), { day: state.world.day, amountUsd: -cost, text }],
+          },
+        },
+        [notice(state, text)],
+      );
+      return { state: next, result: { ok: true, kind: "unlockHub", airportId: ap.id, costUsd: cost } };
     }
   }
 }

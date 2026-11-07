@@ -152,6 +152,17 @@ export interface WorldState {
   farePolicies?: FarePolicy[];
   /** Terminal the player occupies at each hub, keyed by airport id. Absent = airport default (first non-premium terminal). */
   hubTerminals?: Record<Id, Id>;
+  /** Hub airports the player owns, home hub included. Absent in older saves: derived from the home hub, fleet bases and terminals (sim fleet/hubs.ts). */
+  ownedHubs?: Id[];
+  /** Cash the player spent on hub unlocks and similar, oldest first. Absent until the first entry. */
+  cashLog?: CashEntry[];
+}
+
+export interface CashEntry {
+  day: Day;
+  /** Negative for money paid out. */
+  amountUsd: number;
+  text: string;
 }
 
 // --- Sim <-> UI messages ---
@@ -164,7 +175,8 @@ export type Command =
   | { kind: "setFarePolicy"; policy: FarePolicy }
   | { kind: "removeFarePolicy"; id: Id }
   | { kind: "setHubTerminal"; airportId: Id; terminalId: Id }
-  | { kind: "orderAircraft"; typeId: Id; count: number; layout: CabinLayout };
+  | { kind: "orderAircraft"; typeId: Id; count: number; layout: CabinLayout; deliveryHubId?: Id }
+  | { kind: "unlockHub"; airportId: Id };
 
 export type SimEvent =
   | { kind: "tick"; day: Day }

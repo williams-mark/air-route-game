@@ -47,3 +47,6 @@
 .hubs-confirm dd.neg { color: var(--neg); } .hubs-confirm dd.pos { color: var(--pos); }
 .hubs-confirm-actions { display: flex; justify-content: flex-end; gap: .5rem; }
 @media (max-width: 900px) { .hubs-total { margin-left: 0; } .hubs-card { overflow-x: auto; } }
+
+.hubs-unlock { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 0 0 16px; }
+.hubs-unlock label { display: flex; gap: 8px; align-items: center; }

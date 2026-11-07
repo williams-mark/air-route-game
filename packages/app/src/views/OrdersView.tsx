@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { aircraftTypes } from "@arg/data";
-import { COMMAND_PARAMS, dayToDate, defaultLayout, layoutSeats, orderDiscount } from "@arg/sim";
+import { COMMAND_PARAMS, dayToDate, defaultLayout, homeHubOf, layoutSeats, orderDiscount, ownedHubsOf } from "@arg/sim";
 import { bridge, useSim } from "../sim/useSim";
 import { formatDate, formatMoney, formatMonthYear } from "../sim/format";
 import { useToasts } from "../routes/store";
@@ -11,6 +11,7 @@ import { OffersPanel } from "../offers/OffersPanel";
 import { useOffersUi } from "../offers/store";
 import { CabinDialog } from "../cabin/CabinDialog";
 import { useCabinDrafts } from "../cabin/store";
+import { ownedHubChoices } from "../hubs/hubs";
 
 /** Types the sim will take an order for in `year` (not out of production, not more than three years before introduction). */
 export function orderableTypes(year: number) {
@@ -43,10 +44,16 @@ export default function OrdersView() {
   const short = deposit > cash;
 
   const custom = type ? orderLayouts[type.id] : undefined;
+  // New aircraft are delivered to a hub the player owns; the home hub is the default.
+  const simNow = bridge.getSim?.() ?? null;
+  const home = simNow ? homeHubOf(simNow) : bridge.getState().airline.hub;
+  const hubs = ownedHubChoices(simNow ? ownedHubsOf(simNow) : [home], home);
+  const [deliveryHub, setDeliveryHub] = useState<string>(home);
+  const deliveryHubId = hubs.includes(deliveryHub) ? deliveryHub : home;
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!type) return;
-    const res = bridge.dispatch({ kind: "orderAircraft", typeId: type.id, count, layout: custom ?? { sections: [] } });
+    const res = bridge.dispatch({ kind: "orderAircraft", typeId: type.id, count, layout: custom ?? { sections: [] }, deliveryHubId });
     if (res && !res.ok) { push("alert", res.error.message); return; }
     push("good", `Ordered ${count} ${type.id}. Deposit ${formatMoney(deposit)} paid.`);
   };
@@ -73,6 +80,12 @@ export default function OrdersView() {
           <div className="rp-field">
             <label htmlFor="ord-qty">Quantity</label>
             <input id="ord-qty" type="number" min={1} max={COMMAND_PARAMS.maxOrderCount} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
+          </div>
+          <div className="rp-field">
+            <label htmlFor="ord-hub">Delivery hub</label>
+            <select id="ord-hub" value={deliveryHubId} onChange={(e) => setDeliveryHub(e.target.value)}>
+              {hubs.map((h) => <option key={h} value={h}>{h}{h === home ? " (home hub)" : ""}</option>)}
+            </select>
           </div>
           <div className="rp-field">
             <label htmlFor="ord-layout">Cabin layout</label>

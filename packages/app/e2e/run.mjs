@@ -126,11 +126,21 @@ for (const theme of themes) {
     const fi = labels.indexOf("Fleet");
     assert(labels[fi + 1] === "Hubs" && labels[fi + 2] === "Fare policy", `Hubs/Fare policy not next to Fleet: ${labels.join(",")}`);
     await page.setViewportSize({ width: 1280, height: 720 });
-    // Base one aircraft at SFO so a non-home hub exists.
+    // Only the home hub is owned at the start: unlock SFO (Hubs view, $50M), then base one aircraft there.
+    await page.keyboard.press("Control+k");
+    await page.getByRole("dialog", { name: "Command palette" }).waitFor({ timeout: 4000 });
+    await page.keyboard.type("Go to Hubs");
+    await page.keyboard.press("Enter");
+    await heading(page, "Hubs");
+    await page.getByLabel("Airport to unlock as a hub").selectOption("SFO");
+    await page.getByRole("button", { name: /Unlock hub for/ }).click();
+    await page.waitForTimeout(200);
+    await page.locator(".toast-x").evaluateAll((els) => els.forEach((e) => e.click()));
     await nav(page, "Fleet");
     await page.locator(".fleet-type-toggle").first().click();
     const sel = page.locator('select[aria-label^="Hub for"]:not([disabled])').first();
     await sel.waitFor({ timeout: 5000 });
+    assert((await sel.locator("option").allInnerTexts()).join(",") === "LAX,SFO", "hub select should list only owned hubs");
     await sel.selectOption("SFO");
     // Hubs via palette
     await page.keyboard.press("Control+k");

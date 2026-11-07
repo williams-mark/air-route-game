@@ -7,8 +7,26 @@ import type { SimState } from "../state";
 import { DEFAULT_HOME_HUB, hubOfAircraft, weeklyCapacityHours } from "./scheduler";
 
 /** Home hub of a state: world.homeHub, else the start airport, else LAX. */
-export function homeHubOf(state: SimState): Id {
+export function homeHubOf(state: { world: { homeHub?: Id }; baseAirport: Id | null }): Id {
   return state.world.homeHub ?? state.baseAirport ?? DEFAULT_HOME_HUB;
+}
+
+/**
+ * Hubs the player owns, sorted, home hub included. Only the home hub is owned at the start; others are bought with
+ * unlockHub. Saves from before unlocks have no `ownedHubs`: their hubs are the old set (home hub, aircraft bases, terminal choices).
+ */
+export function ownedHubsOf(state: { world: { homeHub?: Id; ownedHubs?: Id[]; fleet: readonly { hubId?: Id }[]; hubTerminals?: Record<Id, Id> }; baseAirport: Id | null }): Id[] {
+  const home = homeHubOf(state);
+  if (state.world.ownedHubs) return [...new Set<Id>([home, ...state.world.ownedHubs])].sort();
+  const set = new Set<Id>([home]);
+  for (const ac of state.world.fleet) if (ac.hubId) set.add(ac.hubId);
+  for (const id of Object.keys(state.world.hubTerminals ?? {})) set.add(id);
+  return [...set].sort();
+}
+
+/** Is the airport one of the player's hubs (aircraft may be based there, routes count it as a hub)? */
+export function isOwnedHub(state: Parameters<typeof ownedHubsOf>[0], airportId: Id): boolean {
+  return ownedHubsOf(state).includes(airportId);
 }
 
 /** Round-trip block hours per weekly frequency on a pair: 2 x one-way block hours. */
