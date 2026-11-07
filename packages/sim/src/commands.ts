@@ -361,7 +361,7 @@ function doSetFarePolicy(state: SimState, p: FarePolicy): { state: SimState; res
   if (typeof p.name !== "string" || p.name.trim() === "") return bad("A fare policy needs a name.");
   const { min, max } = FARE_POLICY_LIMITS.targetLoadFactor;
   if (p.targetLoadFactor !== null && !(Number.isFinite(p.targetLoadFactor) && p.targetLoadFactor >= min && p.targetLoadFactor <= max)) {
-    return bad(`Target load factor must be between ${min} and ${max}, or null for none.`);
+    return bad(`Target load factor must be between ${Math.round(min * 100)}% and ${Math.round(max * 100)}%, or blank for none.`);
   }
   const md = FARE_POLICY_LIMITS.connectionMarkdown;
   if (!(Number.isFinite(p.connectionMarkdown) && p.connectionMarkdown >= md.min && p.connectionMarkdown <= md.max)) {
@@ -430,7 +430,7 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
       const { id: _ignored, targetLoadFactor: target, ...patch } = cmd.patch as typeof cmd.patch & { id?: Id };
       const { min, max } = TARGET_LOAD_FACTOR_RANGE;
       if (target !== undefined && target !== null && !(Number.isFinite(target) && target >= min && target <= max)) {
-        return { state, result: fail("invalid_target_load_factor", `Target load factor must be between ${min} and ${max}.`) };
+        return { state, result: fail("invalid_target_load_factor", `Target load factor must be between ${Math.round(min * 100)}% and ${Math.round(max * 100)}%.`) };
       }
       const merged: Route = { ...cur, ...(patch as Partial<Route>), id: cur.id };
       if (target === null) delete merged.targetLoadFactor;
