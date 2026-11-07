@@ -105,7 +105,8 @@ describe("orderAircraft", () => {
     if (!result.ok) return;
     expect(state.world.fleet.filter((a) => a.status === "delivery")).toHaveLength(4);
     expect(state.world.cash).toBeCloseTo(s0.world.cash - result.depositUsd, 3);
-    expect(result.depositUsd).toBeCloseTo(0.15 * 4 * result.unitPriceUsd, 3);
+    expect(result.financing).toBe("purchase");
+    expect(result.depositUsd).toBeCloseTo(0.2 * 4 * result.unitPriceUsd, 3);
     expect(orderDiscount(1)).toBeLessThan(orderDiscount(10));
     expect(orderDiscount(10)).toBeLessThan(orderDiscount(100));
     expect(orderDiscount(10000)).toBeLessThanOrEqual(0.4);
@@ -115,14 +116,14 @@ describe("orderAircraft", () => {
 
   it("delivery lead times: narrowbodies 6-18 months, widebodies 12-30 months; deterministic", () => {
     for (const [id, lo, hi] of [["B737-900ER", 6, 18], ["B787-9", 12, 30], ["A321", 6, 18], ["B777-300ER", 12, 30]] as const) {
-      const r = order(sc(), id, 3).result;
+      const r = order(sc(), id, 2).result;
       expect(r.ok).toBe(true);
       if (!r.ok) continue;
       for (const d of r.deliveryDays) {
         expect(months(d), id).toBeGreaterThanOrEqual(lo - 0.05);
         expect(months(d), id).toBeLessThanOrEqual(hi + 0.05);
       }
-      expect(JSON.stringify(order(sc(), id, 3).result)).toBe(JSON.stringify(r));
+      expect(JSON.stringify(order(sc(), id, 2).result)).toBe(JSON.stringify(r));
     }
     // different seeds give different lead times
     const a = order(startingScenario(airports, aircraftTypes, 1), "B737-900ER", 1).result;
@@ -143,9 +144,8 @@ describe("orderAircraft", () => {
     const ac = s.world.fleet.find((a) => a.id === id)!;
     expect(ac.status).toBe("active");
     expect(s.pendingEvents.some((e) => e.kind === "notice" && e.text.includes(ac.tailNumber) && e.text.includes("Delivered"))).toBe(true);
-    // deposit credited back on delivery day (cash change that day exceeds the day's operating loss by about the deposit)
-    const credit = result.depositUsd;
-    expect(s.world.cash - prev.world.cash - s.snapshots[s.snapshots.length - 1]!.profit).toBeCloseTo(credit, 0);
+    // purchase: the 80% balance of the net price is paid on delivery day (cash change beyond the day's profit)
+    expect(s.world.cash - prev.world.cash - s.snapshots[s.snapshots.length - 1]!.profit).toBeCloseTo(-0.8 * result.unitPriceUsd, 0);
   });
 
   it("a type not yet in service (737 MAX 8, 2017) cannot be delivered before its introduction year", () => {

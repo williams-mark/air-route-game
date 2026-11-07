@@ -31,6 +31,10 @@ export interface FleetItem {
   refit?: boolean;
   /** Hub the aircraft is based at (absent in mock data). */
   hub?: Id;
+  /** How it was acquired (absent for starting or mock aircraft). */
+  financing?: "purchase" | "lease";
+  /** Calendar year it reaches the 30-year lifespan cap (absent in mock data). */
+  retireYear?: number;
   /** Names of the routes this aircraft flies today (empty when idle). */
   routes: string[];
   /** Heavy check in progress (status maintenance). */
@@ -57,6 +61,7 @@ export interface OrderItem {
   discount: number;
   depositUsd: number;
   seats: number;
+  financing?: "purchase" | "lease";
 }
 
 /** An open offer as the Offers tab, popup and top-bar badge show it. */

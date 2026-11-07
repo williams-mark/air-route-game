@@ -68,7 +68,7 @@ describe("order discount has a lasting effect", () => {
   it("sets ownershipFactor to net / list and a cheaper order yields a lower daily cost after delivery", () => {
     const base = withCash(1e10);
     const mk = (count: number) => {
-      const r = applyCommand(base, { kind: "orderAircraft", typeId: "A320", count, layout: defaultLayout(aircraftTypes.find((t) => t.id === "A320")!) });
+      const r = applyCommand(base, { kind: "orderAircraft", typeId: "A320", count, financing: "lease", layout: defaultLayout(aircraftTypes.find((t) => t.id === "A320")!) });
       expect(r.result.ok).toBe(true);
       return r.state;
     };

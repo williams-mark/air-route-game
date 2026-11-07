@@ -109,6 +109,8 @@ export interface AircraftOrder {
   offerId?: Id;
   /** Age of the aircraft on arrival, days (used and distressed lots). Default 0. */
   ageDays?: number;
+  /** Purchase or lease (economics orders). Absent = offer/legacy order: deposit credited back at delivery, lease-equivalent charged. */
+  financing?: "purchase" | "lease";
   /** Net price / list price; scales the ownership (lease-equivalent) cost of these aircraft. Offer orders only. */
   ownershipFactor?: number;
   /** Launch orders: chance of a delivery slip, its longest length, whether it has been rolled, and the slip applied. */

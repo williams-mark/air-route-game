@@ -66,7 +66,7 @@ function TypeTable({ rows, fleet, hub, home, onMove, onOrder, onCabin }: {
                               <td>{a.hub ?? "–"}</td>
                               <td>{label(a.status)}</td>
                               <td>{a.routes.length ? a.routes.join(", ") : "–"}</td>
-                              <td>{a.ageYears < 0.1 ? "New" : `${a.ageYears.toFixed(1)} yr`}</td>
+                              <td>{a.ageYears < 0.1 ? "New" : `${a.ageYears.toFixed(1)} yr`}{a.retireYear !== undefined && <span className="hint"> · retires {a.retireYear}</span>}</td>
                               <td>
                                 <select aria-label={`Hub for ${a.tail}`} value={a.hub ?? home ?? ""} disabled={a.status !== "active"}
                                   title={a.status !== "active" ? "Only active aircraft can be based at a hub" : undefined}

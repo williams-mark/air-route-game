@@ -244,3 +244,10 @@ Playtested the expanded world through the UI (Playwright, `packages/app/scripts/
 - Economy: order options for lease (down payment, higher operating cost at delivery) or purchase (20% down, 80% at delivery).
 - Aircraft lifecycle: hard cap at 30 years. Price rises considerably 15 years after out of production (parts shortage). Passenger-experience penalty.
 - Passenger experience: cabin config and service quality drive fares (e.g., 1-2-1 business with superior service commands a higher fare than 2-2-2 with weaker service).
+
+## lane/econ-fleet (aircraft economics, sim + order UI)
+- Financing: `orderAircraft` takes `financing: "purchase" | "lease"` (default purchase), stored on the order and aircraft. Purchase: 20% of net price at order, 80% at delivery, no lease-equivalent charge afterwards. Lease: 10% of list price down at order, lease-equivalent from delivery plus a 15% uplift on `overheadPerAircraftPerDay`. Starting fleet and offer/legacy orders keep the old deposit-credit and lease-equivalent behaviour. Orders page shows both as cards.
+- Lifespan: aircraft retire at 30 simulated years (removed from fleet and their order lists, with a notice). Fleet view shows the retirement year.
+- Obsolescence: 15 years after `endYear` the maintenance cost (route ledger and check costs) and the lease basis of that type rise 40%. Ordering is blocked after production end, so the price rise cannot reach new orders; it applies to existing leased aircraft. Types with `endYear` null are unaffected.
+- Passenger penalty: `ageServicePenalty(aircraft, day, asOfDay)` exported from `fleet/lifecycle.ts`; not wired into fares.
+- Not modelled: depreciation or resale of purchased aircraft, offer orders keep the old 15% deposit, cash may go negative on a delivery balance.
