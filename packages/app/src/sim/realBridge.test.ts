@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { aircraftTypes } from "@arg/data";
+import { dayToDate } from "@arg/sim";
 import { RealSimBridge, classifyNotice } from "./realBridge";
 import { createBridge } from "./create";
 import { monthly } from "./finance";
@@ -33,6 +34,19 @@ describe("RealSimBridge", () => {
     expect(closed && !closed.ok && closed.error.message).toMatch(/BER/);
     const water = b.dispatch({ kind: "openRoute", route: { origin: "SYD", destination: "AKL", weeklyFrequency: 7, fares: { Y: 300 }, typeId: "E175" } });
     expect(water).toMatchObject({ ok: false, error: { code: "overwater_limit" } });
+  });
+
+  it("newGame with a start year starts in that year, with a fleet in production then, and orders only what is in production", () => {
+    const b = make();
+    b.newGame(7, { hub: "LAX", name: "Pacific Test", startYear: 1975, presentYear: 2026 });
+    const s = b.getState();
+    expect(s.day).toBeLessThan(0);
+    expect(dayToDate(s.day).year).toBe(1975);
+    expect(s.fleet.every((a) => a.typeId === "DC10-30")).toBe(true);
+    const bad = b.dispatch({ kind: "orderAircraft", typeId: "B737-800", count: 1, layout: { sections: [] } });
+    expect(bad).toMatchObject({ ok: false, error: { code: "type_unavailable" } });
+    const ok = b.dispatch({ kind: "orderAircraft", typeId: "DC10-30", count: 1, layout: { sections: [] } });
+    expect(ok).toMatchObject({ ok: true });
   });
 
   it("advances date and changes cash over 30 days, with one snapshot per advance", () => {
