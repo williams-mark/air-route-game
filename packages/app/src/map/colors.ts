@@ -1,7 +1,7 @@
 import type { Rgba } from "./types";
 
 export interface MapColors {
-  water: string; land: string; landFocus: string; landBorder: string; coastGlow: string;
+  water: string; landFocus: string; landBorder: string; coastGlow: string;
   profit: Rgba; marginal: Rgba; loss: Rgba; planned: Rgba; casing: Rgba; select: Rgba; rival: Rgba;
   airportFill: Rgba; airportStroke: Rgba; airportHub: Rgba; aircraft: Rgba; label: Rgba; labelHalo: Rgba;
 }
@@ -18,7 +18,7 @@ function rgba(name: string, a = 255): Rgba {
 /** Reads the current theme's map colours from CSS variables (call after data-theme changed). */
 export function readMapColors(): MapColors {
   return {
-    water: css("--map-water"), land: css("--map-land"), landFocus: css("--map-land-focus"),
+    water: css("--map-water"), landFocus: css("--map-land-focus"),
     landBorder: css("--map-land-border"), coastGlow: css("--map-coast-glow"),
     profit: rgba("--route-profit"), marginal: rgba("--route-marginal"), loss: rgba("--route-loss"),
     planned: rgba("--route-planned"), casing: rgba("--route-casing", 150), select: rgba("--route-select"), rival: rgba("--route-rival", 150),

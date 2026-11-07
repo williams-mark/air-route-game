@@ -1,6 +1,6 @@
 :root[data-theme="dark"] {
   --bg: #0e1620; --panel: #16212e; --panel-2: #1c2a3a; --text: #e6edf5; --text-dim: #8fa3b8; --accent: #4cc2ff; --line: #2a3b4f;
-  --map-water: #091017; --map-land: #131d28; --map-land-focus: #1b2b3b; --map-land-border: #34506b; --map-coast-glow: #2f6f9c;
+  --map-water: #091017; --map-land-focus: #1b2b3b; --map-land-border: #34506b; --map-coast-glow: #2f6f9c;
   --route-profit: #36d79c; --route-marginal: #f4b942; --route-loss: #ff5f6d; --route-planned: #8c9aab; --route-casing: #0b131b; --route-select: #ffffff; --route-rival: #b58cf0;
   --airport-fill: #e8f1fa; --airport-stroke: #0b131b; --airport-hub: #4cc2ff; --aircraft: #f2f7fc;
   --map-label: #dbe7f3; --map-label-halo: #0b131b; --shadow: 0 8px 28px rgba(0,0,0,.45);
@@ -8,7 +8,7 @@
 }
 :root[data-theme="light"] {
   --bg: #eef1f4; --panel: #ffffff; --panel-2: #f1f4f7; --text: #17212b; --text-dim: #5d6c7b; --accent: #0a6cb5; --line: #d5dce3;
-  --map-water: #cfe2ee; --map-land: #e7eae3; --map-land-focus: #fbf9f3; --map-land-border: #a9b7c0; --map-coast-glow: #ffffff;
+  --map-water: #cfe2ee; --map-land-focus: #fbf9f3; --map-land-border: #a9b7c0; --map-coast-glow: #ffffff;
   --route-profit: #0c9460; --route-marginal: #d48806; --route-loss: #d62f43; --route-planned: #6f7d8c; --route-casing: #ffffff; --route-select: #0b2a45; --route-rival: #7b4bc2;
   --airport-fill: #17212b; --airport-stroke: #ffffff; --airport-hub: #0a6cb5; --aircraft: #14202c;
   --map-label: #17212b; --map-label-halo: #fbf9f3; --shadow: 0 8px 24px rgba(30,50,70,.18);

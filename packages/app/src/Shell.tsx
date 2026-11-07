@@ -9,7 +9,7 @@ import { NotificationDock, minimizeDock, toggleDock } from "./notify/Notificatio
 import { TimeControls } from "./shell/TimeControls";
 import { CommandPalette } from "./shell/CommandPalette";
 import { ShortcutsOverlay } from "./shell/ShortcutsOverlay";
-import { VIEWS, viewForKey } from "./shell/views";
+import { PLANNER_ENABLED, VIEWS, viewForKey } from "./shell/views";
 import { MapView } from "./views/MapView";
 import { RoutePanel, usePanelOpen } from "./routes/RoutePanel";
 import { Toasts } from "./routes/Toasts";
@@ -22,7 +22,7 @@ import "./routes/routes.css";
 const LAZY: Partial<Record<ViewId, ReturnType<typeof lazy>>> = {
   routes: lazy(() => import("./views/RoutesView")),
   fleet: lazy(() => import("./views/FleetView")),
-  planner: lazy(() => import("./views/PlannerView")),
+  planner: PLANNER_ENABLED ? lazy(() => import("./views/PlannerView")) : undefined,
   orders: lazy(() => import("./views/OrdersView")),
   cabin: lazy(() => import("./views/CabinView")),
   finance: lazy(() => import("./views/FinanceView")),

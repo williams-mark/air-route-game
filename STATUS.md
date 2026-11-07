@@ -244,3 +244,12 @@ Playtested the expanded world through the UI (Playwright, `packages/app/scripts/
 - Economy: order options for lease (down payment, higher operating cost at delivery) or purchase (20% down, 80% at delivery).
 - Aircraft lifecycle: hard cap at 30 years. Price rises considerably 15 years after out of production (parts shortage). Passenger-experience penalty.
 - Passenger experience: cabin config and service quality drive fares (e.g., 1-2-1 business with superior service commands a higher fare than 2-2-2 with weaker service).
+
+## lane/ui-cleanup (backlog items from Mark, app only)
+- Map land: `land.json` context countries were drawn in the muted gray `--map-land` and the cutoff `MIN_AREA.ctx` dropped small land (Singapore, Maldives, Barbados, Bermuda, Tonga, ...). Now all land uses the playable land style (`style.ts`, one fill, one coast glow, one border); `--map-land` removed from theme.css. `build-geo.mjs` ctx cutoff lowered to 1e-4 deg^2 and land.json rebuilt (280 features, was 251). Source unchanged (us-atlas, world-atlas 50m).
+- Map screen: the right-side "Network" routes list is removed (shown only for a selected airport). Routes panel (openable) untouched. Camera preset bar removed from the map (presets still in the command palette). Map padding unchanged.
+- Planner retired: `PLANNER_ENABLED = false` in shell/views.ts hides the toolbar entry, Alt+4, palette entry and page; PlannerView code kept.
+- Hub board dropdown: options are `playerHubs(sim)` (home, aircraft hubs, terminal hubs; the same list as the Hubs view), no longer airports touched by two routes. `boardHubOptions` takes the hub list.
+- %connecting: sim logic checked, not faulty. Default start (LAX, 2015, 10% connecting markdown) gives 1 to 7% connecting per route after 30 days to 2 years; the board's formula (2 x one-way / passengers) and summary match. Display rounded to whole percent, so 0.4% showed as 0%; connecting shares now show one decimal. An all-zero board was NOT reproduced; if it recurs, check a hub with a single route (no connecting market) and the report's `connecting` field.
+- Aircraft picker: breadcrumb "All > Airbus > A350" is pill-style buttons (bordered, no underline); tile cards and Back behaviour unchanged.
+- e2e: "Planner" removed from the view lists in run.mjs (it is no longer in the toolbar).
