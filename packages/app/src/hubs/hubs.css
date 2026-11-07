@@ -47,3 +47,12 @@
 .hubs-confirm dd.neg { color: var(--neg); } .hubs-confirm dd.pos { color: var(--pos); }
 .hubs-confirm-actions { display: flex; justify-content: flex-end; gap: .5rem; }
 @media (max-width: 900px) { .hubs-total { margin-left: 0; } .hubs-card { overflow-x: auto; } }
+.hubs-schematic { margin: 0; display: grid; gap: .4rem; }
+.hubs-rwy-track { height: .9rem; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.hubs-rwy { height: 100%; background: repeating-linear-gradient(90deg, var(--text-dim) 0 14px, transparent 14px 22px); opacity: .7; }
+.hubs-terms { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: .4rem; }
+.hubs-term { border: 1px solid var(--line); border-radius: 6px; padding: .35rem .5rem; font-size: .78rem; background: var(--panel-2); color: var(--text-dim); display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+.hubs-term b { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+.hubs-term.yours { border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.hubs-term.target { border: 1px dashed var(--accent); }
+.hubs-cap { margin: 0; font-size: .72rem; color: var(--text-dim); }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HubCongestion, Terminal } from "@arg/contracts";
-import { deltaText, isEstimate, otherHubs, slotBar, terminalRows } from "./hubs";
+import { deltaText, hubCardIds, isEstimate, otherHubs, runwayShare, slotBar, terminalRows } from "./hubs";
 
 const terms: Terminal[] = [
   { id: "T1", name: "Terminal 1", feeMultiplier: 1, premium: false, slotShare: 0.6, source: "estimate: rule S" },
@@ -40,6 +40,15 @@ describe("hubs helpers", () => {
   it("lists other hubs without the home hub", () => {
     expect(otherHubs(["DEN", "LAX", "SFO"], "LAX")).toEqual(["DEN", "SFO"]);
     expect(otherHubs(["LAX"], "LAX")).toEqual([]);
+  });
+  it("lists the home hub first on the cards, then the other hubs", () => {
+    expect(hubCardIds(["SFO", "LAX", "DEN", "LAX"], "LAX")).toEqual(["LAX", "DEN", "SFO"]);
+    expect(hubCardIds(["LAX"], "LAX")).toEqual(["LAX"]);
+  });
+  it("scales the runway bar and caps it", () => {
+    expect(runwayShare(2250)).toBeCloseTo(0.5);
+    expect(runwayShare(9000)).toBe(1);
+    expect(runwayShare(-5)).toBe(0);
   });
   it("formats the weekly delta", () => {
     expect(deltaText(5000)).toBe("+$5,000 a week");

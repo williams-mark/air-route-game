@@ -244,3 +244,10 @@ Playtested the expanded world through the UI (Playwright, `packages/app/scripts/
 - Economy: order options for lease (down payment, higher operating cost at delivery) or purchase (20% down, 80% at delivery).
 - Aircraft lifecycle: hard cap at 30 years. Price rises considerably 15 years after out of production (parts shortage). Passenger-experience penalty.
 - Passenger experience: cabin config and service quality drive fares (e.g., 1-2-1 business with superior service commands a higher fare than 2-2-2 with weaker service).
+
+## lane/map-views (Backlog from Mark: map, hubs, cabin)
+- Hubs: the home hub now has a card on the Hubs panel (listed first, marked "home") with its own terminal choice. The bug was in the panel, not the sim: `HubsView` dropped the home hub, so the starting hub's terminals could not be selected. `hubCardIds` in `hubs/hubs.ts` orders the cards.
+- Airport schematic on each hub card (`hubs/AirportSchematic.tsx`): longest runway from `runwayM` (bar to a fixed 4,500 m display scale) and the terminals as a list, current terminal highlighted, staged move target dashed. Terminals are not placed on a map because the data has no terminal geometry. Light and dark via CSS variables.
+- Skipped, globe/flat toggle: MapLibre GL 4.7.1 (the version the app pins) has no globe projection; the globe branch is not in this version. Toggle not added.
+- Skipped, two-deck seat maps: the sim treats the 747 as one equivalent cabin length with the upper deck counted as extra length (`sim/src/cabin/geometry.ts`), and `packages/data` has no deck field. There is also no A380 in the data. A real two-deck view needs a deck field in data and per-deck sections in the layout (sim and contracts changes), so it is left for a sim lane.
+- e2e: the Hubs test asserted the home hub was absent from the table; it now asserts the home card and terminal selector exist, and scopes the SFO move checks to the SFO card.

@@ -141,7 +141,9 @@ for (const theme of themes) {
     const hubsTxt = await page.locator("main.view").innerText();
     assert(/Home hub\s*LAX/.test(hubsTxt), "home hub note missing");
     await page.locator('section[aria-label="Hub SFO"]').waitFor({ timeout: 5000 });
-    assert(await page.locator('section[aria-label="Hub LAX"]').count() === 0, "home hub must not be in the congestion table");
+    assert(await page.locator('section[aria-label="Hub LAX"]').count() === 1, "home hub card missing from Hubs");
+    assert(await page.getByLabel("Terminal at LAX").count() === 1, "home hub terminal selector missing");
+    assert(await page.locator('section[aria-label="Hub LAX"] .hubs-term.yours').count() === 1, "home hub schematic should highlight the current terminal");
     const card = await page.locator('section[aria-label="Hub SFO"]').innerText();
     assert(/Estimate/.test(card) && /estimates/i.test(card), "SFO terminal fee tiers should be flagged as estimates");
     assert(/Available/.test(card) && /All airlines/.test(card), "congestion numbers missing");
@@ -153,8 +155,9 @@ for (const theme of themes) {
     const opts = await tsel.locator("option").allInnerTexts();
     const other = opts.find((o) => !/current/.test(o));
     await tsel.selectOption({ label: other });
-    assert(/a week|no change/.test(await page.locator(".hubs-delta").first().innerText()), "fee difference not shown");
-    await page.getByRole("button", { name: "Review move" }).click();
+    const sfoCard = page.locator('section[aria-label="Hub SFO"]');
+    assert(/a week|no change/.test(await sfoCard.locator(".hubs-delta").innerText()), "fee difference not shown");
+    await sfoCard.getByRole("button", { name: "Review move" }).click();
     await page.getByRole("dialog").waitFor({ timeout: 3000 });
     await shot(page, theme, "hubs-move-dialog");
     await page.getByRole("button", { name: "Move slots" }).click();
