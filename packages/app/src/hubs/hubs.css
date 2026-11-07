@@ -56,3 +56,6 @@
 .hubs-term.yours { border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .hubs-term.target { border: 1px dashed var(--accent); }
 .hubs-cap { margin: 0; font-size: .72rem; color: var(--text-dim); }
+
+.hubs-unlock { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 0 0 16px; }
+.hubs-unlock label { display: flex; gap: 8px; align-items: center; }

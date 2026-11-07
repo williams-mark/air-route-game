@@ -1,6 +1,7 @@
 // Fare policies (lane/sim-policy): route categories, effective target load factor and connection markdown. Pure.
 import type { Airport, FarePolicy, Id, Route, RouteCategory } from "@arg/contracts";
 import { distanceKm } from "../geo";
+import { ownedHubsOf } from "../fleet/hubs";
 
 /** Great-circle distance bands, km. short < 1500, medium 1500-4000, long 4000-9000, ultra-long > 9000. */
 export const DISTANCE_BANDS = { shortBelowKm: 1500, mediumBelowKm: 4000, longBelowKm: 9000 } as const;
@@ -60,9 +61,6 @@ export function effectiveConnectionMarkdown(route: Route, policies: readonly Far
 }
 
 /** Hubs of the player: the home hub, the bases of aircraft, and airports with a chosen terminal. Sorted. */
-export function playerHubs(state: { world: { homeHub?: Id; fleet: readonly { hubId?: Id }[]; hubTerminals?: Record<Id, Id> }; baseAirport: Id | null }): Id[] {
-  const set = new Set<Id>([state.world.homeHub ?? state.baseAirport ?? "LAX"]);
-  for (const ac of state.world.fleet) if (ac.hubId) set.add(ac.hubId);
-  for (const id of Object.keys(state.world.hubTerminals ?? {})) set.add(id);
-  return [...set].sort();
+export function playerHubs(state: Parameters<typeof ownedHubsOf>[0]): Id[] {
+  return ownedHubsOf(state);
 }

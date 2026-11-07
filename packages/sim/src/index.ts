@@ -91,6 +91,7 @@ export function newSim(
   world.fleet = (start.fleet ?? []).map((ac) => ({ ...ac, layout: ac.layout, hoursSinceCheck: { ...ac.hoursSinceCheck }, hubId: ac.hubId ?? home }));
   world.routes = (start.routes ?? []).map((r) => ({ ...r, fares: { ...r.fares } }));
   if (start.baseAirport) world.homeHub = start.baseAirport;
+  world.ownedHubs = [home];
   const rng = makeRng(mixSeed(seed, 0x5eed));
   const fleetMeta: Record<Id, AircraftMeta> = {};
   for (const ac of world.fleet) fleetMeta[ac.id] = initialMeta(ac, rng);
