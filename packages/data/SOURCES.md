@@ -1142,3 +1142,19 @@ Status: ALL ESTIMATE. No per-terminal fee schedule was found for any airport. Th
 Rule for feeMultiplier (judgement, not published): 1.2-1.5 rebuilt/flagship/international terminals with premium lounges and jet bridges; 1.0-1.1 standard; 0.7-0.9 remote, bussed, satellite, regional or low-cost. premium = feeMultiplier > 1.15. slotShare values are rough guesses of traffic share, not published. Terminal lists/names come from each airport's Wikipedia article and terminal maps, entered from memory and NOT re-fetched this session: spot-check before relying on them (JFK T1/T6 rebuild, FRA T3, LAX MSC use are time-sensitive).
 
 Airports covered (52, each terminal's `source` field starts with `estimate:`): LAX SFO SAN OAK ATL ORD DFW JFK EWR LGA BOS SEA LAS PHX IAH MSP DTW PHL HNL LHR LGW MAN CDG FRA MUC MAD BCN FCO LIS DUB DXB SIN KUL CGK MNL ICN NRT HND KIX TPE CAN PEK PVG DEL BOM SYD MEL YYZ YVR MEX GRU JNB. Omitted as effectively single-terminal: DEN MIA CLT AMS IST DOH AUH HKG BKK.
+
+## Lifecycle and financing (lane/econ-fleet)
+
+No new aircraft or airport data fields were added; this lane reads the existing `endYear` (production end) on each type. The parameters below are design choices in `packages/sim/src/fleet/lifecycle.ts`, not sourced figures. Verify or tune before treating as authoritative.
+
+| Parameter | Value | Status |
+|---|---|---|
+| Purchase down payment (share of net price, due at order; balance at delivery) | 20% | DESIGN, not sourced |
+| Lease down payment (share of list price, due at order) | 10% | DESIGN, not sourced |
+| Lease uplift on fixed per-aircraft operating cost | +15% | DESIGN, not sourced |
+| Hard lifespan | 30 years | DESIGN (owner brief), not sourced |
+| Obsolescence start | 15 years after the type's `endYear` (calendar year granularity) | DESIGN (owner brief), not sourced |
+| Obsolescence uplift on maintenance cost and new-aircraft price | +40% | DESIGN (owner brief suggested +40%), not sourced: verify against any published parts-shortage data before relying on it |
+| Passenger service penalty (aircraft older than 15 years) | 0.10 flat | DESIGN, not sourced |
+
+Types with `endYear` null (still in production) never become obsolete. Every type with a recorded `endYear` gets the obsolescence rule.

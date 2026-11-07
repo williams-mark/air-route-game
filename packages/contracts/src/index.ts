@@ -105,6 +105,8 @@ export interface Aircraft {
   hoursSinceCheck: { A: number; B: number; C: number; D: number };
   /** Base hub airport id. Absent in older saves: the home hub (see sim fleet/hubs.ts). */
   hubId?: Id;
+  /** How the aircraft was acquired. Absent = pre-economics aircraft (starting fleet, older saves): charged the lease-equivalent. */
+  financing?: "purchase" | "lease";
 }
 
 export interface Fares {
@@ -169,7 +171,7 @@ export type Command =
   | { kind: "setFarePolicy"; policy: FarePolicy }
   | { kind: "removeFarePolicy"; id: Id }
   | { kind: "setHubTerminal"; airportId: Id; terminalId: Id }
-  | { kind: "orderAircraft"; typeId: Id; count: number; layout: CabinLayout };
+  | { kind: "orderAircraft"; typeId: Id; count: number; layout: CabinLayout; financing?: "purchase" | "lease" };
 
 export type SimEvent =
   | { kind: "tick"; day: Day }

@@ -8,6 +8,7 @@ import { FARE_POLICY_LIMITS } from "./route/farePolicy";
 import { baseSlotFeeUsd, playerSlotsAt, rivalSlotsAt, backgroundSlots, routeSlots, terminalsOf, weeklySlotsTotal } from "./route/congestion";
 import { defaultLayout, validateLayout } from "./fleet/layout";
 import { initialMeta } from "./fleet/maintenance";
+import { FINANCING_PARAMS } from "./fleet/lifecycle";
 import { typeCanServe } from "./fleet/scheduler";
 import { routeHourSummary } from "./fleet/hubs";
 import { makeRng, mixSeed } from "./rng";
@@ -76,7 +77,8 @@ export type CommandErrorCode =
   | "invalid_fare_policy"
   | "unknown_policy"
   | "unknown_terminal"
-  | "invalid_service_level";
+  | "invalid_service_level"
+  | "invalid_financing";
 
 export interface CommandError {
   ok: false;
@@ -103,6 +105,7 @@ export interface CommandResultMap {
     discount: number;
     unitPriceUsd: number;
     depositUsd: number;
+    financing: "purchase" | "lease";
   };
 }
 
@@ -290,13 +293,22 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
   const bad = validateLayout(type, layout);
   if (bad) return { state, result: fail("invalid_layout", bad.message) };
 
+  const financing = cmd.financing ?? "purchase";
+  if (financing !== "purchase" && financing !== "lease") {
+    return { state, result: fail("invalid_financing", `Financing must be "purchase" or "lease".`) };
+  }
+
   const discount = orderDiscount(cmd.count);
   const unitPriceUsd = type.listPriceUsdM * 1e6 * (1 - discount);
-  const depositUsd = unitPriceUsd * cmd.count * COMMAND_PARAMS.depositFraction;
+  // Purchase: a share of the net price now, the rest at delivery. Lease: a down payment on list price now, lease payments from delivery.
+  const unitDownUsd = financing === "purchase"
+    ? unitPriceUsd * FINANCING_PARAMS.purchaseDownFraction
+    : type.listPriceUsdM * 1e6 * FINANCING_PARAMS.leaseDownFractionOfList;
+  const depositUsd = unitDownUsd * cmd.count;
   if (state.world.cash < depositUsd) {
     return {
       state,
-      result: fail("insufficient_cash", `The deposit is $${(depositUsd / 1e6).toFixed(1)}M but cash is $${(state.world.cash / 1e6).toFixed(1)}M.`),
+      result: fail("insufficient_cash", `The ${financing === "purchase" ? "deposit" : "down payment"} is $${(depositUsd / 1e6).toFixed(1)}M but cash is $${(state.world.cash / 1e6).toFixed(1)}M.`),
     };
   }
 
@@ -325,6 +337,7 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
       status: "delivery",
       ageDays: 0,
       hoursSinceCheck: { A: 0, B: 0, C: 0, D: 0 },
+      financing,
     };
     const m = initialMeta(ac, rng);
     m.deliveryDay = day;
@@ -334,13 +347,16 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
     deliveryDays.push(day);
   }
   const order: AircraftOrder = {
-    id: orderId, typeId: type.id, count: cmd.count, layout, orderDay: state.world.day, discount, unitPriceUsd, depositUsd,
+    id: orderId, typeId: type.id, count: cmd.count, layout, orderDay: state.world.day, discount, unitPriceUsd, depositUsd, financing,
     aircraftIds: aircraft.map((a) => a.id), deliveryDays,
     // Recurring ownership cost follows the net price paid, as for offer orders.
     ownershipFactor: unitPriceUsd / (type.listPriceUsdM * 1e6),
   };
   const firstDate = dayToDate(Math.min(...deliveryDays));
-  const text = `Ordered ${cmd.count} x ${type.id} at ${(discount * 100).toFixed(0)}% off list ($${(unitPriceUsd / 1e6).toFixed(1)}M each). Deposit $${(depositUsd / 1e6).toFixed(1)}M paid; first delivery ${firstDate.year}-${String(firstDate.month + 1).padStart(2, "0")}.`;
+  const terms = financing === "purchase"
+    ? `Deposit $${(depositUsd / 1e6).toFixed(1)}M paid; $${((unitPriceUsd * (1 - FINANCING_PARAMS.purchaseDownFraction) * cmd.count) / 1e6).toFixed(1)}M due at delivery.`
+    : `Lease down payment $${(depositUsd / 1e6).toFixed(1)}M paid; lease payments start at delivery.`;
+  const text = `Ordered ${cmd.count} x ${type.id} on ${financing} at ${(discount * 100).toFixed(0)}% off list ($${(unitPriceUsd / 1e6).toFixed(1)}M each). ${terms} First delivery ${firstDate.year}-${String(firstDate.month + 1).padStart(2, "0")}.`;
   const next: SimState = pushEvents(
     {
       ...state,
@@ -353,7 +369,7 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
   );
   return {
     state: next,
-    result: { ok: true, kind: "orderAircraft", orderId, aircraftIds: order.aircraftIds, deliveryDays, discount, unitPriceUsd, depositUsd },
+    result: { ok: true, kind: "orderAircraft", orderId, aircraftIds: order.aircraftIds, deliveryDays, discount, unitPriceUsd, depositUsd, financing },
   };
 }
 

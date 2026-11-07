@@ -6,6 +6,7 @@ import { simulateRouteWeek } from "./route/routeModel";
 import { evaluateLiveRoutes } from "./route/liveModel";
 import { makeRng, mixSeed } from "./rng";
 import { checkCostUsd, checkEndDay, dueCheck, initialMeta, MAINTENANCE_PARAMS, maintenanceEnabled, resetAfterCheck } from "./fleet/maintenance";
+import { FINANCING_PARAMS, isRetired, LIFECYCLE_PARAMS, obsolescenceMultiplier } from "./fleet/lifecycle";
 import { assign, DEFAULT_HOME_HUB } from "./fleet/scheduler";
 import { homeHubOf } from "./fleet/hubs";
 import { plannerPrefs } from "./planner/forecast";
@@ -54,6 +55,7 @@ export * from "./offers";
 export * from "./cabin";
 export * from "./fleet/layout";
 export * from "./fleet/maintenance";
+export * from "./fleet/lifecycle";
 export * from "./fleet/scheduler";
 export { mixSeed } from "./rng";
 export * from "./rivals";
@@ -139,7 +141,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   const ctx = { airports, types, prefs: plannerPrefs(state, day), homeHub: homeHubOf(state) };
 
   // Work on private copies so the input state is never modified.
-  const fleet: Aircraft[] = world.fleet.map((ac) => ({ ...ac, hoursSinceCheck: { ...ac.hoursSinceCheck } }));
+  let fleet: Aircraft[] = world.fleet.map((ac) => ({ ...ac, hoursSinceCheck: { ...ac.hoursSinceCheck } }));
   const meta: Record<Id, AircraftMeta> = {};
   for (const ac of fleet) {
     const m = state.fleetMeta[ac.id] ?? initialMeta(ac, makeRng(mixSeed(world.seed, 977 + fleet.indexOf(ac))));
@@ -157,7 +159,10 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
       ac.ageDays = 0;
       const order = state.orders.find((o) => o.id === m.orderId);
       ac.ageDays = order?.ageDays ?? 0;
-      if (order) cashAdjust += order.depositUsd / order.count;
+      // Purchase: the balance of the net price is paid at delivery. Lease: nothing due now (payments accrue from delivery).
+      // Offer/legacy orders (no financing): the deposit is credited back as before.
+      if (order?.financing === "purchase") cashAdjust -= (order.unitPriceUsd * (1 - FINANCING_PARAMS.purchaseDownFraction));
+      else if (order && order.financing === undefined) cashAdjust += order.depositUsd / order.count;
       m.deliveryDay = null;
       say(`Delivered ${ac.tailNumber} (${ac.typeId})${order ? ` from ${order.id}` : ""}.`);
     }
@@ -188,7 +193,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     if (!kind) continue;
     const type = types.get(ac.typeId);
     if (!type) continue;
-    const cost = checkCostUsd(type, kind);
+    const cost = checkCostUsd(type, kind) * obsolescenceMultiplier(type, day);
     if (kind === "A") {
       checkCosts += cost;
       resetAfterCheck(ac, m, "A");
@@ -261,14 +266,33 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     }
   }
 
+  // 5b. Hard lifespan: aircraft reaching the cap leave the fleet (and their order lists) today.
+  const retiredIds = new Set<Id>();
+  for (const ac of fleet) {
+    if (ac.status === "delivery" || !isRetired(ac)) continue;
+    retiredIds.add(ac.id);
+    delete meta[ac.id];
+    say(`${ac.tailNumber} (${ac.typeId}) reached the ${LIFECYCLE_PARAMS.maxAgeYears}-year age limit and has been retired.`);
+  }
+
   // 6. Fleet-level costs: lease for every delivered aircraft whether or not it flies, plus overhead and checks.
   // Slot and terminal fees (route/congestion.ts): weekly total / 7, a company-level line next to overhead.
   let fleetCost = params.corporateOverheadPerDay + checkCosts + weeklySlotFees(state).total / 7;
   const priceFactor = new Map(state.orders.flatMap((o) => (o.ownershipFactor === undefined ? [] : o.aircraftIds.map((id) => [id, o.ownershipFactor!] as const))));
+  const orderFinancing = new Map(state.orders.flatMap((o) => o.financing === undefined ? [] : o.aircraftIds.map((id) => [id, o.financing!] as const)));
   for (const ac of fleet) {
-    if (ac.status === "delivery") continue;
+    if (ac.status === "delivery" || retiredIds.has(ac.id)) continue;
     const t = types.get(ac.typeId);
-    if (t) fleetCost += (monthlyOwnershipUsd(t) * (priceFactor.get(ac.id) ?? 1)) / 30.4375 + params.overheadPerAircraftPerDay;
+    if (!t) continue;
+    const financing = ac.financing ?? orderFinancing.get(ac.id);
+    // Purchased aircraft are paid for in cash (no lease-equivalent). Leased and pre-economics aircraft pay the lease-equivalent.
+    if (financing === "purchase") {
+      fleetCost += params.overheadPerAircraftPerDay;
+      continue;
+    }
+    const lease = monthlyOwnershipUsd(t) * (priceFactor.get(ac.id) ?? 1) * obsolescenceMultiplier(t, day);
+    const overhead = params.overheadPerAircraftPerDay * (financing === "lease" ? 1 + FINANCING_PARAMS.leaseOperatingUplift : 1);
+    fleetCost += lease / 30.4375 + overhead;
   }
   const costs = routeCosts + fleetCost;
   const profit = revenue - costs;
@@ -282,7 +306,11 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   const events: SimEvent[] = [{ kind: "tick", day: day + 1 }, { kind: "finance", snapshot }];
   const next: SimState = {
     ...state,
-    world: { ...world, day: day + 1, cash, fleet },
+    world: { ...world, day: day + 1, cash, fleet: fleet.filter((ac) => !retiredIds.has(ac.id)) },
+    orders: retiredIds.size === 0 ? state.orders : state.orders.map((o) => {
+      const keep = o.aircraftIds.map((id) => !retiredIds.has(id));
+      return keep.every(Boolean) ? o : { ...o, aircraftIds: o.aircraftIds.filter((_, i) => keep[i]), deliveryDays: o.deliveryDays.filter((_, i) => keep[i]) };
+    }),
     snapshots,
     routeReports: reports,
     events,

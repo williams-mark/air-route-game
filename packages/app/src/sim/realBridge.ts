@@ -4,7 +4,7 @@
 import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as rawAirports, terminalsFor } from "@arg/data";
 import {
-  applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay,
+  applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, LIFECYCLE_PARAMS, dayToDate, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay,
   validateSimState, type Clock, type SimState, type HubCommand, homeHubOf,
 } from "@arg/sim";
 
@@ -381,6 +381,8 @@ export function buildFleet(sim: SimState): FleetItem[] {
       status: ac.status, ageYears: ac.ageDays / 365.25, seats: layoutSeats(ac.layout), layout: ac.layout, routes: flies.get(ac.id) ?? [],
       hub: ac.hubId ?? homeHubOf(sim),
     };
+    if (ac.financing) item.financing = ac.financing;
+    item.retireYear = dayToDate(day + Math.max(0, LIFECYCLE_PARAMS.maxAgeYears * LIFECYCLE_PARAMS.daysPerYear - ac.ageDays)).year;
     if (meta?.maintenance?.refit) item.refit = true;
     if (meta?.maintenance && (meta.maintenance.refit || maintenanceEnabled())) item.check = { kind: meta.maintenance.check, endDay: meta.maintenance.endDay, daysRemaining: Math.max(0, meta.maintenance.endDay - day) };
     if (ac.status === "delivery" && meta?.deliveryDay != null) item.deliveryDay = meta.deliveryDay;
@@ -406,6 +408,7 @@ export function buildOrders(sim: SimState): OrderItem[] {
     orderDay: o.orderDay, deliveryDays: o.deliveryDays,
     firstDelivery: Math.min(...o.deliveryDays), lastDelivery: Math.max(...o.deliveryDays),
     unitPriceUsd: o.unitPriceUsd, discount: o.discount, depositUsd: o.depositUsd, seats: layoutSeats(o.layout),
+    financing: o.financing,
   }));
 }
 

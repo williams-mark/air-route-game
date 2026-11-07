@@ -2,6 +2,7 @@ import type { AircraftType, Airport, CabinClass, Day } from "@arg/contracts";
 import { canFlyOverwater, isOverwaterRoute } from "@arg/data";
 import { distanceKm, simRunwayM } from "../geo";
 import { maintenanceEnabled } from "../fleet/maintenance";
+import { obsolescenceMultiplier } from "../fleet/lifecycle";
 import { jetAPriceUsdPerGallon, KG_PER_GALLON } from "./fuel";
 import { costFactors } from "../world/regions";
 
@@ -234,7 +235,7 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
   add("cost", "paxServices", "Passenger services", pax * P.passengerServicesUsdPerPax * (inp.cabinCost?.paxServices ?? 1),
     `${r2(pax)} pax x ${usd(P.passengerServicesUsdPerPax)}${inp.cabinCost?.paxServices && inp.cabinCost.paxServices !== 1 ? ` x ${r2(inp.cabinCost.paxServices)} cabin mix` : ""} (catering, check-in, claims)`);
 
-  const maintPerHour = P.maintenanceUsdPerSeatHour[kind] * seatsPerFlight;
+  const maintPerHour = P.maintenanceUsdPerSeatHour[kind] * seatsPerFlight * obsolescenceMultiplier(aircraft, inp.day);
   add("cost", "maintenance", "Maintenance", maintenanceEnabled() ? flights * bh * maintPerHour : 0,
     maintenanceEnabled()
       ? `${r2(flights * bh)} block h x ${usd(maintPerHour)}/h (${P.maintenanceUsdPerSeatHour[kind]}/seat-h x ${seatsPerFlight})`
