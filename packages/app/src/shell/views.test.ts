@@ -11,7 +11,8 @@ describe("views and shortcuts", () => {
     expect(new Set(keys).size).toBe(keys.length);
     expect(viewForKey({ key: "0" })?.id).toBe("hubboard");
     expect(viewForKey({ key: "3" })?.id).toBe("fleet");
-    expect(viewForKey({ key: "4" })?.id).toBe("planner");
+    // The planner is retired behind PLANNER_ENABLED, so its old key does nothing.
+    expect(viewForKey({ key: "4" })).toBeUndefined();
   });
   it("selects the new views by key or by physical code", () => {
     expect(viewForKey({ key: "-" })?.id).toBe("hubs");

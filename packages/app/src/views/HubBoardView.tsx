@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { homeHubOf, typeBlockHours } from "@arg/sim";
+import { homeHubOf, playerHubs, typeBlockHours } from "@arg/sim";
 import { pct, usd } from "../routes/fmt";
 import { bridge, useSim } from "../sim/useSim";
 import { boardHubOptions, buildBoardRows, buildHourRows, hubTypeIds, summarizeBoard } from "../hubboard/hubBoard";
+import { hubOptions } from "../fleet/typeTable";
 import "../hubboard/hubboard.css";
 
 const hours = (h: number) => Math.round(h).toLocaleString("en-US");
@@ -13,7 +14,7 @@ export default function HubBoardView() {
   const { day, fleet, routes, reports } = useSim();
   const sim = bridge.getSim?.() ?? null;
   const home = sim ? homeHubOf(sim) : bridge.getState().airline.hub;
-  const options = useMemo(() => boardHubOptions(fleet, routes, home), [fleet, routes, home]);
+  const options = useMemo(() => boardHubOptions(sim ? playerHubs(sim) : hubOptions(fleet, home), home), [fleet, home, sim]);
   const [picked, setPicked] = useState<string | null>(null);
   const hub = picked && options.includes(picked) ? picked : home;
   const rows = useMemo(() => buildBoardRows(routes, reports, hub), [routes, reports, hub]);
@@ -35,7 +36,7 @@ export default function HubBoardView() {
           <span>Routes <b>{summary.routes}</b></span>
           <span>Weekly profit <b className={summary.weeklyProfit < 0 ? "neg" : undefined}>{summary.routes > 0 && summary.unreported < summary.routes ? usd(summary.weeklyProfit) : "n/a"}</b></span>
           <span>Connecting pax / wk <b>{summary.connectingPassengers === null ? "n/a" : Math.round(summary.connectingPassengers).toLocaleString("en-US")}</b>
-            {summary.connectingShare !== null && <> ({pct(summary.connectingShare)} of passengers)</>}</span>
+            {summary.connectingShare !== null && <> ({pct(summary.connectingShare, 1)} of passengers)</>}</span>
         </div>
       </header>
       <div className="hb-grid">
@@ -59,7 +60,7 @@ export default function HubBoardView() {
                         {r.frequency}{r.frequency < r.requested ? ` / ${r.requested}` : ""}
                       </td>
                       <td className="num">{r.loadFactor === null ? NA : pct(r.loadFactor)}</td>
-                      <td className="num">{r.connectingShare === null ? NA : pct(r.connectingShare)}</td>
+                      <td className="num">{r.connectingShare === null ? NA : pct(r.connectingShare, 1)}</td>
                       <td className={`num ${r.weeklyProfit === null ? "" : r.weeklyProfit < 0 ? "neg" : "pos"}`}>{r.weeklyProfit === null ? NA : usd(r.weeklyProfit)}</td>
                     </tr>
                   ))}

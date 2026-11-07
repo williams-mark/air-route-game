@@ -2,7 +2,10 @@ import type { ComponentType } from "react";
 import type { ViewId } from "../store";
 import { IconFinance, IconFleet, IconPlanner, IconCabin, IconMap, IconOrders, IconRoutes, IconSettings, IconRivals, IconHubBoard, IconHubs, IconFarePolicy } from "./icons";
 
-export const VIEWS: Array<{ id: ViewId; label: string; Icon: ComponentType<{ size?: number }>; /** Alt shortcut key (KeyboardEvent.key). */ key: string; code?: string }> = [
+/** The fleet planner panel is retired (code kept). Set to true to bring back its toolbar entry, shortcut and page. */
+export const PLANNER_ENABLED = false;
+
+const ALL_VIEWS: Array<{ id: ViewId; label: string; Icon: ComponentType<{ size?: number }>; /** Alt shortcut key (KeyboardEvent.key). */ key: string; code?: string }> = [
   { id: "map", label: "Map", Icon: IconMap, key: "1" },
   { id: "routes", label: "Routes", Icon: IconRoutes, key: "2" },
   { id: "fleet", label: "Fleet", Icon: IconFleet, key: "3" },
@@ -16,6 +19,8 @@ export const VIEWS: Array<{ id: ViewId; label: string; Icon: ComponentType<{ siz
   { id: "cabin", label: "Cabin designer", Icon: IconCabin, key: "9" },
   { id: "hubboard", label: "Hub board", Icon: IconHubBoard, key: "0" },
 ];
+
+export const VIEWS = ALL_VIEWS.filter((v) => v.id !== "planner" || PLANNER_ENABLED);
 
 /** Text of a view's Alt shortcut, e.g. "Alt+3". */
 export const viewShortcut = (v: { key: string }): string => `Alt+${v.key}`;

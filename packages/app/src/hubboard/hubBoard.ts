@@ -2,7 +2,6 @@
 import type { Route } from "@arg/contracts";
 import type { RouteReport } from "@arg/sim";
 import type { FleetItem } from "../sim/bridge";
-import { hubOptions } from "../fleet/typeTable";
 
 export interface BoardRow {
   routeId: string;
@@ -102,11 +101,9 @@ export function buildHourRows(typeIds: readonly string[], hoursFor: (typeId: str
   });
 }
 
-/** Hubs to offer: home first, then every hub of the fleet, then airports that two or more routes touch. */
-export function boardHubOptions(fleet: readonly FleetItem[], routes: readonly Route[], home?: string): string[] {
-  const set = new Set(hubOptions(fleet, home));
-  const touch = new Map<string, number>();
-  for (const r of routes) for (const id of [r.origin, r.destination]) touch.set(id, (touch.get(id) ?? 0) + 1);
-  for (const [id, n] of touch) if (n >= 2) set.add(id);
+/** Hubs to offer: the player's owned hubs (`playerHubs` in the sim), home first, then A-Z. */
+export function boardHubOptions(hubs: readonly string[], home?: string): string[] {
+  const set = new Set(hubs);
+  if (home) set.add(home);
   return [...set].sort((x, y) => (x === home ? -1 : y === home ? 1 : x.localeCompare(y, "en")));
 }

@@ -76,8 +76,10 @@ describe("block hours", () => {
 });
 
 describe("boardHubOptions", () => {
-  it("puts home first and adds airports with two or more routes", () => {
-    const fleet = [{ hub: "SFO", status: "active", typeId: "x" }] as FleetItem[];
-    expect(boardHubOptions(fleet, routes, "LAX")).toEqual(["LAX", "SAN", "SFO"]);
+  it("lists only the owned hubs, home first", () => {
+    expect(boardHubOptions(["SFO", "LAX"], "LAX")).toEqual(["LAX", "SFO"]);
+  });
+  it("does not add airports just because routes touch them", () => {
+    expect(boardHubOptions(["SFO"], "LAX")).toEqual(["LAX", "SFO"]);
   });
 });

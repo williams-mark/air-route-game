@@ -26,7 +26,7 @@ const EUROPE = new Map(Object.entries({
 const SKIP = new Set(["Antarctica", "Fr. S. Antarctic Lands", "United States of America", "Puerto Rico", "U.S. Virgin Is."]);
 
 const T_FOCUS = 1.2e-4, T_US = 1.5e-4, T_CTX = 2.5e-3; // triangle area, deg^2
-const MIN_AREA = { focus: 4e-4, ctx: 6e-2 }; // drop polygons below this bbox area (deg^2)
+const MIN_AREA = { focus: 4e-4, ctx: 1e-4 }; // drop polygons below this bbox area (deg^2)
 
 /** Arcs referenced by the given geometries. */
 function arcsOf(geoms) {

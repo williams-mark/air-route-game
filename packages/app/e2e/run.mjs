@@ -344,7 +344,7 @@ for (const theme of themes) {
   await check(theme, "narrow widths (633, 390, 360): no horizontal scroll, top bar items do not overlap", async () => {
     for (const [w, h] of [[633, 615], [390, 844], [360, 740]]) {
       await page.setViewportSize({ width: w, height: h });
-      for (const v of ["Map", "Routes", "Fleet", "Planner", "Orders / Offers", "Finance", "Rivals", "Settings", "Cabin designer"]) {
+      for (const v of ["Map", "Routes", "Fleet", "Orders / Offers", "Finance", "Rivals", "Settings", "Cabin designer"]) {
         await nav(page, v);
         await page.waitForTimeout(150);
         const m = await page.evaluate(() => {
@@ -369,7 +369,7 @@ for (const theme of themes) {
   await check(theme, "time pill and notification pill never cover content at 1280x720 and 125% scale", async () => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.evaluate(() => { document.documentElement.style.fontSize = "20px"; });
-    for (const v of ["Routes", "Fleet", "Planner", "Orders / Offers", "Finance", "Rivals", "Settings", "Cabin designer"]) {
+    for (const v of ["Routes", "Fleet", "Orders / Offers", "Finance", "Rivals", "Settings", "Cabin designer"]) {
       await nav(page, v);
       await page.waitForTimeout(250);
       const hits = await page.evaluate(() => {

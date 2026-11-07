@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AirMap, type AirMapHandle } from "../map/AirMap";
-import { CAMERA_PRESETS, PRESET_LABEL } from "../map/presets";
 import type { MapRoute } from "../map/types";
 import { uiAirports } from "../dev/airportSource";
 import { stressRoutes } from "../dev/fixtures";
@@ -71,11 +70,6 @@ export function MapView() {
       />
 
       <div className="map-tools">
-        <div className="hud seg" role="group" aria-label="Camera presets">
-          {CAMERA_PRESETS.map((p) => (
-            <button key={p} aria-pressed={ui.preset === p && ui.presetNonce > 0} onClick={() => ui.flyTo(p)}>{PRESET_LABEL[p]}</button>
-          ))}
-        </div>
         <button className="hud-btn" onClick={() => creation.begin()} title="New route (N)" aria-keyshortcuts="N">+ New route</button>
         <button className="hud-btn" aria-pressed={ui.showCompetitors} onClick={() => ui.setShowCompetitors(!ui.showCompetitors)} title="Draw competitor routes on the map">
           <i className="rival-swatch" aria-hidden="true" />Show competitors
@@ -91,42 +85,22 @@ export function MapView() {
         <button aria-label="Zoom out" onClick={() => mapRef.current?.zoomBy(-0.8)}>{"−"}</button>
       </div>
 
-      {!panelOpen && (<aside className="hud side" aria-label="Selection details">
-        {selAirport ? (
-          <>
-            <h2>Airport</h2>
-            <div className="big">{selAirport.id}</div>
-            <div>{selAirport.name}</div>
-            <dl>
-              <dt>City</dt><dd>{selAirport.city}</dd>
-              <dt>Region</dt><dd>{[regionName(selAirport), countryName(selAirport.country)].filter((x, i, arr) => arr.indexOf(x) === i).join(", ")}</dd>
-              <dt>Longest runway</dt><dd>{selAirport.runwayM.toLocaleString()} m</dd>
-              <dt>Metro population</dt><dd>{selAirport.metroPopulation.toLocaleString()}</dd>
-              <dt>Slots / hour</dt><dd>{selAirport.slotsPerHour}</dd>
-              <dt>Routes served</dt><dd>{routes.filter((r) => r.origin === selAirport.id || r.destination === selAirport.id).length}</dd>
-            </dl>
-            <div className="side-actions">
-              <button onClick={() => creation.begin(selAirport.id)}>New route from {selAirport.id}</button>
-              <button onClick={() => ui.select(null)}>Clear</button>
-            </div>
-          </>
-        ) : (
-          <>
-            <h2>Network</h2>
-            <p style={{ margin: "0 0 10px", fontSize: 13, color: "var(--text-dim)" }}>
-              {airports.length} airports, {routes.length} routes. Click a route or airport on the map, or pick one below.
-            </p>
-            <ul className="list">
-              {routes.slice(0, 60).map((r) => (
-                <li key={r.id}>
-                  <button className="row-btn" onClick={() => ui.select({ kind: "route", id: r.id })}>
-                    <span><span className="dot" style={dot(r.tier)} />{r.origin} {"→"} {r.destination}</span><span>{r.weeklyFrequency}/wk</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
+      {!panelOpen && selAirport && (<aside className="hud side" aria-label="Selection details">
+        <h2>Airport</h2>
+        <div className="big">{selAirport.id}</div>
+        <div>{selAirport.name}</div>
+        <dl>
+          <dt>City</dt><dd>{selAirport.city}</dd>
+          <dt>Region</dt><dd>{[regionName(selAirport), countryName(selAirport.country)].filter((x, i, arr) => arr.indexOf(x) === i).join(", ")}</dd>
+          <dt>Longest runway</dt><dd>{selAirport.runwayM.toLocaleString()} m</dd>
+          <dt>Metro population</dt><dd>{selAirport.metroPopulation.toLocaleString()}</dd>
+          <dt>Slots / hour</dt><dd>{selAirport.slotsPerHour}</dd>
+          <dt>Routes served</dt><dd>{routes.filter((r) => r.origin === selAirport.id || r.destination === selAirport.id).length}</dd>
+        </dl>
+        <div className="side-actions">
+          <button onClick={() => creation.begin(selAirport.id)}>New route from {selAirport.id}</button>
+          <button onClick={() => ui.select(null)}>Clear</button>
+        </div>
       </aside>)}
       <div className="credit">Geometry: US Census (us-atlas) and Natural Earth (world-atlas). Demo data, not final.</div>
     </div>
