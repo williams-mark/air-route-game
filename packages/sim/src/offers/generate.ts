@@ -2,7 +2,8 @@ import type { AircraftType, CabinLayout, Day } from "@arg/contracts";
 import { defaultLayout, layoutSeats, validateLayout } from "../fleet/layout";
 import { makeRng, mixSeed } from "../rng";
 import type { SimState } from "../state";
-import { dayToDate, isLeapYear, START_YEAR } from "../time/calendar";
+import { dayToDate, isLeapYear, jan1Day } from "../time/calendar";
+import { usedSaleAllowed } from "../fleet/availability";
 import type { Offer, OfferKind } from "./types";
 
 /** All offer constants, documented in MODEL.md "Offers". */
@@ -57,11 +58,8 @@ const between = (rng: () => number, [lo, hi]: readonly [number, number]) => lo +
 const betweenInt = (rng: () => number, [lo, hi]: readonly [number, number]) => Math.round(between(rng, [lo, hi]));
 const pick = <T>(rng: () => number, xs: readonly T[]): T => xs[Math.min(xs.length - 1, Math.floor(rng() * xs.length))]!;
 
-export function yearStartDay(year: number): Day {
-  let d = 0;
-  for (let y = START_YEAR; y < year; y++) d += isLeapYear(y) ? 366 : 365;
-  return d;
-}
+/** Campaign day of 1 January of `year` (negative before 2015). */
+export const yearStartDay = jan1Day;
 
 /** Calendar year as a fraction (2017.5 is mid-2017). */
 export function yearFraction(day: Day): number {
@@ -279,7 +277,7 @@ function eligible(kind: OfferKind, t: AircraftType, day: Day, state: SimState): 
     case "distressed":
       return t.introYear <= yf && (t.endYear === null || t.endYear >= year - 4);
     case "used":
-      return t.introYear <= yf - 1;
+      return t.introYear <= yf - 1 && usedSaleAllowed(t, year);
   }
 }
 

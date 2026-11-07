@@ -52,6 +52,8 @@ export * from "./offers";
 export * from "./cabin";
 export * from "./fleet/layout";
 export * from "./fleet/maintenance";
+export * from "./fleet/availability";
+export * from "./time/startYear";
 export * from "./fleet/scheduler";
 export { mixSeed } from "./rng";
 export * from "./rivals";

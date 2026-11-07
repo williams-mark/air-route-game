@@ -12,7 +12,8 @@ import { typeCanServe } from "./fleet/scheduler";
 import { routeHourSummary } from "./fleet/hubs";
 import { makeRng, mixSeed } from "./rng";
 import type { AircraftOrder, SimState } from "./state";
-import { dayToDate, START_YEAR, isLeapYear } from "./time/calendar";
+import { dayToDate, jan1Day } from "./time/calendar";
+import { canOrderNew } from "./fleet/availability";
 import { applyOfferCommand, type OfferCommand, type OfferResult } from "./offers";
 import { applyRefit, type CabinCommand, type RefitResult } from "./cabin/refit";
 import { applyPlannerCommand, type PlannerOk } from "./planner/commands";
@@ -255,11 +256,7 @@ function nextId(state: SimState, kind: keyof SimState["counters"]): { id: number
 // ---------------------------------------------------------------------------
 // Orders
 // ---------------------------------------------------------------------------
-function yearStartDay(year: number): Day {
-  let d = 0;
-  for (let y = START_YEAR; y < year; y++) d += isLeapYear(y) ? 366 : 365;
-  return d;
-}
+const yearStartDay = jan1Day;
 
 function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" }>): { state: SimState; result: CommandResult<"orderAircraft"> } {
   const type = state.aircraftTypes.find((t) => t.id === cmd.typeId);
@@ -268,7 +265,7 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
     return { state, result: fail("invalid_count", `Order size must be a whole number from 1 to ${COMMAND_PARAMS.maxOrderCount}.`) };
   }
   const year = dayToDate(state.world.day).year;
-  if ((type.endYear !== null && type.endYear < year) || type.introYear > year + COMMAND_PARAMS.orderLeadYears) {
+  if (!canOrderNew(type, year, COMMAND_PARAMS.orderLeadYears)) {
     return {
       state,
       result: fail(

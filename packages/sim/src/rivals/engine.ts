@@ -533,7 +533,7 @@ export function createRivals(
   airports: readonly Airport[], types: readonly AircraftType[], seed: number, playerRoutes: readonly Route[] = [], day: Day = 0,
 ): RivalsState {
   const ctx = makeContext(new Map(airports.map((a) => [a.id, a])), new Map(types.map((t) => [t.id, t])), day, makeRng(mixSeed(seed, 0x21fa15)), playerRoutes);
-  const state: RivalsState = { airlines: [], news: [], launchedEntrants: [], nextAirline: 0 };
+  const state: RivalsState = { airlines: [], news: [], launchedEntrants: [], nextAirline: 0, originDay: day };
   for (const spec of STARTING_RIVALS) {
     const air = newAirline(ctx, spec.id, spec.name, spec.archetype, spec.bases, spec.cash, spec);
     const as = ARCHETYPES[spec.archetype];
@@ -681,7 +681,7 @@ export function stepRivalsWeek(
   for (const e of SCHEDULED_ENTRANTS) {
     if (rivals.launchedEntrants.includes(e.id)) continue;
     const jitter = Math.round((makeRng(mixSeed(seed, 0xe17a))() - 0.5) * 2 * e.jitterDays);
-    if (ctx.day >= Math.round(e.launchYear * 365.25) + jitter) {
+    if (ctx.day >= (rivals.originDay ?? 0) + Math.round(e.launchYear * 365.25) + jitter) {
       rivals.launchedEntrants.push(e.id);
       launchAirline(ctx, rivals, sink, e);
     }

@@ -3,6 +3,17 @@ import type { Day } from "@arg/contracts";
 /** Day 0 = 2015-01-01 (a Thursday). Proleptic Gregorian calendar. */
 export const START_YEAR = 2015;
 
+/**
+ * Campaign day of 1 January of `year` (day 0 = 2015-01-01). Negative before 2015, so a game started in an earlier year keeps the same
+ * absolute calendar as every other year; all year-dependent sim data (closures, offers, aircraft availability) is keyed on it.
+ */
+export function jan1Day(year: number): Day {
+  let d = 0;
+  if (year >= START_YEAR) for (let y = START_YEAR; y < year; y++) d += isLeapYear(y) ? 366 : 365;
+  else for (let y = year; y < START_YEAR; y++) d -= isLeapYear(y) ? 366 : 365;
+  return d;
+}
+
 export function isLeapYear(y: number): boolean {
   return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 }

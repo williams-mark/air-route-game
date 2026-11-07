@@ -122,6 +122,8 @@ export interface RivalsState {
   /** Entrant specs already launched. */
   launchedEntrants: string[];
   nextAirline: number;
+  /** Campaign day the field was founded (the game's start). Scheduled entrants launch relative to it. Absent in older saves = day 0. */
+  originDay?: number;
 }
 
 /** Fleet released by a bankrupt airline, for the offers lane (distressed lots). */

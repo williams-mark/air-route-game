@@ -69,6 +69,8 @@ const TABLE: Record<string, Row> = {
   "A350-900": [51.0, 5.61, [8, 9]],
   "A350-1000": [58.0, 5.61, [8, 9]],
   "B747-400": [70.0, 6.1, [10]],
+  // ESTIMATE (lane/start-year): DC-10 cabin length about 42 m (overall length ~55 m less nose and tail cone), width typical of the wide-body fallback.
+  "DC10-30": [42.0, 5.5, [8, 9]],
 };
 
 const SERVICE_M: Record<BodyClass, number> = { regional: 3, narrow: 4.5, widebody: 8 };
