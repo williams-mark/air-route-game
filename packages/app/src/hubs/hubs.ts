@@ -62,6 +62,9 @@ export function terminalRows(terminals: readonly Terminal[], congestion: HubCong
 /** The hubs the congestion table lists: every player hub except the home hub, in the given order. */
 export const otherHubs = (hubs: readonly Id[], home: Id): Id[] => hubs.filter((h) => h !== home);
 
+/** Hub cards on the Hubs panel: the home hub first (its terminal is movable too), then the other player hubs. */
+export const hubCardIds = (hubs: readonly Id[], home: Id): Id[] => [home, ...otherHubs([...new Set(hubs)].sort(), home)];
+
 /** "+$1,200 a week" / "-$300 a week" / "no change". */
 export function deltaText(deltaUsd: number): string {
   const r = Math.round(deltaUsd);
@@ -69,6 +72,10 @@ export function deltaText(deltaUsd: number): string {
   const n = Math.abs(r).toLocaleString("en-US");
   return `${r > 0 ? "+" : "−"}$${n} a week`;
 }
+
+/** Runway bar for the schematic: longest runway as a share of the reference length (0..1, capped). Display only. */
+export const RUNWAY_SCALE_M = 4500;
+export const runwayShare = (runwayM: number): number => Math.max(0, Math.min(1, runwayM / RUNWAY_SCALE_M));
 
 /** Short name for an airport row in the panel. */
 export const hubTitle = (a: Pick<Airport, "id" | "city" | "name">): string => `${a.id} ${a.city || a.name}`;

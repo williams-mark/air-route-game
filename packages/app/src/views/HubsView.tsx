@@ -5,21 +5,22 @@ import { Modal } from "../shell/Modal";
 import { usd } from "../routes/fmt";
 import { bridge, useSim } from "../sim/useSim";
 import { useToasts } from "../routes/store";
-import { deltaText, hubTitle, otherHubs, slotBar, terminalRows, type TerminalRow } from "../hubs/hubs";
+import { deltaText, hubCardIds, hubTitle, slotBar, terminalRows, type TerminalRow } from "../hubs/hubs";
+import { AirportSchematic } from "../hubs/AirportSchematic";
 import "../hubs/hubs.css";
 
 const n0 = (v: number) => Math.round(v).toLocaleString("en-US");
 
 interface Move { airport: Airport; from: TerminalRow; to: TerminalRow }
 
-/** Hubs: slot congestion at each of your non-home hubs and the terminal you occupy there (estimated slot and terminal fees). */
+/** Hubs: slot congestion at each of your hubs (home hub included) and the terminal you occupy there (estimated slot and terminal fees). */
 export default function HubsView() {
   useSim(); // re-render on every snapshot (day steps, commands)
   const sim = bridge.getSim?.() ?? null;
   const [move, setMove] = useState<Move | null>(null);
   const [staged, setStaged] = useState<Record<Id, Id>>({});
   const home = sim ? homeHubOf(sim) : bridge.getState().airline.hub;
-  const hubs = sim ? otherHubs(playerHubs(sim), home) : [];
+  const hubs = sim ? hubCardIds(playerHubs(sim), home) : [];
   const total = sim ? weeklySlotFees(sim).total : 0;
   const airportById = useMemo(() => new Map((sim?.airports ?? []).map((a) => [a.id, a])), [sim?.airports]);
 
@@ -36,14 +37,14 @@ export default function HubsView() {
     <div className="hubs">
       <header className="hubs-head">
         <h1>Hubs</h1>
-        <span className="hubs-home" title="Your home hub is not listed below">Home hub <b>{home}</b></span>
+        <span className="hubs-home" title="Your home hub is listed first, with the same terminal choice as the other hubs">Home hub <b>{home}</b></span>
         {sim && <span className="hubs-total">Slot and terminal fees across all airports <b>{usd(total)}</b> a week</span>}
       </header>
-      <p className="hubs-intro">Each round trip a week uses 2 slots at both of its airports. Slot counts, slot fees and the terminal fee tiers below are estimates built for this game, not published airport figures.</p>
+      <p className="hubs-intro">Each round trip a week uses 2 slots at both of its airports. Slot counts, slot fees and the terminal fee tiers below are estimates built for this game, not published airport figures. You can move the slots at your home hub too.</p>
       {!sim ? (
         <div className="empty-state"><h2>Needs the full simulation</h2><p>Slots and terminals are not modelled in the mock game (?mock), so there is nothing to show here.</p></div>
       ) : hubs.length === 0 ? (
-        <div className="empty-state"><h2>No other hubs yet</h2><p>{home} is your home hub. Base an aircraft at another airport (Fleet) and it appears here with its slot congestion and terminals.</p></div>
+        <div className="empty-state"><h2>No hubs yet</h2><p>Your home hub appears here once the game has a home airport.</p></div>
       ) : (
         <div className="hubs-list">
           {hubs.map((id) => {
@@ -60,7 +61,7 @@ export default function HubsView() {
             return (
               <section key={id} className="hubs-card" aria-label={`Hub ${id}`}>
                 <div className="hubs-card-head">
-                  <h2>{hubTitle(airport)}</h2>
+                  <h2>{hubTitle(airport)}{id === home && <span className="hubs-tag you">home</span>}</h2>
                   <span className="hubs-nums">
                     <span>You <b>{n0(c.slotsUsedByPlayer)}</b></span>
                     <span>All airlines <b>{n0(c.slotsUsedByAll)}</b></span>
@@ -91,6 +92,7 @@ export default function HubsView() {
                     ))}
                   </tbody>
                 </table>
+                <AirportSchematic airport={airport} rows={rows} targetId={target.id} />
                 {anyEstimate && <p className="hubs-warn">Terminal fee tiers here are estimates (no airport publishes a per-terminal schedule). Source: {mine.estimate ? mine.source : rows.find((r) => r.estimate)?.source}.</p>}
                 {single ? (
                   <p className="hubs-note">{id} has a single terminal, so there is nothing to choose. Your slots here cost {usd(mine.weeklyFeeUsd)} a week.</p>
