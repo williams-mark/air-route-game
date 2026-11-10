@@ -8,7 +8,7 @@ Two agents played 2015-2029 from LAX with no context beyond "build a semi-realis
 - Fare policy: the route inspector shows the effective target and its source ("88% from fare policy ...") and warns that a typed fare will be overwritten weekly (`describeEffectiveTarget`).
 - Decision cards: a frequency increase is offered only when the route's own forecast says it adds profit, and in steps of at most half the current frequency (no more "add 37 a week" on a 180 km route).
 - Start screen: the hint no longer shifts the label grid; New game starts paused. Autosave also runs on `pagehide` (best effort). Cabin designer warns at 100% length. "Connections -0%" reads "Connections at full fare". Order and unlock inputs are themed in dark mode. Unused `COMMAND_PARAMS.depositFraction` (0.15) removed; the live deposit is `FINANCING_PARAMS.purchaseDownFraction` (20%).
-- Gate: typecheck, test (data 82, sim 382, app 202), build green.
+- Gate: `pnpm install --frozen-lockfile`, typecheck, test (data 82, sim 382, app 202), build all green; e2e 48/48 (24 checks x 2 themes, no console errors). The Hubs e2e check now types the code into the "Unlock a hub" field instead of using a select.
 Open (found by the playthroughs, not fixed; most need an owner decision):
 - No credit limit or bankruptcy: purchase balances fall due at delivery unchecked and cash reached -$567M to -$727M. Needs a rule (loan, forced sale or bankruptcy).
 - No sale, return or early lease exit of aircraft; no commonality cost for a mixed fleet.
@@ -67,6 +67,8 @@ Open (found by the playthroughs, not fixed; most need an owner decision):
 - Gate: install, typecheck, test (data 23, sim 294, app 149), build, e2e 46/46.
 
 # Build status (update at the end of every work session)
+
+Last updated: Tue 10 Nov 2026 (lane/qa-playtest-fixes). Gate green on the lane: typecheck, test (data 82, sim 382, app 202), build, e2e 48/48. Not yet merged to main.
 
 Last updated: Fri 6 Nov 2026: globe (1,006 airports, tiers, presets), terminals, slots, fare policy, Hubs and Fare policy panels merged on lane/integration-globe; gate green (data 82, sim 330, app ~176). e2e full suite not re-run.
 
