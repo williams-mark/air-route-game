@@ -1,3 +1,4 @@
+import { usdK } from "../money";
 import type { AircraftType, CabinClass, CabinLayout, Day, Id } from "@arg/contracts";
 import { notice, pushEvents, type CommandError } from "../commands";
 import type { SimState } from "../state";
@@ -57,7 +58,7 @@ export function applyRefit(state: SimState, cmd: CabinCommand): { state: SimStat
   if (!v.ok) return { state, result: fail("invalid_layout", v.errors[0]!.message) };
   if (sameLayout(ac.layout, cmd.layout)) return { state, result: fail("no_change", `${ac.tailNumber} already has this cabin layout; change something before refitting.`) };
   const q = refitQuote(type, cmd.layout);
-  if (q.costUsd > state.world.cash) return { state, result: fail("insufficient_cash", `A refit costs $${Math.round(q.costUsd / 1000)}k; you have $${Math.round(state.world.cash / 1000)}k.`) };
+  if (q.costUsd > state.world.cash) return { state, result: fail("insufficient_cash", `A refit costs ${usdK(q.costUsd)}; you have ${usdK(state.world.cash)}.`) };
   const day = state.world.day;
   const returnDay = day + q.downtimeDays;
   const fleet = state.world.fleet.map((a) => (a.id === ac.id ? { ...a, layout: cmd.layout, status: "maintenance" as const } : a));

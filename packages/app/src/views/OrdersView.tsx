@@ -12,6 +12,7 @@ import { useOffersUi } from "../offers/store";
 import { CabinDialog } from "../cabin/CabinDialog";
 import { useCabinDrafts } from "../cabin/store";
 import { ownedHubChoices } from "../hubs/hubs";
+import { parseQuantity, pendingBalanceUsd } from "./orderExposure";
 
 type Financing = "purchase" | "lease";
 
@@ -34,7 +35,9 @@ export default function OrdersView() {
   const setOrderLayout = useCabinDrafts((s) => s.setOrderLayout);
   // Default to the in-production type closest to a 180-seat narrowbody, a sensible first order.
   const type = types.find((t) => t.id === typeId) ?? [...types].sort((a, b) => Math.abs(a.maxSeats - 190) - Math.abs(b.maxSeats - 190))[0];
-  const count = Math.max(1, Math.min(COMMAND_PARAMS.maxOrderCount, Math.round(qty) || 1));
+  // The quote follows the field only while it holds a whole number in range; otherwise the form says so and refuses to order.
+  const parsedQty = parseQuantity(qty, COMMAND_PARAMS.maxOrderCount);
+  const count = parsedQty ?? 1;
   const discount = orderDiscount(count);
   const unit = type ? type.listPriceUsdM * 1e6 * (1 - discount) : 0;
   const listEach = type ? type.listPriceUsdM * 1e6 : 0;
@@ -42,6 +45,9 @@ export default function OrdersView() {
   const deposit = financing === "purchase" ? unit * count * FINANCING_PARAMS.purchaseDownFraction : listEach * count * FINANCING_PARAMS.leaseDownFractionOfList;
   const balance = unit * count * (1 - FINANCING_PARAMS.purchaseDownFraction);
   const short = deposit > cash;
+  // Purchase balances fall due in full on delivery day and nothing checks cash then, so show what is already committed.
+  const owedAtDelivery = pendingBalanceUsd(orders);
+  const cashAfter = cash - deposit - owedAtDelivery - (financing === "purchase" ? balance : 0);
 
   const custom = type ? orderLayouts[type.id] : undefined;
   // New aircraft are delivered to a hub the player owns; the home hub is the default.
@@ -52,7 +58,7 @@ export default function OrdersView() {
   const deliveryHubId = hubs.includes(deliveryHub) ? deliveryHub : home;
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!type) return;
+    if (!type || parsedQty === null) return;
     const res = bridge.dispatch({ kind: "orderAircraft", typeId: type.id, count, layout: custom ?? { sections: [] }, financing, deliveryHubId });
     if (res && !res.ok) { push("alert", res.error.message); return; }
     push("good", `Ordered ${count} ${type.id} on ${financing}. ${financing === "purchase" ? "Deposit" : "Down payment"} ${formatMoney(deposit)} paid.`);
@@ -79,7 +85,8 @@ export default function OrdersView() {
           </div>
           <div className="rp-field">
             <label htmlFor="ord-qty">Quantity</label>
-            <input id="ord-qty" type="number" min={1} max={COMMAND_PARAMS.maxOrderCount} value={qty} onChange={(e) => setQty(Number(e.target.value))} />
+            <input id="ord-qty" type="number" min={1} max={COMMAND_PARAMS.maxOrderCount} value={qty} aria-invalid={parsedQty === null || undefined} aria-describedby={parsedQty === null ? "ord-qty-err" : undefined} onChange={(e) => setQty(e.target.value === "" ? NaN : Number(e.target.value))} />
+            {parsedQty === null && <div id="ord-qty-err" className="rp-err" role="alert">Enter a whole number from 1 to {COMMAND_PARAMS.maxOrderCount}.</div>}
           </div>
           <div className="rp-field">
             <label htmlFor="ord-hub">Delivery hub</label>
@@ -119,8 +126,10 @@ export default function OrdersView() {
             <dt>Volume discount</dt><dd>{(discount * 100).toFixed(0)}%</dd>
             <dt>Net price</dt><dd>{formatMoney(unit)} each, {formatMoney(unit * count)} total</dd>
             <dt>{financing === "purchase" ? "Deposit due now" : "Down payment due now"}</dt><dd className={short ? "neg" : ""}>{formatMoney(deposit)}{short ? " (more than your cash)" : ""}</dd>
+            <dt>Already owed at delivery</dt><dd>{formatMoney(owedAtDelivery)} on open orders</dd>
+            <dt>Cash after every balance is paid</dt><dd className={cashAfter < 0 ? "neg" : ""}>{formatMoney(cashAfter)}{cashAfter < 0 ? " (before the income you earn until then)" : ""}</dd>
           </dl>
-          <button type="submit" className="primary" disabled={!type}>Place order</button>
+          <button type="submit" className="primary" disabled={!type || parsedQty === null}>Place order</button>
         </form>
       </section>
       {designing && type && (

@@ -59,3 +59,4 @@
 
 .hubs-unlock { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 0 0 16px; }
 .hubs-unlock label { display: flex; gap: 8px; align-items: center; }
+.hubs-unlock .airport-field { position: relative; min-width: min(22rem, 100%); flex: 1 1 18rem; max-width: 30rem; }

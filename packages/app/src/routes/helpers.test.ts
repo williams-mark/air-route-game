@@ -4,7 +4,7 @@ import { benchmarkFareFor, dayToDate, runDays, startingScenario } from "@arg/sim
 import {
   bestFrequency, bestType, eligibleTypes, fareHint, FREQ_SWEEP_MAX, frequencySweep, marketFares, midMonthDay, parseFares,
   livePreview, liveSeasonal, operatingMix, ownershipReason, profitTier, rivalPresence, seasonalProfit, substitutionText, typeOwnership, suggestAirports, validateRouteDraft, type RouteDraft, type SweepPoint,
-  describeTargetLf, formatTargetLf, parseTargetLf, TARGET_LF_MESSAGE,
+  describeEffectiveTarget, describeTargetLf, formatTargetLf, parseTargetLf, TARGET_LF_MESSAGE,
 } from "./helpers";
 import { rangeNote, routeBlock, usableRangeKm } from "../aircraft/availability";
 import { airports } from "@arg/data";
@@ -259,5 +259,17 @@ describe("target load factor input", () => {
   it("describes the inspector row as a percent or off", () => {
     expect(describeTargetLf(undefined)).toBe("off");
     expect(describeTargetLf(0.8)).toBe("80%");
+  });
+});
+
+describe("describeEffectiveTarget", () => {
+  const route = { id: "r1", origin: "LAX", destination: "SFO" };
+  const policy = (targetLoadFactor: number | null, name = "Fill it up") => ({ id: "p1", name, targetLoadFactor, connectionMarkdown: 0, scope: "all" as const });
+  it("prefers the route's own target, then the covering policy, else off", () => {
+    expect(describeEffectiveTarget({ ...route, targetLoadFactor: 0.8 }, [policy(0.9)])).toEqual({ text: "80% (set on this route)", policyName: null });
+    expect(describeEffectiveTarget({ ...route, targetLoadFactor: undefined }, [policy(0.88)])).toEqual({ text: '88% from fare policy "Fill it up"', policyName: "Fill it up" });
+    expect(describeEffectiveTarget({ ...route, targetLoadFactor: undefined }, [])).toEqual({ text: "off", policyName: null });
+    expect(describeEffectiveTarget({ ...route, targetLoadFactor: undefined }, [policy(null)])).toEqual({ text: "off", policyName: null });
+    expect(describeEffectiveTarget({ ...route, targetLoadFactor: undefined }, undefined)).toEqual({ text: "off", policyName: null });
   });
 });

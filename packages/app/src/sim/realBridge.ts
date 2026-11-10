@@ -1,6 +1,7 @@
 // RealSimBridge: drives the real @arg/sim through the SimBridge interface.
 // The clock accumulates real time (rAF dt, clamped) into whole simulated days; days are stepped in a batch and the UI gets
 // exactly one snapshot per batch.
+import { formatMoney } from "./format";
 import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as rawAirports, terminalsFor } from "@arg/data";
 import {
@@ -70,7 +71,18 @@ export function classifyNotice(text: string): Severity {
 }
 
 /** Notices that are only noise in the feed. */
-const QUIET = /A check done overnight/;
+const QUIET = /A check done overnight|^Offer expired|^Offer expiring soon/;
+
+/** Keep the newest `limit` notices, dropping routine ones (oldest first) before alerts so a cash warning is not pushed out by offer chatter. */
+export function trimNotices<T extends { severity: string }>(list: readonly T[], limit: number): T[] {
+  const out = [...list];
+  while (out.length > limit) {
+    let i = out.length - 1;
+    while (i > 0 && out[i]!.severity === "alert") i--;
+    out.splice(out[i]!.severity === "alert" ? out.length - 1 : i, 1);
+  }
+  return out;
+}
 
 export class RealSimBridge implements SimBridge {
   private sim!: SimState;
@@ -78,6 +90,7 @@ export class RealSimBridge implements SimBridge {
   private listeners = new Set<() => void>();
   private snap!: SimSnapshot;
   private notices: Notice[] = [];
+  private lastOverdrawnAlert = -Infinity;
   private nextNotice = 1;
   private ledger: DayRecord[] = [];
   private pending: PendingDecision[] = [];
@@ -97,7 +110,7 @@ export class RealSimBridge implements SimBridge {
   /** (Re)initialise all bridge state around `sim`. Used by the constructor, newGame and loadGame. */
   private reset(sim: SimState, speed: Speed, welcome: boolean, extras?: BridgeExtras): void {
     this.sim = sim;
-    this.notices = []; this.nextNotice = 1; this.ledger = []; this.pending = []; this.engine = new DecisionEngine();
+    this.notices = []; this.lastOverdrawnAlert = -Infinity; this.nextNotice = 1; this.ledger = []; this.pending = []; this.engine = new DecisionEngine();
     this.lowCash = false; this.offersOf = null; this.viewOf = null; this.rivalsOf = null;
     this.clock = createClock({ startDay: this.sim.world.day, speed, maxDtMs: this.opts.maxDtMs ?? 250 });
     this.sim = { ...this.sim, speed: this.clock.speed };
@@ -222,14 +235,21 @@ export class RealSimBridge implements SimBridge {
       this.say(e.day, sev, e.text);
     }
     const cash = this.sim.world.cash;
+    const today = this.sim.world.day;
     if (cash < LOW_CASH_USD && !this.lowCash) {
       this.lowCash = true;
-      this.say(this.sim.world.day, "alert", `Cash is down to ${(cash / 1e6).toFixed(1)}M. Cut costs or the airline cannot pay its bills.`);
+      this.lastOverdrawnAlert = today;
+      this.say(today, "alert", `Cash is down to ${formatMoney(cash)}. Delivery balances and running costs keep falling due: slow your orders or close routes that lose money.`);
     } else if (cash >= LOW_CASH_USD * 1.5) this.lowCash = false;
+    // Overdrawn is not a one-off event: say so again every month while it lasts (not saved; a loaded game is told once more).
+    else if (cash < 0 && today - this.lastOverdrawnAlert >= 30) {
+      this.lastOverdrawnAlert = today;
+      this.say(today, "alert", `Still overdrawn: cash is ${formatMoney(cash)}.`);
+    }
   }
 
   private say(day: Day, severity: Severity, text: string): void {
-    this.notices = [{ id: this.nextNotice++, day, severity, text }, ...this.notices].slice(0, NOTICE_LIMIT);
+    this.notices = trimNotices([{ id: this.nextNotice++, day, severity, text }, ...this.notices], NOTICE_LIMIT);
   }
 
   private syncSpeed(): void {

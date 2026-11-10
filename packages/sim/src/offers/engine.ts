@@ -1,3 +1,4 @@
+import { usdM } from "../money";
 import type { Aircraft, Day, SimEvent } from "@arg/contracts";
 import { COMMAND_PARAMS, notice, pushEvents, type CommandError } from "../commands";
 import { defaultLayout } from "../fleet/layout";
@@ -18,7 +19,7 @@ export type OfferResult =
   | CommandError;
 
 const fail = (error: CommandError["error"], message: string): CommandError => ({ ok: false, error, message });
-const M = (usd: number) => `$${(usd / 1e6).toFixed(1)}M`;
+const M = (usd: number) => usdM(usd);
 
 /** Lowest-day-first stable hash of a string, for per-order random streams. */
 function hashId(s: string): number {

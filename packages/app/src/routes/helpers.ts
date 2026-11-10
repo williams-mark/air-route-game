@@ -1,9 +1,9 @@
 // Pure helpers for the route inspector, creation sandbox and Routes view.
 // Projections call @arg/sim (simulateRouteWeek / evaluateRoute) with real @arg/data inputs; nothing here has side effects.
-import type { AircraftType, Airport, CabinClass, Day, Fares, Id, Route, ServiceLevel } from "@arg/contracts";
+import type { AircraftType, Airport, CabinClass, Day, FarePolicy, Fares, Id, Route, ServiceLevel } from "@arg/contracts";
 import { aircraftTypes, airports, canFlyRoute, distanceKm } from "@arg/data";
 import {
-  benchmarkFare, benchmarkFareFor, routeFeasibilityError, daysInMonth, dayToDate, pairMarket, previewNewRoute, previewRoutePatch, seasonalRouteProfit, simulateRouteWeek,
+  benchmarkFare, benchmarkFareFor, matchingPolicy, routeFeasibilityError, daysInMonth, dayToDate, pairMarket, previewNewRoute, previewRoutePatch, seasonalRouteProfit, simulateRouteWeek,
   type RoutePatch, type RoutePreview, type RouteReport, type RouteWeek, type SimState,
 } from "@arg/sim";
 import type { ProfitTier } from "../map/types";
@@ -320,4 +320,23 @@ export function formatTargetLf(lf: number | null | undefined): string {
 /** Read-only value for the inspector row: "80%" or "off". */
 export function describeTargetLf(lf: number | null | undefined): string {
   return lf == null ? "off" : `${formatTargetLf(lf)}%`;
+}
+
+/**
+ * Where a route's load-factor target comes from: its own setting, else the fare policy covering it (which re-prices the route every
+ * week and so overwrites a manual fare), else off. `policyName` is set only for the policy case.
+ */
+export function describeEffectiveTarget(
+  route: Pick<Route, "id" | "origin" | "destination" | "targetLoadFactor">,
+  policies: readonly FarePolicy[] | undefined,
+  airports?: Parameters<typeof matchingPolicy>[2],
+  hubs?: Parameters<typeof matchingPolicy>[3],
+): { text: string; policyName: string | null } {
+  if (route.targetLoadFactor != null) return { text: `${formatTargetLf(route.targetLoadFactor)}% (set on this route)`, policyName: null };
+  const policy = matchingPolicy(route as Route, policies, airports, hubs);
+  if (policy && policy.targetLoadFactor != null) {
+    const name = policy.name || "unnamed";
+    return { text: `${formatTargetLf(policy.targetLoadFactor)}% from fare policy "${name}"`, policyName: name };
+  }
+  return { text: "off", policyName: null };
 }

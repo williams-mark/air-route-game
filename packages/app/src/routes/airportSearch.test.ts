@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Airport } from "@arg/contracts";
 import { airports } from "@arg/data";
-import { airportFacets, fold, searchAirports } from "./airportSearch";
+import { airportFacets, fold, resolveEnter, searchAirports } from "./airportSearch";
 import { continentOf, placeLabel, regionName } from "./geoNames";
 
 const ap = (id: string, city: string, name: string, region: string, country: string, slots = 20): Airport =>
@@ -61,4 +61,24 @@ describe("airportFacets", () => {
     expect(airportFacets(list, { country: "DE" }).states).toEqual([]);
   });
   it("fold strips accents", () => { expect(fold("Zürich Ångström")).toBe("zurich angstrom"); });
+});
+
+describe("resolveEnter", () => {
+  const opts = (q: string) => searchAirports(q, list, { limit: 40 });
+  const base = { list, exclude: [] as string[] };
+  it("keeps the committed airport when the field is untouched (the list is unfiltered, its first row is the biggest airport)", () => {
+    const options = opts("");
+    expect(options[0]!.id).toBe("LAX");
+    expect(resolveEnter({ ...base, text: "SFO", value: "SFO", options, index: 0, navigated: false })).toEqual({ kind: "choose", id: "SFO" });
+    expect(resolveEnter({ ...base, text: "XXX", value: "XXX", options, index: 0, navigated: false })).toEqual({ kind: "choose", id: "XXX" });
+  });
+  it("prefers an exact code over the first row, and takes the highlighted row only after arrow keys or a partial search", () => {
+    expect(resolveEnter({ ...base, text: "ber", value: "LAX", options: opts("ber"), index: 0, navigated: false })).toEqual({ kind: "choose", id: "BER" });
+    expect(resolveEnter({ ...base, text: "SFO", value: "SFO", options: opts(""), index: 2, navigated: true })).toEqual({ kind: "choose", id: opts("")[2]!.id });
+    expect(resolveEnter({ ...base, text: "lon", value: "LAX", options: opts("lon"), index: 0, navigated: false })).toEqual({ kind: "choose", id: "LHR" });
+  });
+  it("does not choose an excluded airport and keeps the value when nothing matches", () => {
+    expect(resolveEnter({ ...base, exclude: ["SFO"], text: "SFO", value: "SFO", options: opts(""), index: 0, navigated: false })).toEqual({ kind: "keep" });
+    expect(resolveEnter({ ...base, text: "zzzz", value: "LAX", options: [], index: 0, navigated: false })).toEqual({ kind: "keep" });
+  });
 });

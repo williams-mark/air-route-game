@@ -1,3 +1,4 @@
+import { usdM } from "./money";
 import type { Aircraft, AircraftType, Airport, CabinClass, Command, Day, FarePolicy, Fares, Id, Route, RouteCategory, ServiceLevel, SimEvent } from "@arg/contracts";
 import { canFlyOverwater, isOverwaterRoute } from "@arg/data";
 import { distanceKm, simRunwayM } from "./geo";
@@ -34,8 +35,6 @@ export const COMMAND_PARAMS = {
   deliveryGapMonths: { narrow: 0.5, wide: 1 } as Record<"narrow" | "wide", number>,
   /** Discount off list: base + perLn x ln(count), capped. 1 aircraft 8%, 10 about 22%, 100 about 36%, max 40%. */
   discount: { base: 0.08, perLn: 0.06, max: 0.4 },
-  /** Pre-delivery deposit, fraction of net price, paid at order and credited back at delivery. */
-  depositFraction: 0.15,
   /** Orders accepted for types up to this many years before their introYear. */
   orderLeadYears: 3,
   daysPerMonth: 30.4375,
@@ -214,7 +213,7 @@ function validateRoute(state: SimState, spec: RouteSpec, selfId: Id | null, chec
       r.id !== selfId &&
       ((r.origin === a.id && r.destination === b.id) || (r.origin === b.id && r.destination === a.id)),
   );
-  if (dup) return fail("duplicate_route", `${a.id}-${b.id} is already served by route ${dup.id}; update that route instead.`);
+  if (dup) return fail("duplicate_route", `${a.id}-${b.id} is already flown (${dup.id}); update that route instead.`);
 
   const blocked = routeFeasibilityError(a, b, type, state.world.day);
   if (blocked) return fail(blocked.code, blocked.message);
@@ -314,7 +313,7 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
   if (state.world.cash < depositUsd) {
     return {
       state,
-      result: fail("insufficient_cash", `The ${financing === "purchase" ? "deposit" : "down payment"} is $${(depositUsd / 1e6).toFixed(1)}M but cash is $${(state.world.cash / 1e6).toFixed(1)}M.`),
+      result: fail("insufficient_cash", `The ${financing === "purchase" ? "deposit" : "down payment"} is ${usdM(depositUsd)} but cash is ${usdM(state.world.cash)}.`),
     };
   }
 
@@ -537,7 +536,7 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
       if (isOwnedHub(state, ap.id)) return { state, result: fail("already_hub", `${ap.id} is already one of your hubs.`) };
       const cost = COMMAND_PARAMS.hubUnlockUsd;
       if (state.world.cash < cost) {
-        return { state, result: fail("insufficient_cash", `Unlocking ${ap.id} costs $${(cost / 1e6).toFixed(1)}M but cash is $${(state.world.cash / 1e6).toFixed(1)}M.`) };
+        return { state, result: fail("insufficient_cash", `Unlocking ${ap.id} costs ${usdM(cost)} but cash is ${usdM(state.world.cash)}.`) };
       }
       const text = `Unlocked ${ap.id} (${ap.name}) as a hub for $${(cost / 1e6).toFixed(1)}M.`;
       const next = pushEvents(

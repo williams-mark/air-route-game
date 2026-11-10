@@ -65,3 +65,25 @@ export function airportFacets(list: readonly Airport[], f: AirportFilter = {}): 
     states: toFacets(count(inCountry.filter((a) => a.country === "US").map((a) => a.region)), (k) => regionName({ region: k, country: "US" })),
   };
 }
+
+export type EnterOutcome = { kind: "choose"; id: string } | { kind: "keep" };
+
+/**
+ * What Enter does in an airport field. An exact IATA code in the text wins over the list's first row, and an untouched field
+ * (text equals the committed code, no arrow keys used) keeps its airport: the list is unfiltered then and its first row is just the
+ * biggest airport, which used to replace the origin the player had typed (LAX -> ATL).
+ */
+export function resolveEnter(input: {
+  text: string; value: string | null; options: readonly Pick<Airport, "id">[]; index: number; navigated: boolean;
+  list: readonly Pick<Airport, "id">[]; exclude?: readonly string[];
+}): EnterOutcome {
+  const typed = input.text.trim().toLowerCase();
+  const skip = new Set(input.exclude ?? []);
+  const highlighted = input.options[input.index];
+  if (input.navigated && highlighted) return { kind: "choose", id: highlighted.id };
+  const exact = typed ? input.list.find((a) => a.id.toLowerCase() === typed && !skip.has(a.id)) : undefined;
+  if (exact) return { kind: "choose", id: exact.id };
+  if (input.value && typed === input.value.toLowerCase()) return { kind: "keep" };
+  if (highlighted) return { kind: "choose", id: highlighted.id };
+  return { kind: "keep" };
+}

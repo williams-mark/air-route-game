@@ -89,7 +89,7 @@ export default function FarePolicyView() {
                 <li key={p.id} className={focusId === p.id ? "on" : undefined}>
                   <button className="fp-pick" onClick={() => setPicked(p.id === picked ? null : p.id)} aria-pressed={picked === p.id}>
                     <b>{p.name}</b>
-                    <span>Target {targetText(p.targetLoadFactor)} · Connections −{Math.round(p.connectionMarkdown * 100)}%</span>
+                    <span>Target {targetText(p.targetLoadFactor)} · {Math.round(p.connectionMarkdown * 100) > 0 ? `Connections −${Math.round(p.connectionMarkdown * 100)}%` : "Connections at full fare"}</span>
                     <span className="dim">{scopeText(p)} · covers {coverCount(p.id)} route{coverCount(p.id) === 1 ? "" : "s"}</span>
                   </button>
                   <span className="fp-actions">

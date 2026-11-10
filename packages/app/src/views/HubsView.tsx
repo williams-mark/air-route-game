@@ -7,6 +7,7 @@ import { bridge, useSim } from "../sim/useSim";
 import { useToasts } from "../routes/store";
 import { deltaText, hubCardIds, hubTitle, slotBar, terminalRows, type TerminalRow } from "../hubs/hubs";
 import { AirportSchematic } from "../hubs/AirportSchematic";
+import { AirportField } from "../routes/AirportField";
 import "../hubs/hubs.css";
 
 const n0 = (v: number) => Math.round(v).toLocaleString("en-US");
@@ -20,10 +21,6 @@ export default function HubsView() {
   const [move, setMove] = useState<Move | null>(null);
   const [unlockId, setUnlockId] = useState("");
   const owned = sim ? ownedHubsOf(sim) : [];
-  const unlockable = useMemo(
-    () => (sim?.airports ?? []).filter((a) => !owned.includes(a.id)).sort((a, b) => a.id.localeCompare(b.id, "en")),
-    [sim?.airports, owned.join()], // eslint-disable-line react-hooks/exhaustive-deps
-  );
   const unlockCost = COMMAND_PARAMS.hubUnlockUsd;
   const unlock = () => {
     const res = bridge.dispatch({ kind: "unlockHub", airportId: unlockId });
@@ -56,13 +53,8 @@ export default function HubsView() {
 <p className="hubs-intro">Each round trip a week uses 2 slots at both of its airports. Slot counts, slot fees and the terminal fee tiers below are estimates built for this game, not published airport figures. You can move the slots at your home hub too.</p>
       {sim && (
         <div className="hubs-unlock">
-          <label>Unlock a hub
-            <select value={unlockId} onChange={(e) => setUnlockId(e.target.value)} aria-label="Airport to unlock as a hub">
-              <option value="">Choose an airport</option>
-              {unlockable.map((a) => <option key={a.id} value={a.id}>{a.id} {a.name}</option>)}
-            </select>
-          </label>
-          <button className="primary" disabled={!unlockId || cash < unlockCost} onClick={unlock} title={cash < unlockCost ? "Not enough cash" : undefined}>
+          <AirportField label="Unlock a hub" value={unlockId || null} onChange={(id) => setUnlockId(id ?? "")} exclude={owned} picking={false} onPickMode={() => undefined} hidePick />
+          <button className="primary" disabled={!unlockId || cash < unlockCost} onClick={unlock} title={!unlockId ? "Search for an airport first" : cash < unlockCost ? "Not enough cash" : undefined}>
             Unlock hub for {usd(unlockCost)}
           </button>
           <span className="dim">Only your hubs can base aircraft or receive new deliveries.</span>

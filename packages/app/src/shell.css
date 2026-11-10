@@ -164,6 +164,11 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .foot-note { margin: .8rem 0 0; color: var(--text-dim); font-size: .78rem; }
 .order-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .9rem 1.2rem; align-items: start; }
 .order-form select, .order-form input { width: 100%; }
+/* Same themed controls as the route panel (they are only themed inside .route-panel); without this they are native white boxes in dark mode. */
+.order-form input[type="number"], .order-form select, .hubs-unlock input[type="text"] { font: inherit; font-size: .88rem; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: .4rem .55rem; min-width: 0; }
+.order-form input[type="number"] { font-variant-numeric: tabular-nums; }
+.order-form input:focus-visible, .order-form select:focus-visible, .hubs-unlock input:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; border-color: var(--accent); }
+.order-form input[aria-invalid="true"] { border-color: var(--sev-alert); }
 .order-quote { grid-column: 1 / -1; max-width: 32rem; }
 .order-form .primary { grid-column: 1 / -1; justify-self: start; }
 .order-form > .rp-field:first-child { grid-column: 1 / -1; max-width: 44rem; }
@@ -212,5 +217,6 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .fin-card { display: flex; flex-direction: column; gap: .3rem; text-align: left; padding: .8rem .9rem; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); cursor: pointer; font: inherit; }
 .fin-card span { color: var(--text-dim); font-size: .9em; }
 .fin-card .fin-amt { color: var(--text); font-variant-numeric: tabular-nums; margin-top: .2rem; }
-.fin-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+/* The global button.on fill would make the dim body text unreadable; mark the chosen card with its border only. */
+.fin-card.on { background: var(--panel-2); color: var(--text); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 .fin-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

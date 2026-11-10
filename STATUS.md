@@ -1,3 +1,22 @@
+## lane/qa-playtest-fixes (two scripted 15-year playthroughs, 8-10 Nov 2026; app plus small sim message changes)
+Two agents played 2015-2029 from LAX with no context beyond "build a semi-realistic airline" (one drove `RealSimBridge` from a script, one drove the UI with Playwright). Fixed here:
+- Route creator: Enter in an untouched airport field kept the airport but used to take the list's first row (LAX became ATL); `resolveEnter` (routes/airportSearch.ts, tested). Open route is disabled, with the reason as its tooltip, when the pair is already flown, the draft is invalid or the origin hub lacks block hours (the preview said feasible, the command refused). "Use best" is capped to what the hub can fly and priced on the same live model as the headline, and is hidden when it is not better. The chart note says it is the standalone model.
+- Hubs: "Unlock a hub" is the searchable airport field, not a 1,000-entry select.
+- Money text: `usdM`/`usdK` (sim/src/money.ts) so refusals read "-$167.5M", not "$-167.5M"; the duplicate-route message no longer says "route route-1".
+- Orders: quantity must be a whole number 1-max (no silent rounding of 2.5, 0 or -3); the quote shows the balances already owed at delivery on open purchase orders and cash after all of them (`orderExposure.ts`). The sim still does not check cash at delivery (see open).
+- Feed: "Offer expired" and "Offer expiring soon" are quiet notices; the 60-item trim drops routine notices before alerts; the cash alert repeats monthly while overdrawn and says what to do. Dock pill no longer shows "0" next to "5 new".
+- Fare policy: the route inspector shows the effective target and its source ("88% from fare policy ...") and warns that a typed fare will be overwritten weekly (`describeEffectiveTarget`).
+- Decision cards: a frequency increase is offered only when the route's own forecast says it adds profit, and in steps of at most half the current frequency (no more "add 37 a week" on a 180 km route).
+- Start screen: the hint no longer shifts the label grid; New game starts paused. Autosave also runs on `pagehide` (best effort). Cabin designer warns at 100% length. "Connections -0%" reads "Connections at full fare". Order and unlock inputs are themed in dark mode. Unused `COMMAND_PARAMS.depositFraction` (0.15) removed; the live deposit is `FINANCING_PARAMS.purchaseDownFraction` (20%).
+- Gate: typecheck, test (data 82, sim 382, app 202), build green.
+Open (found by the playthroughs, not fixed; most need an owner decision):
+- No credit limit or bankruptcy: purchase balances fall due at delivery unchecked and cash reached -$567M to -$727M. Needs a rule (loan, forced sale or bankruptcy).
+- No sale, return or early lease exit of aircraft; no commonality cost for a mixed fleet.
+- Balance: margins 26-37% (real airlines 5-15%), no 2020 shock, fuel series flat after 2026, used offers up to 80% off appear often.
+- No end of campaign (no review or score at 15 years or 2025).
+- Target load factor re-solves weekly and swings fares 25-50% a quarter; the solver ended 4 points under an 85% target in one run.
+- Sandbox pauses the clock with no obvious way back; aircraft names differ between cards, toasts and tables (A321ceo vs A321, B737-800 vs Boeing 737-800); the route creator needs aircraft already based at the origin hub and offers no move flow.
+
 ## lane/start-year (optional start year, prior-generation aircraft)
 - Start year: the new game form has a Start year field (default 2015). The sim takes `startYear` and `presentYear` in `startingScenario` (`startYearError` in sim/src/time/startYear.ts validates them; the sim never reads a clock). The campaign calendar is absolute (day 0 = 2015-01-01, negative before), so `jan1Day(year)` gives the start day and every year-keyed rule still works. 2015 is byte-identical to before.
 - Floor: MIN_START_YEAR = 1965, but the effective earliest start is 1972: the data has no sourced aircraft in production before the DC-10-30 (introduced 1972). Confirmed and omitted types (707, DC-8, DC-9, 727, 737-100/200, 747-100/200/300, L-1011, 767-200, A300) are listed in packages/data/SOURCES.md with the missing fields. Adding them lowers the floor automatically.

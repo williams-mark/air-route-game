@@ -151,6 +151,7 @@ export function CabinEditor({ type, layout, onChange, day, defaultRoute }: Props
           <ul className="issues" role="status">
             {v.errors.map((e, i) => <li key={`e${i}`} className="err">{e.message}</li>)}
             {v.warnings.map((e, i) => <li key={`w${i}`} className="warn">{e.message}</li>)}
+            {v.ok && used >= 0.99 && <li className="warn">The cabin is full: there is no length left for more rows or a bigger seat pitch.</li>}
             {v.ok && v.warnings.length === 0 && <li className="ok">Layout is valid.</li>}
           </ul>
         </section>

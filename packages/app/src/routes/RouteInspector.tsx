@@ -1,14 +1,14 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { CabinClass, Route } from "@arg/contracts";
 import { airportById, aircraftTypes } from "@arg/data";
-import { SERVICE_LEVEL_NAME, connectingShare, dayToDate } from "@arg/sim";
+import { SERVICE_LEVEL_NAME, connectingShare, dayToDate, playerHubs } from "@arg/sim";
 import { cabinLoadsOf } from "../hubboard/hubBoard";
 import { useUi } from "../store";
 import { bridge, useSim } from "../sim/useSim";
 import { IconAlert } from "../shell/icons";
 import { MonthBars } from "./charts";
 import { FareFields, FrequencyField, Stat, useDebounced } from "./editor";
-import { CABINS, CABIN_NAME, FREQ_MAX, describeTargetLf, faresToText, formatTargetLf, liveSeasonal, livePreview, operatingMix, parseFares, parseTargetLf, ownershipReason, profitTier, projectRoute, routeName, seasonalProfit, substitutionText, typeOwnership } from "./helpers";
+import { CABINS, CABIN_NAME, FREQ_MAX, describeEffectiveTarget, describeTargetLf, faresToText, formatTargetLf, liveSeasonal, livePreview, operatingMix, parseFares, parseTargetLf, ownershipReason, profitTier, projectRoute, routeName, seasonalProfit, substitutionText, typeOwnership } from "./helpers";
 import { pct, usd, usdSigned } from "./fmt";
 import { useToasts } from "./store";
 import { RouteAircraft } from "./RouteAircraft";
@@ -49,6 +49,9 @@ export function RouteInspector({ route }: { route: Route }) {
   useEffect(() => { setLfText(formatTargetLf(route.targetLoadFactor)); setLfError(null); }, [route.targetLoadFactor]);
 
   const wkDay = Math.floor(day / 7) * 7;
+  // A fare policy covering the route re-prices it every week; say so, because that overwrites any fare typed below.
+  const simNow = bridge.getSim?.() ?? null;
+  const effTarget = describeEffectiveTarget(route, simNow?.world.farePolicies, simNow?.airports, simNow ? playerHubs(simNow) : undefined);
   const a = airportById.get(route.origin), b = airportById.get(route.destination);
   const type = aircraftTypes.find((t) => t.id === route.typeId);
   // The sim's own report when there is one (real bridge); otherwise a projection from the route model.
@@ -161,7 +164,7 @@ export function RouteInspector({ route }: { route: Route }) {
           <h3 id="rp-sched">Schedule and fares</h3>
           <dl className="mini rp-dl">
             <dt>Frequency</dt><dd>{route.weeklyFrequency} per week each way ({ev.flightsPerWeek} flights)</dd>
-            <dt>Target load factor</dt><dd>{describeTargetLf(route.targetLoadFactor)}</dd>
+            <dt>Target load factor</dt><dd>{effTarget.text}</dd>
             <dt>Aircraft</dt><dd>{substituted ?? route.typeId}, {Math.round(ev.seatsPerFlight)} seats per flight, {sched ? `${sched.aircraftIds.length} assigned` : `${ev.aircraftEquivalent.toFixed(1)} needed`}</dd>
             {CABINS.slice().reverse().map((c) => cabinFare(c) !== undefined && (<Fragment key={c}><dt>{CABIN_NAME[c]}</dt><dd>{usd(cabinFare(c)!)}</dd></Fragment>))}
           </dl>
@@ -208,6 +211,7 @@ export function RouteInspector({ route }: { route: Route }) {
           <h3 id="rp-edit">Adjust</h3>
           <FrequencyField value={freq} onChange={setFreq} />
           <FareFields text={fares} onChange={setFares} km={ev.distanceKm} from={airportById.get(route.origin)} to={airportById.get(route.destination)} />
+          {effTarget.policyName && <p className="rp-err" role="note">Fare policy "{effTarget.policyName}" re-prices this route every week to hit its target, so a fare typed here will not last. Set a target on this route to take it over, or take the route out of the policy.</p>}
           <div className="rp-field rp-lf">
             <label htmlFor={lfId}>Target load factor <span className="hint">%, 50-95, blank = off</span></label>
             <div className="rp-lf-row">

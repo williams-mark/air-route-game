@@ -132,7 +132,19 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const operating = livePrev ? operatingMix(livePrev.scheduling, sim!.world.fleet) : [];
   const substituted = substitutionText(typeId, operating);
   const sweep = useMemo(() => (typeId ? frequencySweep(dDraft, wkDay) : []), [dDraft.origin, dDraft.destination, dDraft.typeId, dDraft.fares, wkDay, typeId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const best = useMemo(() => bestFrequency(sweep), [sweep]);
+  // The suggestion must be something the origin hub can actually fly: the open command refuses more block hours than are free there.
+  const perFlight = sim && typeId ? routeHourSummary(sim, originId, destinationId, typeId, 1) : null;
+  const maxFit = perFlight && perFlight.needed > 0 ? Math.max(0, Math.floor((perFlight.free + 1e-9) / perFlight.needed)) : Infinity;
+  const best = useMemo(() => bestFrequency(sweep.filter((p) => p.frequency <= maxFit)), [sweep, maxFit]);
+  // "Use best" is priced on the same live model as the headline, so the two always compare like with like. The chart below stays the
+  // standalone model (its shape is useful, its absolute numbers are not), and the suggestion is dropped when the live model says it is no better.
+  const liveBest = useMemo(
+    () => (sim && typeId && best && !planned && best.frequency !== dDraft.weeklyFrequency ? previewNewRoute(sim, { ...dDraft, weeklyFrequency: best.frequency }) : null),
+    [best?.frequency, dDraft, typeId, planned, sim?.world.day], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const useBest = best && (planned || !livePrev) ? { frequency: best.frequency, profit: best.profit }
+    : best && liveBest && livePrev && liveBest.figures.feasible && liveBest.figures.profit > livePrev.figures.profit ? { frequency: best.frequency, profit: liveBest.figures.profit }
+    : null;
   const selectedType = aircraftTypes.find((t) => t.id === typeId);
   const issue = typeId ? validateRouteDraft(draft, routes, undefined, undefined, wkDay) : { code: "no_type", message: "No owned type can fly this pair." };
   // Block-hour pool of the origin hub for the chosen type and frequency (live figures).
@@ -160,6 +172,11 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const issueMsg = issue && issue.code !== "duplicate_route" ? issue.message : null;
   const fareMsg = parsed ? null : "Economy fare required.";
   const lfMsg = lf.ok ? null : TARGET_LF_MESSAGE;
+  // The same rules the open command applies: a button that is certain to be refused is disabled and says why.
+  const blockedReason = existing ? "This pair is already flown; update that route instead."
+    : issue ? issue.message
+    : hoursShort ? `Not enough block hours free at ${originId}: fewer flights or another aircraft.`
+    : null;
   const footMsgs = [existingMsg, issueMsg, fareMsg, lfMsg, openError].filter((m): m is string => !!m);
   const mix = (Object.keys(market.shares) as Array<keyof typeof market.shares>);
   return (
@@ -233,9 +250,10 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
           </div>
           {ev && !ev.feasible && <p className="rp-err" role="alert">{ev.infeasibleReasons.join("; ")}</p>}
           {sweep.length > 0 && <FrequencyBars points={sweep} bestFreq={best?.frequency ?? null} current={freq} onPick={setFreq} />}
+          {sweep.length > 0 && livePrev && <p className="rc-note">The chart shows the shape of profit by frequency on a standalone model; the headline and the button use your fleet and rivals.</p>}
           <div className="rp-actions">
-            <button type="button" disabled={!best || best.frequency === freq} onClick={() => best && setFreq(best.frequency)}>
-              {best ? `Use best: ${best.frequency}/wk (${usdSigned(best.profit)})` : "No feasible frequency"}
+            <button type="button" disabled={!useBest || useBest.frequency === freq} onClick={() => useBest && setFreq(useBest.frequency)}>
+              {useBest ? `Use best: ${useBest.frequency}/wk (${usdSigned(useBest.profit)})` : best ? "This frequency is already the best" : "No feasible frequency"}
             </button>
           </div>
         </section>
@@ -243,7 +261,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
       </div>
       <div className="rc-foot">
         <button type="button" onClick={() => end()}>Cancel</button>
-        <button type="button" className="primary" disabled={!typeId || !parsed || !lf.ok} onClick={open}>Open route</button>
+        <button type="button" className="primary" disabled={!typeId || !parsed || !lf.ok || !!blockedReason} title={blockedReason ?? undefined} onClick={open}>Open route</button>
       </div>
     </>
   );

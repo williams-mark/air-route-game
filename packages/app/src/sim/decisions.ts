@@ -99,9 +99,15 @@ export class DecisionEngine {
       const roundTrip = 2 * rep.evaluation.blockHours;
       const capacity = (type.widebody ? 12.5 : 9.5) * 7;
       const room = Math.max(1, Math.floor(capacity / roundTrip));
-      // Missing flights are covered by the aircraft itself; frequency only goes up when the route is already fully flown.
-      const extra = under > 0 ? Math.min(under, room) : room;
-      if (under === 0 && r.weeklyFrequency + extra > COMMAND_PARAMS.maxWeeklyFrequency) continue;
+      // Missing flights are covered by the aircraft itself; frequency only goes up when the route is already fully flown,
+      // and then by a measured step (at most half again), never a jump that swamps a short route.
+      const extra = under > 0 ? Math.min(under, room) : Math.min(room, Math.max(1, Math.ceil(r.weeklyFrequency * 0.5)));
+      if (under === 0) {
+        if (r.weeklyFrequency + extra > COMMAND_PARAMS.maxWeeklyFrequency) continue;
+        // Never offer a frequency increase the route's own forecast says loses money.
+        const after = projectRoute({ ...r, weeklyFrequency: r.weeklyFrequency + extra }, day)?.evaluation;
+        if (!after || after.profit - rep.evaluation.profit <= 0) continue;
+      }
       const score = under * 10 + lf;
       if (!best || score > best.score) best = { r, score, lf, extra };
     }

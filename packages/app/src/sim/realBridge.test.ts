@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { aircraftTypes } from "@arg/data";
 import { dayToDate } from "@arg/sim";
-import { RealSimBridge, classifyNotice } from "./realBridge";
+import { RealSimBridge, classifyNotice, trimNotices } from "./realBridge";
 import { createBridge } from "./create";
 import { monthly } from "./finance";
 
@@ -176,5 +176,19 @@ describe("bridge selection and notices", () => {
     expect(classifyNotice("LAX-SAN is under-supplied: 3 of 7")).toBe("warn");
     expect(classifyNotice("Delivered N014SP (A320N).")).toBe("good");
     expect(aircraftTypes.length).toBeGreaterThan(10);
+  });
+});
+
+describe("trimNotices", () => {
+  const n = (id: number, severity: string) => ({ id, severity });
+  it("drops routine notices before alerts when over the limit", () => {
+    const list = [n(5, "info"), n(4, "info"), n(3, "alert"), n(2, "info"), n(1, "info")];
+    expect(trimNotices(list, 3).map((x) => x.id)).toEqual([5, 4, 3]);
+    expect(trimNotices(list, 2).map((x) => x.id)).toEqual([5, 3]);
+  });
+  it("keeps the newest when everything is an alert, and leaves short lists alone", () => {
+    expect(trimNotices([n(3, "alert"), n(2, "alert"), n(1, "alert")], 2).map((x) => x.id)).toEqual([3, 2]);
+    const short = [n(2, "info"), n(1, "alert")];
+    expect(trimNotices(short, 5)).toEqual(short);
   });
 });

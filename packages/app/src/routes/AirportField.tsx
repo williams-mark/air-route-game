@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { uiAirports as airports } from "../dev/airportSource";
-import { airportFacets, searchAirports, type AirportFilter } from "./airportSearch";
+import { airportFacets, resolveEnter, searchAirports, type AirportFilter } from "./airportSearch";
 import { continentOf, placeLabel, regionName, type Continent } from "./geoNames";
 
 interface Props {
@@ -11,19 +11,23 @@ interface Props {
   picking: boolean;
   onPickMode: () => void;
   autoFocus?: boolean;
+  /** Hide the "Pick on map" toggle (fields outside route creation). */
+  hidePick?: boolean;
 }
 
 const MAX_OPTIONS = 40;
 const byId = new Map(airports.map((a) => [a.id, a]));
 
 /** IATA / city / name / state / country typeahead (ARIA combobox) with filter chips and a "pick on map" toggle. */
-export function AirportField({ label, value, onChange, exclude = [], picking, onPickMode, autoFocus }: Props) {
+export function AirportField({ label, value, onChange, exclude = [], picking, onPickMode, autoFocus, hidePick }: Props) {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const [text, setText] = useState(value ?? "");
   const [open, setOpen] = useState(false);
   const [idx, setIdx] = useState(0);
+  // Arrow keys moved the highlight; until then Enter must not take the list's first row for the player's choice.
+  const [navigated, setNavigated] = useState(false);
   const [filter, setFilter] = useState<AirportFilter>({});
   const [showFilters, setShowFilters] = useState(false);
   useEffect(() => { setText(value ?? ""); }, [value]);
@@ -54,14 +58,18 @@ export function AirportField({ label, value, onChange, exclude = [], picking, on
           ref={input} id={id} type="text" role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list" autoComplete="off" spellCheck={false}
           autoFocus={autoFocus} placeholder="Code, city or country" value={text} maxLength={32}
           aria-activedescendant={open && options[idx] ? `${id}-o-${options[idx]!.id}` : undefined}
-          onChange={(e) => { setText(e.target.value); setOpen(true); setIdx(0); }}
-          onFocus={(e) => { setOpen(true); e.currentTarget.select(); }}
+          onChange={(e) => { setText(e.target.value); setOpen(true); setIdx(0); setNavigated(false); }}
+          onFocus={(e) => { setOpen(true); setNavigated(false); e.currentTarget.select(); }}
           onKeyDown={(e) => {
-            if (e.key === "ArrowDown") { setOpen(true); setIdx((i) => Math.min(options.length - 1, i + 1)); e.preventDefault(); }
-            else if (e.key === "ArrowUp") { setIdx((i) => Math.max(0, i - 1)); e.preventDefault(); }
-            else if (e.key === "PageDown") { setIdx((i) => Math.min(options.length - 1, i + 6)); e.preventDefault(); }
-            else if (e.key === "PageUp") { setIdx((i) => Math.max(0, i - 6)); e.preventDefault(); }
-            else if (e.key === "Enter") { if (open && options[idx]) choose(options[idx]!.id); else commit(); e.preventDefault(); }
+            if (e.key === "ArrowDown") { setOpen(true); setNavigated(true); setIdx((i) => Math.min(options.length - 1, i + 1)); e.preventDefault(); }
+            else if (e.key === "ArrowUp") { setNavigated(true); setIdx((i) => Math.max(0, i - 1)); e.preventDefault(); }
+            else if (e.key === "PageDown") { setNavigated(true); setIdx((i) => Math.min(options.length - 1, i + 6)); e.preventDefault(); }
+            else if (e.key === "PageUp") { setNavigated(true); setIdx((i) => Math.max(0, i - 6)); e.preventDefault(); }
+            else if (e.key === "Enter") {
+              const r = open ? resolveEnter({ text, value, options, index: idx, navigated, list: airports, exclude }) : ({ kind: "keep" } as const);
+              if (r.kind === "choose") choose(r.id); else { setOpen(false); commit(); }
+              e.preventDefault();
+            }
             else if (e.key === "Escape" && open) { setOpen(false); setText(value ?? ""); e.stopPropagation(); }
           }}
         />
@@ -70,7 +78,7 @@ export function AirportField({ label, value, onChange, exclude = [], picking, on
             Filter{activeCount ? ` (${activeCount})` : ""}
           </button>
         )}
-        <button type="button" aria-pressed={picking} onClick={onPickMode} title="Click an airport on the map to set this end">Pick on map</button>
+        {!hidePick && <button type="button" aria-pressed={picking} onClick={onPickMode} title="Click an airport on the map to set this end">Pick on map</button>}
       </div>
       {filterable && showFilters && (
         <div className="af-filters" id={`${id}-filters`} onMouseDown={(e) => e.preventDefault()} role="group" aria-label={`${label} airport filters`}>

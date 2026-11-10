@@ -132,7 +132,9 @@ for (const theme of themes) {
     await page.keyboard.type("Go to Hubs");
     await page.keyboard.press("Enter");
     await heading(page, "Hubs");
-    await page.getByLabel("Airport to unlock as a hub").selectOption("SFO");
+    // "Unlock a hub" is the searchable airport field (it was a 1,000-entry select): type the code, Enter, then unlock.
+    await page.getByRole("combobox", { name: "Unlock a hub" }).fill("sfo");
+    await page.keyboard.press("Enter");
     await page.getByRole("button", { name: /Unlock hub for/ }).click();
     await page.waitForTimeout(200);
     await page.locator(".toast-x").evaluateAll((els) => els.forEach((e) => e.click()));
@@ -290,7 +292,7 @@ for (const theme of themes) {
     assert(/SFO.SAN|SAN.SFO/.test(txt), `new route not listed in Routes. Text: ${txt.slice(0, 300)}`);
   });
 
-  await check(theme, "duplicate route is rejected with a visible error", async () => {
+  await check(theme, "duplicate route is blocked with a visible reason", async () => {
     await nav(page, "Map");
     await page.keyboard.press("n");
     await page.getByRole("combobox", { name: "From" }).fill("lax");
@@ -298,8 +300,10 @@ for (const theme of themes) {
     await page.getByRole("combobox", { name: "To" }).fill("sfo");
     await page.keyboard.press("Enter");
     await page.waitForTimeout(600);
-    await page.getByRole("button", { name: "Open route" }).click();
-    await page.waitForTimeout(500);
+    // The pair is already flown: Open route is disabled up front and the reason is on screen (it used to be clickable and fail with a toast).
+    assert(await page.getByRole("button", { name: "Open route" }).isDisabled(), "Open route should be disabled for an existing pair");
+    const dupText = await page.locator(".rc-msgs").innerText().catch(() => "");
+    assert(/already flown/i.test(dupText), `duplicate reason not shown. Text: ${dupText.slice(0, 200)}`);
     await shot(page, theme, "route-duplicate");
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: /Cancel|Close/ }).first().click({ timeout: 1500 }).catch(() => {});

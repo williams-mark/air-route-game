@@ -91,8 +91,10 @@ export function installAutosave(bridge: SimBridge, opts: { blocked: () => boolea
     if (due) run();
   });
   const vis = () => { if (document.visibilityState === "hidden") run(); };
+  // A reload or tab close does not always report "hidden" first; pagehide covers it (best effort: the write is asynchronous).
   document.addEventListener("visibilitychange", vis);
-  return () => { unsub(); document.removeEventListener("visibilitychange", vis); };
+  window.addEventListener("pagehide", run);
+  return () => { unsub(); document.removeEventListener("visibilitychange", vis); window.removeEventListener("pagehide", run); };
 }
 
 /** Startup mode from the query string: the start screen is skipped by any of these. */

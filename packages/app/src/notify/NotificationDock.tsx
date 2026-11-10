@@ -129,8 +129,8 @@ export function NotificationDock() {
     const urgent = sim.decisions.length > 0;
     return (
       <div className="dock dock-min" ref={rootRef} style={style} data-collapsed="true">
-        <button type="button" className={`dock-pill ${urgent ? "urgent" : ""}`} aria-label={`Notifications, ${count} unresolved. Open (J)`} title="Open notifications (J)" onClick={() => toggleDock()}>
-          <IconBell size={16} /><span className="dock-pill-n">{count}</span>
+        <button type="button" className={`dock-pill ${urgent ? "urgent" : ""}`} aria-label={`Notifications, ${count} unresolved${count === 0 && notices.length > 0 ? `, ${notices.length} new` : ""}. Open (J)`} title="Open notifications (J)" onClick={() => toggleDock()}>
+          <IconBell size={16} />{(count > 0 || notices.length === 0) && <span className="dock-pill-n">{count}</span>}
           {count === 0 && notices.length > 0 && <span className="dock-pill-sub">{notices.length} new</span>}
         </button>
       </div>
