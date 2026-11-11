@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { aircraftTypes } from "@arg/data";
-import { homeHubOf, maintenanceEnabled, ownedHubsOf, refitQuote, typeBlockHours } from "@arg/sim";
+import { homeHubOf, maintenanceEnabled, ownedHubsOf, refitQuote, typeBlockHours, type DisposalAction } from "@arg/sim";
 import type { CabinLayout } from "@arg/contracts";
 import { CabinDialog } from "../cabin/CabinDialog";
 import { usd } from "../cabin/helpers";
@@ -8,6 +8,8 @@ import { useToasts } from "../routes/store";
 import { usePickerMemory } from "../aircraft/memory";
 import { buildTypeRows, hubOptions, atHub, type HubFilter, type TypeRow } from "../fleet/typeTable";
 import { ownedHubChoices } from "../hubs/hubs";
+import { DisposeDialog } from "../fleet/DisposeDialog";
+import { disposeOptions, planDisposal } from "../fleet/disposePlan";
 import type { FleetItem } from "../sim/bridge";
 import { bridge, useSim, useSimSelector } from "../sim/useSim";
 import { useUi } from "../store";
@@ -19,9 +21,11 @@ const fmtHours = (h: number) => Math.round(h).toLocaleString("en-US");
 const canRefit = (a: FleetItem) => (a.status === "active" || a.status === "stored") && !!a.layout;
 
 /** Actions on several selected aircraft (all within the open type). */
-function BulkBar({ count, hubs, home, canCabin, cabinHint, onMove, onCabin, onClear }: {
+function BulkBar({ count, hubs, home, canCabin, cabinHint, sellable, returnable, onMove, onCabin, onDispose, onClear }: {
   count: number; hubs: string[]; home?: string; canCabin: boolean; cabinHint: string | null;
-  onMove: (hubId: string) => void; onCabin: () => void; onClear: () => void;
+  /** How many of the selected aircraft are owned (can be sold) and leased (can be returned), not counting those that fly routes. */
+  sellable: number; returnable: number;
+  onMove: (hubId: string) => void; onCabin: () => void; onDispose: (action: DisposalAction) => void; onClear: () => void;
 }) {
   const [target, setTarget] = useState<string>(home ?? hubs[0] ?? "");
   return (
@@ -34,17 +38,20 @@ function BulkBar({ count, hubs, home, canCabin, cabinHint, onMove, onCabin, onCl
       </label>
       <button type="button" onClick={() => onMove(target)} disabled={!target}>Move selected</button>
       <button type="button" disabled={!canCabin} title={cabinHint ?? undefined} onClick={onCabin}>Cabin change{"…"}</button>
+      <button type="button" disabled={sellable === 0} title={sellable === 0 ? "None of the selected aircraft is owned outright and off its routes" : undefined} onClick={() => onDispose("sell")}>Sell{sellable > 0 ? ` ${sellable}` : ""}{"…"}</button>
+      <button type="button" disabled={returnable === 0} title={returnable === 0 ? "None of the selected aircraft is leased and off its routes" : undefined} onClick={() => onDispose("return")}>Return{returnable > 0 ? ` ${returnable}` : ""}{"…"}</button>
       <button type="button" className="link-btn" onClick={onClear}>Clear selection</button>
     </div>
   );
 }
 
 /** Top-level rows: one per aircraft type, with a hub filter and inline expansion to the individual aircraft. */
-function TypeTable({ rows, fleet, hub, home, hubs, openType, onOpen, selected, onToggle, onToggleAll, bulk, onCabin, onMove, onOrder }: {
+function TypeTable({ rows, fleet, hub, home, hubs, openType, onOpen, selected, onToggle, onToggleAll, bulk, onCabin, onMove, onOrder, onDispose }: {
   rows: TypeRow[]; fleet: FleetItem[]; hub: HubFilter; home?: string; hubs: string[];
   openType: string | null; onOpen: (typeId: string | null) => void;
   selected: ReadonlySet<string>; onToggle: (aircraftId: string) => void; onToggleAll: (ids: string[], on: boolean) => void;
   bulk: ReactNode; onCabin: (a: FleetItem) => void; onMove: (aircraftId: string, hubId: string) => void; onOrder: (typeId: string) => void;
+  onDispose: (a: FleetItem) => void;
 }) {
   return (
     <table className="fleet-types" aria-label="Aircraft types">
@@ -85,7 +92,7 @@ function TypeTable({ rows, fleet, hub, home, hubs, openType, onOpen, selected, o
                         <table className="fleet-members" aria-label={`${r.typeName} aircraft`}>
                           <thead><tr>
                             <th scope="col"><input type="checkbox" aria-label={`Select all ${r.typeName} shown`} checked={allOn} onChange={() => onToggleAll(members.map((m) => m.id), !allOn)} /></th>
-                            <th scope="col">Tail</th><th scope="col">Hub</th><th scope="col">Status</th><th scope="col">Flying</th><th scope="col">Age</th><th scope="col">Move to hub</th><th scope="col">Cabin</th>
+                            <th scope="col">Tail</th><th scope="col">Hub</th><th scope="col">Status</th><th scope="col">Flying</th><th scope="col">Age</th><th scope="col">Move to hub</th><th scope="col">Cabin</th><th scope="col">Sell / return</th>
                           </tr></thead>
                           <tbody>
                             {members.map((a) => (
@@ -110,6 +117,15 @@ function TypeTable({ rows, fleet, hub, home, hubs, openType, onOpen, selected, o
                                     <button type="button" className="card-action" disabled title="Only active or stored aircraft with a cabin layout can be refitted" aria-label={`Cabin of ${a.tail}`}>Cabin</button>
                                   )}
                                 </td>
+                                <td>
+                                  {(() => {
+                                    const o = disposeOptions(a);
+                                    if (!o) return "–";
+                                    const word = o.action === "sell" ? "Sell" : "Return";
+                                    return <button type="button" className="card-action" disabled={o.blocker !== null} title={o.blocker ?? (o.action === "sell" ? "Sell this aircraft to a dealer" : "Return this lease early for a termination fee")}
+                                      onClick={() => onDispose(a)} aria-label={`${word} ${a.tail}`}>{word}{o.blocker === null ? "…" : ""}</button>;
+                                  })()}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -129,9 +145,11 @@ function TypeTable({ rows, fleet, hub, home, hubs, openType, onOpen, selected, o
 
 export default function FleetView() {
   const fleet = useSimSelector((s) => s.fleet);
+  const credit = useSimSelector((s) => s.credit);
   const { day, cash } = useSim();
   const push = useToasts((s) => s.push);
   const [refitting, setRefitting] = useState<FleetItem[] | null>(null);
+  const [disposing, setDisposing] = useState<{ items: FleetItem[]; action: DisposalAction } | null>(null);
   const setView = useUi((s) => s.setView);
   const [hub, setHub] = useState<HubFilter>("all");
   const [openType, setOpenType] = useState<string | null>(null);
@@ -176,6 +194,22 @@ export default function FleetView() {
     if (fails.length === 0) push("good", targets.length === 1 ? `${targets[0]!.tail} is in the hangar for its cabin refit.` : `${ok} aircraft are in the hangar for their cabin refit.`);
     else push("alert", `${ok} sent to refit; ${fails.length} not. ${fails[0]}`);
   };
+  const openDispose = (items: FleetItem[], action: DisposalAction) => { if (sim) setDisposing({ items, action }); };
+  const confirmDispose = () => {
+    if (!disposing) return;
+    const { items, action } = disposing;
+    setDisposing(null);
+    let ok = 0;
+    const fails: string[] = [];
+    for (const a of items) {
+      const res = bridge.dispatch(action === "sell" ? { kind: "sellAircraft", aircraftId: a.id } : { kind: "returnLease", aircraftId: a.id });
+      if (res && !res.ok) fails.push(res.error.message); else ok++;
+    }
+    setSelected(new Set());
+    const verb = action === "sell" ? "Sold" : "Returned";
+    if (fails.length === 0) push("good", ok === 1 ? `${verb} ${items[0]!.tail}.` : `${verb} ${ok} aircraft.`);
+    else push("alert", `${ok} ${verb.toLowerCase()}; ${fails.length} not. ${fails[0]}`);
+  };
   const toggle = (aircraftId: string) => setSelected((s) => { const n = new Set(s); if (n.has(aircraftId)) n.delete(aircraftId); else n.add(aircraftId); return n; });
   const toggleAll = (ids: string[], on: boolean) => setSelected((s) => { const n = new Set(s); for (const id of ids) { if (on) n.add(id); else n.delete(id); } return n; });
   const changeOpen = (typeId: string | null) => { setOpenType(typeId); setSelected(new Set()); };
@@ -186,9 +220,11 @@ export default function FleetView() {
   const sameType = new Set(selList.map((a) => a.typeId)).size === 1;
   const refitable = selList.filter(canRefit);
   const cabinHint = !sameType ? "Cabin change works on one aircraft type at a time." : refitable.length === 0 ? "None of the selected aircraft can be refitted now." : null;
+  const bulkOk = (action: DisposalAction) => selList.filter((a) => { const o = disposeOptions(a); return o !== null && o.action === action && o.blocker === null; });
   const bulk = selList.length > 0 ? (
     <BulkBar count={selList.length} hubs={hubs} home={home} canCabin={cabinHint === null} cabinHint={cabinHint}
-      onMove={moveSelected} onCabin={() => setRefitting(refitable)} onClear={() => setSelected(new Set())} />
+      sellable={bulkOk("sell").length} returnable={bulkOk("return").length}
+      onMove={moveSelected} onCabin={() => setRefitting(refitable)} onDispose={(action) => openDispose(bulkOk(action), action)} onClear={() => setSelected(new Set())} />
   ) : null;
 
   const n = (st: FleetItem["status"]) => fleet.filter((a) => a.status === st).length;
@@ -220,8 +256,12 @@ export default function FleetView() {
       </div>
       <div className="fleet-scroll">
         <TypeTable rows={typeRows} fleet={fleet} hub={hub} home={home} hubs={hubs} openType={openType} onOpen={changeOpen}
-          selected={selected} onToggle={toggle} onToggleAll={toggleAll} bulk={bulk} onCabin={(a) => setRefitting([a])} onMove={move} onOrder={orderType} />
+          selected={selected} onToggle={toggle} onToggleAll={toggleAll} bulk={bulk} onCabin={(a) => setRefitting([a])} onMove={move} onOrder={orderType} onDispose={(a) => openDispose([a], disposeOptions(a)?.action ?? "sell")} />
       </div>
+      {disposing && sim && (
+        <DisposeDialog plan={planDisposal(sim, disposing.items, disposing.action)} distress={!!credit?.distress}
+          onConfirm={confirmDispose} onClose={() => setDisposing(null)} />
+      )}
       {refitting && refitType && refitting.length > 0 && refitting[0]!.layout && (
         <CabinDialog
           title={refitting.length === 1 ? `Refit ${refitting[0]!.tail} (${refitType.name})` : `Refit ${refitting.length} ${refitType.name}`}

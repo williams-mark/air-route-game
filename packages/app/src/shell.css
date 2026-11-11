@@ -246,3 +246,16 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .credit-status { margin: .6rem 0 0; font-size: .85rem; }
 .credit-status.bad { color: var(--neg); }
 .cancel-confirm { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; font-size: .8rem; }
+
+/* Sell / return dialog (fleet/DisposeDialog.tsx) */
+.dispose-dialog { width: min(36rem, 100%); }
+.dispose-body { padding: 1rem; display: grid; gap: .8rem; }
+.dispose-lines { list-style: none; margin: 0; padding: 0; max-height: 14rem; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.dispose-lines li { display: flex; justify-content: space-between; gap: .8rem; padding: .4rem .7rem; border-bottom: 1px solid var(--line); font-size: .85rem; }
+.dispose-lines li:last-child { border-bottom: 0; }
+.dispose-lines li.refused { background: var(--panel-2); }
+.dispose-lines .dl-amt { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dispose-lines .dl-why { text-align: right; font-size: .8rem; }
+.dispose-dialog .dialog-foot { display: flex; gap: .6rem; justify-content: space-between; align-items: center; padding: .8rem 1rem; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.dispose-totals { margin: 0; }
+.fleet-dispose { display: flex; gap: .4rem; }

@@ -2,8 +2,8 @@
 //
 //   credit limit = base + advance rate x value of owned aircraft + months of revenue
 //   cash may go negative down to minus the limit; the overdrawn amount pays interest daily
-//   cash below minus the limit is "distress": a grace period starts; cure it (close routes, cancel orders) or the airline fails
-import type { Day, Id } from "@arg/contracts";
+//   cash below minus the limit is "distress": a grace period starts; cure it (close routes, sell idle aircraft, cancel orders) or the airline fails
+import type { AircraftType, Day, Id } from "@arg/contracts";
 import { CREDIT_PARAMS, FINANCING_PARAMS, LIFECYCLE_PARAMS } from "../fleet/lifecycle";
 import { usdM } from "../money";
 import type { CreditState, SimState } from "../state";
@@ -13,17 +13,24 @@ const EMPTY_CREDIT: CreditState = { distressSinceDay: null, lastReminderDay: nul
 export const creditOf = (state: Pick<SimState, "credit">): CreditState => state.credit ?? EMPTY_CREDIT;
 export const isBankrupt = (state: Pick<SimState, "credit">): boolean => state.credit?.bankrupt != null;
 
+/** Share of list price an aircraft of this age is still worth: straight line from 1 to the residual share over the hard lifespan. */
+export function keptValueFraction(ageDays: number): number {
+  const life = LIFECYCLE_PARAMS.maxAgeYears * LIFECYCLE_PARAMS.daysPerYear;
+  return Math.max(CREDIT_PARAMS.residualValueFraction, 1 - (1 - CREDIT_PARAMS.residualValueFraction) * (ageDays / life));
+}
+
+/** Depreciated (book) value of one aircraft of this type and age, USD: list price x kept fraction. The credit line and the sale value both start here. */
+export const aircraftBookValueUsd = (type: Pick<AircraftType, "listPriceUsdM">, ageDays: number): number => type.listPriceUsdM * 1e6 * keptValueFraction(ageDays);
+
 /** Depreciated value of the aircraft we own outright (delivered, bought with financing "purchase"); leased and pre-economics aircraft are not ours to pledge. */
 export function fleetCollateralUsd(state: Pick<SimState, "world" | "aircraftTypes">): number {
   const types = new Map(state.aircraftTypes.map((t) => [t.id, t]));
-  const life = LIFECYCLE_PARAMS.maxAgeYears * LIFECYCLE_PARAMS.daysPerYear;
   let total = 0;
   for (const ac of state.world.fleet) {
     if (ac.status === "delivery" || ac.financing !== "purchase") continue;
     const t = types.get(ac.typeId);
     if (!t) continue;
-    const kept = Math.max(CREDIT_PARAMS.residualValueFraction, 1 - (1 - CREDIT_PARAMS.residualValueFraction) * (ac.ageDays / life));
-    total += t.listPriceUsdM * 1e6 * kept;
+    total += aircraftBookValueUsd(t, ac.ageDays);
   }
   return total;
 }
@@ -167,7 +174,7 @@ export function stepCredit(prev: SimState, next: SimState, interest: number): Cr
     c = c ?? { ...EMPTY_CREDIT, lastInterestUsd: interest };
     if (c.distressSinceDay === null) {
       c = { ...c, distressSinceDay: day, lastReminderDay: day };
-      notices.push(`Financial distress: cash ${usdM(cash)} is ${usdM(-cash - limit)} beyond your ${usdM(limit)} credit line. You have ${CREDIT_PARAMS.graceDays} days to get back within it. Close routes that lose money, or cancel pending aircraft orders (the deposit is forfeited).`);
+      notices.push(`Financial distress: cash ${usdM(cash)} is ${usdM(-cash - limit)} beyond your ${usdM(limit)} credit line. You have ${CREDIT_PARAMS.graceDays} days to get back within it. Close routes that lose money, sell idle aircraft you own outright, or cancel pending aircraft orders (the deposit is forfeited).`);
     } else if (day - c.distressSinceDay >= CREDIT_PARAMS.graceDays) {
       c = { ...c, bankrupt: { day } };
       notices.push(`Bankruptcy: cash stayed beyond the credit line for ${CREDIT_PARAMS.graceDays} days (${usdM(cash)} against a ${usdM(limit)} line). ${prev.airlineName} has ceased operations.`);

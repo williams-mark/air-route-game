@@ -160,6 +160,14 @@ export interface CampaignState {
   peakCashUsd: number;
 }
 
+/** Fleet commonality overhead bookkeeping (fleet/diversity.ts). Absent until the overhead is first charged, so airlines within the free type allowance are byte-identical to before. */
+export interface DiversityState {
+  /** Charged on the most recent day, USD (part of that day's costs, in FinanceSnapshot.costs). */
+  lastUsd: number;
+  /** Charged since the start, USD. */
+  totalUsd: number;
+}
+
 export interface SimState {
   world: WorldState;
   airports: Airport[];
@@ -192,6 +200,9 @@ export interface SimState {
   credit?: CreditState;
   /** Campaign end and review; absent = endless (see CampaignState). */
   campaign?: CampaignState;
+
+  /** Fleet commonality overhead charged so far; absent until first charged. */
+  diversity?: DiversityState;
   /** Fleet-planner steering of the scheduler (pins, preferred types, spares). Absent = defaults. */
   planner?: PlannerState;
   /** Monotonic counters for ids: route, aircraft, order. */

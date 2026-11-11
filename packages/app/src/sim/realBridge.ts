@@ -7,7 +7,7 @@ import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as rawAirports, terminalsFor } from "@arg/data";
 import {
   applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, LIFECYCLE_PARAMS, dayToDate, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay, campaignReview, campaignReviewDue, type CampaignReview, type CampaignCommand,
-  validateSimState, type Clock, type SimState, type HubCommand, type FinanceCommand, homeHubOf, creditStatus, isBankrupt,
+  validateSimState, type Clock, type SimState, type HubCommand, type FinanceCommand, homeHubOf, creditStatus, isBankrupt, fleetDiversity, holdingOf,
 } from "@arg/sim";
 
 import type {
@@ -219,7 +219,7 @@ export class RealSimBridge implements SimBridge {
     if (this.frozen()) { this.clock.setSpeed(0); return; }
     this.sim = stepDay(this.sim);
     const snap = this.sim.events.find((e): e is Extract<SimEvent, { kind: "finance" }> => e.kind === "finance");
-    if (snap) this.ledger.push(dayRecord(snap.snapshot, this.sim.routeReports, this.sim.credit?.lastInterestUsd ?? 0));
+    if (snap) this.ledger.push(dayRecord(snap.snapshot, this.sim.routeReports, this.sim.credit?.lastInterestUsd ?? 0, this.sim.diversity?.lastUsd ?? 0));
     if (this.frozen()) this.clock.setSpeed(0); // the sim has paused itself (bankruptcy or the campaign review); keep the clock in step
     const raised = this.engine.onDay(this.sim, this.pending);
     if (raised.length) this.pending = [...this.pending, ...raised];
@@ -349,6 +349,7 @@ export class RealSimBridge implements SimBridge {
       ledger: this.ledger.slice(),
       credit: creditStatus(sim),
       review: this.reviewView(),
+      diversity: fleetDiversity(sim),
     };
   }
 
@@ -427,6 +428,7 @@ export function buildFleet(sim: SimState): FleetItem[] {
       hub: ac.hubId ?? homeHubOf(sim),
     };
     if (ac.financing) item.financing = ac.financing;
+    item.holding = holdingOf(sim, ac);
     item.retireYear = dayToDate(day + Math.max(0, LIFECYCLE_PARAMS.maxAgeYears * LIFECYCLE_PARAMS.daysPerYear - ac.ageDays)).year;
     if (meta?.maintenance?.refit) item.refit = true;
     if (meta?.maintenance && (meta.maintenance.refit || maintenanceEnabled())) item.check = { kind: meta.maintenance.check, endDay: meta.maintenance.endDay, daysRemaining: Math.max(0, meta.maintenance.endDay - day) };

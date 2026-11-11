@@ -10,6 +10,7 @@ import { checkCostUsd, checkEndDay, dueCheck, initialMeta, MAINTENANCE_PARAMS, m
 import { FINANCING_PARAMS, isRetired, LIFECYCLE_PARAMS, obsolescenceMultiplier } from "./fleet/lifecycle";
 import { assign, DEFAULT_HOME_HUB } from "./fleet/scheduler";
 import { homeHubOf } from "./fleet/hubs";
+import { diversityOf } from "./fleet/diversity";
 import { plannerPrefs } from "./planner/forecast";
 import { evaluateNetwork } from "./route/network";
 import { pushEvents } from "./commands";
@@ -53,6 +54,8 @@ export { fleetGroups, averageSeats, evaluateWithFleet } from "./route/routeModel
 export type { FleetGroup } from "./route/routeModel";
 export * from "./commands";
 export * from "./fleet/hubs";
+export * from "./fleet/diversity";
+export * from "./fleet/disposal";
 export * from "./scenario";
 export * from "./offers";
 export * from "./cabin";
@@ -305,6 +308,9 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     const overhead = params.overheadPerAircraftPerDay * (financing === "lease" ? 1 + FINANCING_PARAMS.leaseOperatingUplift : 1);
     fleetCost += lease / 30.4375 + overhead;
   }
+  // Fleet commonality: every aircraft type beyond the free allowance adds crew-training, spares and ops overhead (fleet/diversity.ts).
+  const diversity = diversityOf(fleet.filter((ac) => !retiredIds.has(ac.id)));
+  fleetCost += diversity.dailyUsd;
   // Overdraft interest on the cash balance at the start of the day (credit line, finance/credit.ts); a company-level cost.
   const interest = overdraftInterestUsd(world.cash);
   const costs = routeCosts + fleetCost + interest;
@@ -328,6 +334,10 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     routeReports: reports,
     events,
     fleetMeta: meta,
+    // Absent until the overhead is first charged, so airlines inside the free type allowance keep a byte-identical state.
+    ...(diversity.dailyUsd > 0 || state.diversity
+      ? { diversity: { lastUsd: diversity.dailyUsd, totalUsd: (state.diversity?.totalUsd ?? 0) + diversity.dailyUsd } }
+      : {}),
   };
   const credit = stepCredit(state, next, interest);
   const done: SimState = credit.credit === next.credit ? next : { ...next, credit: credit.credit };
