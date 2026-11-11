@@ -8,6 +8,38 @@ export const FAMILY_BY_ID: Readonly<Record<string, string>> = {
   "B777-200ER": "777", "B777-300ER": "777",
   "B787-8": "787", "B787-9": "787", "B787-10": "787",
   "B747-400": "747",
+  "B707-120": "707",
+  "B707-120B": "707",
+  "B707-320": "707",
+  "B707-420": "707",
+  "B707-320B": "707",
+  "B707-320C": "707",
+  "B720": "707",
+  "B720B": "707",
+  "B717-200": "717",
+  "B727-100": "727",
+  "B727-100C": "727",
+  "B727-200": "727",
+  "B727-200ADV": "727",
+  "B737-100": "737 Original",
+  "B737-200": "737 Original",
+  "B737-200ADV": "737 Original",
+  "B737-300": "737 Classic",
+  "B737-400": "737 Classic",
+  "B737-500": "737 Classic",
+  "B747-100": "747",
+  "B747-200B": "747",
+  "B747-300": "747",
+  "B747SP": "747",
+  "B747-400ER": "747",
+  "B757-300": "757",
+  "B767-200": "767",
+  "B767-200ER": "767",
+  "B767-300": "767",
+  "B767-400ER": "767",
+  "B777-200": "777",
+  "B777-200LR": "777",
+  "B777-300": "777",
   "DC10-30": "DC-10",
   "A319": "A320 family", "A320": "A320 family", "A321": "A320 family", "A320N": "A320 family", "A321N": "A320 family",
   "A220-100": "A220", "A220-300": "A220",
@@ -19,7 +51,7 @@ export const FAMILY_BY_ID: Readonly<Record<string, string>> = {
 };
 
 /** Display order of families inside a manufacturer (unlisted families sort after, alphabetically). */
-export const FAMILY_ORDER: readonly string[] = ["A220", "A320 family", "A330", "A350", "737 NG", "737 MAX", "757", "767", "777", "787", "747", "DC-10", "CRJ family", "E-Jet", "ATR 72"];
+export const FAMILY_ORDER: readonly string[] = ["A220", "A320 family", "A330", "A350", "707", "717", "727", "737 Original", "737 Classic", "737 NG", "737 MAX", "757", "767", "777", "787", "747", "DC-10", "CRJ family", "E-Jet", "ATR 72"];
 
 /** The family tile an aircraft type belongs to. Falls back to the type's own name for ids not in the table. */
 export function familyOf(type: Pick<AircraftType, "id" | "name">): string {

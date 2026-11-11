@@ -26,7 +26,7 @@ describe("familyOf", () => {
     expect(ids.sort()).toEqual(aircraftTypes.map((t) => t.id).sort());
     expect(tree.map((m) => m.manufacturer)).toEqual(expect.arrayContaining(["Airbus", "Boeing", "Bombardier", "Embraer", "ATR"]));
     const boeing = tree.find((m) => m.manufacturer === "Boeing")!;
-    expect(boeing.families.map((f) => f.family)).toEqual(["737 NG", "737 MAX", "757", "767", "777", "787", "747"]);
+    expect(boeing.families.map((f) => f.family)).toEqual(["707", "717", "727", "737 Original", "737 Classic", "737 NG", "737 MAX", "757", "767", "777", "787", "747"]);
     const t = aircraftTypes[0]!;
     expect(pathOf(t)).toEqual([t.manufacturer, familyOf(t)]);
   });

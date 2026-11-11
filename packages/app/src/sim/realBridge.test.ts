@@ -61,7 +61,8 @@ describe("RealSimBridge", () => {
     const s = b.getState();
     expect(s.day).toBeLessThan(0);
     expect(dayToDate(s.day).year).toBe(1975);
-    expect(s.fleet.every((a) => a.typeId === "DC10-30")).toBe(true);
+    expect(s.fleet.length).toBeGreaterThan(0);
+    expect(s.fleet.every((a) => ["B707-320B", "B707-320C", "B747-100", "DC10-30"].includes(a.typeId))).toBe(true); // types in production in 1975
     const bad = b.dispatch({ kind: "orderAircraft", typeId: "B737-800", count: 1, layout: { sections: [] } });
     expect(bad).toMatchObject({ ok: false, error: { code: "type_unavailable" } });
     const ok = b.dispatch({ kind: "orderAircraft", typeId: "DC10-30", count: 1, layout: { sections: [] } });

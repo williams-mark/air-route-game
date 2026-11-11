@@ -17,21 +17,23 @@ const ty = (id: string) => {
 describe("start year validation", () => {
   it("accepts 2015 and every year from the first fleet year to the present", () => {
     expect(startYearError(2015, PRESENT, types)).toBeNull();
-    expect(startYearError(earliestFleetYear(types)!, PRESENT, types)).toBeNull();
+    expect(startYearError(earliestStartYear(types), PRESENT, types)).toBeNull();
     expect(startYearError(PRESENT, PRESENT, types)).toBeNull();
   });
 
   it("rejects non-integers, years before the floor and years after the present", () => {
     expect(startYearError(2015.5, PRESENT, types)).toMatch(/whole number/);
-    expect(startYearError(earliestStartYear(types) - 1, PRESENT, types)).toMatch(/1972 or later/);
-    expect(earliestStartYear(types)).toBe(1972);
+    expect(startYearError(earliestStartYear(types) - 1, PRESENT, types)).toMatch(/1965 or later/);
+    expect(earliestStartYear(types)).toBe(1965);
     expect(startYearError(PRESENT + 1, PRESENT, types)).toMatch(/cannot be after 2026/);
     expect(startYearError(Number.NaN, PRESENT, types)).toMatch(/whole number/);
   });
 
   it("rejects a year before the first fleet year, and names that year as the earliest start", () => {
-    const first = earliestFleetYear(types)!;
-    expect(first).toBe(ty("DC10-30").introYear);
+    // Historical Boeing jets (707-120, 1958) put the first fleet year below the 1965 policy floor, so the floor is now the earliest start.
+    expect(earliestFleetYear(types)).toBe(ty("B707-120").introYear);
+    const first = earliestStartYear(types);
+    expect(first).toBe(MIN_START_YEAR);
     const msg = startYearError(first - 1, PRESENT, types);
     expect(msg).toBe(`Start year must be ${first} or later.`);
   });
@@ -54,7 +56,8 @@ describe("order availability", () => {
   it("follows the sim date: a 1972 order list has the DC-10 and no 2015 types; orders open lead years early", () => {
     const lead = COMMAND_PARAMS.orderLeadYears;
     const in1972 = orderableTypes(types, 1972, lead).map((t) => t.id);
-    expect(in1972).toEqual(["DC10-30"]);
+    expect(in1972).toContain("DC10-30");
+    expect(in1972).not.toContain("B737-800");
     expect(canOrderNew(ty("B737-800"), 1972, lead)).toBe(false);
     expect(canOrderNew(ty("B737-800"), 1995, lead)).toBe(true); // 1998 introduction, three years of lead
     expect(canOrderNew(ty("B737-800"), 1994, lead)).toBe(false);
@@ -91,19 +94,21 @@ describe("era fleet", () => {
     const plan = eraPlanFor(types, 1975);
     expect(plan.day).toBe(jan1Day(1975));
     const counts = Object.fromEntries(plan.fleet);
-    expect(counts).toEqual({ "DC10-30": 8 });
-    expect(eraTypeFor(types, "B737-800", 1975)?.id).toBe("DC10-30");
+    // With the historical Boeing rows several types are in production in 1975; every planned type must be one of them.
+    expect(Object.keys(counts).length).toBeGreaterThan(0);
+    for (const id of Object.keys(counts)) expect(inProduction(ty(id), 1975), id).toBe(true);
+    expect(inProduction(eraTypeFor(types, "B737-800", 1975)!, 1975)).toBe(true);
   });
 
   it("builds a 1975 scenario with only aircraft in production", () => {
     const s = startingScenario(airports, types, 2015, { startYear: 1975, presentYear: PRESENT });
     expect(s.world.day).toBe(jan1Day(1975));
     expect(dayToDate(s.world.day).year).toBe(1975);
-    // The fleet is trimmed to the aircraft the derived routes use (as for any non-default hub), so 1 to 8 DC-10s.
+    // The fleet is trimmed to the aircraft the derived routes use (as for any non-default hub), so 1 to 8 aircraft.
     expect(s.world.fleet.length).toBeGreaterThanOrEqual(1);
     expect(s.world.fleet.length).toBeLessThanOrEqual(8);
-    expect(s.world.fleet.every((a) => a.typeId === "DC10-30")).toBe(true);
-    expect(s.world.routes.every((r) => r.typeId === "DC10-30")).toBe(true);
+    expect(s.world.fleet.every((a) => inProduction(ty(a.typeId), 1975))).toBe(true);
+    expect(s.world.routes.every((r) => inProduction(ty(r.typeId), 1975))).toBe(true);
     expect(s.world.routes.length).toBeGreaterThanOrEqual(3);
   });
 
@@ -114,8 +119,8 @@ describe("era fleet", () => {
   });
 
   it("throws on an invalid start year instead of building a broken world", () => {
-    expect(() => startingScenario(airports, types, 2015, { startYear: 1960, presentYear: PRESENT })).toThrow(/1972 or later/);
-    expect(() => startingScenario(airports, types, 2015, { startYear: 1971, presentYear: PRESENT })).toThrow(/1972 or later/);
+    expect(() => startingScenario(airports, types, 2015, { startYear: 1960, presentYear: PRESENT })).toThrow(/1965 or later/);
+    expect(() => startingScenario(airports, types, 2015, { startYear: 1964, presentYear: PRESENT })).toThrow(/1965 or later/);
   });
 
   it("a 1980 scenario steps a few days without error", () => {
