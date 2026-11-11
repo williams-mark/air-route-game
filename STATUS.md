@@ -1,3 +1,7 @@
+## lane/hub-move (fix a missing or empty origin hub from the route creator)
+- The creator's Plan section shows a callout when the origin is not an unlocked hub ("Unlock hub for $50M", disabled if cash is short) or has no aircraft of the chosen type or too few free block hours ("Move aircraft to <ORIGIN>": multi-select with tail, type, age, current hub and +h/wk free). Aircraft on routes, on order, in the hangar or stored are disabled with a reason. Reuses `unlockHub` and `setAircraftHub`; `setAircraftHub` itself does not check routes, so the idle-only guard is app-side (`routes/hubMove.ts`). Preview and Open route update at once. e2e check: LAS to PHX.
+- Not done: the frequency default is not recomputed after a move ("Use best" covers it).
+
 ## lane/balance-calibration (pandemic, fuel, margins, used offers)
 Answers the QA open items on balance. Details and sources: MODEL.md "Pandemic shock and margin calibration", fuel and offers sections.
 - 2020-23 pandemic demand shock (`demand/pandemic.ts`, sourced anchors BTS/IATA, intra-year path and 2022-24 recovery are assumptions), five dated notices, off via `SimParams.pandemic=false` / `startingScenario(..., {pandemic:false})`; games starting after it are untouched. Passive airline revenue falls 45-55% in 2020.
@@ -40,7 +44,6 @@ Two agents played 2015-2029 from LAX with no context beyond "build a semi-realis
 - Start screen: the hint no longer shifts the label grid; New game starts paused. Autosave also runs on `pagehide` (best effort). Cabin designer warns at 100% length. "Connections -0%" reads "Connections at full fare". Order and unlock inputs are themed in dark mode. Unused `COMMAND_PARAMS.depositFraction` (0.15) removed; the live deposit is `FINANCING_PARAMS.purchaseDownFraction` (20%).
 - Gate: `pnpm install --frozen-lockfile`, typecheck, test (data 82, sim 382, app 202), build all green; e2e 48/48 (24 checks x 2 themes, no console errors). The Hubs e2e check now types the code into the "Unlock a hub" field instead of using a select.
 Still open after the follow-up lanes (credit/bankruptcy, fleet sales, balance, campaign end, fare swing, UI polish are done; see their entries):
-- The route creator needs aircraft already based at the origin hub and offers no way to move one there (hub-move flow).
 - Greedy-bot margins are erratic; maintenance (A/B/C/D) is suspended; 25-year campaigns run past the 2025 data range; `validateSimState` does not check the campaign field.
 - Seasonal load factor floats up to ~8 points under the fare controller (`seasonalFollow` is the dial).
 
@@ -95,7 +98,7 @@ Still open after the follow-up lanes (credit/bankruptcy, fleet sales, balance, c
 
 # Build status (update at the end of every work session)
 
-Last updated: Tue 10 Nov 2026 (lane/qa-playtest-fixes). Gate green on the lane: typecheck, test (data 82, sim 382, app 202), build, e2e 48/48. Credit/bankruptcy, fare-swing, UI polish, aircraft sales and campaign end are merged on this lane; balance calibration all merged on this lane. Not yet merged to main.
+Last updated: Tue 10 Nov 2026 (lane/qa-playtest-fixes). Gate green on the lane: typecheck, test (data 82, sim 382, app 202), build, e2e 48/48. Credit/bankruptcy, fare-swing, UI polish, aircraft sales, campaign end, balance calibration and hub-move are all merged on this lane. Not yet merged to main.
 
 Last updated: Fri 6 Nov 2026: globe (1,006 airports, tiers, presets), terminals, slots, fare policy, Hubs and Fare policy panels merged on lane/integration-globe; gate green (data 82, sim 330, app ~176). e2e full suite not re-run.
 
