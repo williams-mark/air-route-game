@@ -120,7 +120,7 @@ describe("aircraft", () => {
   it("widebody flag consistent with seats", () => {
     for (const t of aircraftTypes) {
       if (t.widebody) expect(t.maxSeats).toBeGreaterThanOrEqual(300);
-      else expect(t.maxSeats).toBeLessThanOrEqual(250);
+      else expect(t.maxSeats).toBeLessThanOrEqual(270); // single-aisle ceiling: the stretched DC-8 Super 61/63 seat 259/269 in one aisle
     }
   });
   it("range feasibility", () => {

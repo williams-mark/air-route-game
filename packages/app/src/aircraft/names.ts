@@ -4,7 +4,7 @@ import { aircraftTypes } from "@arg/data";
 // The data name is "Airbus A321ceo" or "Boeing 737-800"; the short form drops the maker and keeps the
 // Boeing "B" prefix ("B737-800"), so "A321ceo", "A320neo" and "B737-800" read the same everywhere.
 
-const MAKER = /^(Airbus|Boeing|Embraer|Bombardier|McDonnell Douglas)\s+/;
+const MAKER = /^(Airbus|Boeing|Embraer|Bombardier|McDonnell Douglas|Douglas|Lockheed|Convair|BAC|Hawker Siddeley|Sud Aviation|Fokker|British Aerospace|Aerospatiale-BAC)\s+/;
 
 export function typeShortName(t: { name: string; manufacturer: string }): string {
   const bare = t.name.replace(MAKER, "");
