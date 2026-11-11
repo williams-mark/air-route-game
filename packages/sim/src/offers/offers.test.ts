@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
-import { applyCommand, drainEvents, runDays, startingScenario, stepDay, type Offer, type SimState } from "../index";
+import { applyCommand, drainEvents, runDays, startingScenario, stepDay, stepOffers, type Offer, type SimState } from "../index";
 
 const fresh = (seed = 2015) => startingScenario(airports, aircraftTypes, seed);
 /** Run until at least `n` offers have been created (open or not), returning the state. */
@@ -27,23 +27,39 @@ describe("offer generation", () => {
     expect(JSON.stringify(a.offers)).not.toEqual(JSON.stringify(c.offers));
   });
 
-  it("yields roughly 1-3 offers a month on average, and never more than the open cap", () => {
+  it("yields roughly half an offer to one a month on average, and never more than the open cap", () => {
     let s = fresh(11);
     for (let i = 0; i < 365 * 2; i++) {
       s = stepDay(s);
-      expect(s.offers.length).toBeLessThanOrEqual(8);
+      expect(s.offers.length).toBeLessThanOrEqual(5);
     }
     const made = Object.keys(s.offerLog).length; // upper bound on distinct kind:type pairs, so count notices instead
     const { events } = drainEvents(s);
     const news = events.filter((e) => e.kind === "notice" && e.text.startsWith("New offer:")).length;
-    expect(news / 24).toBeGreaterThan(0.8);
-    expect(news / 24).toBeLessThan(3.5);
+    expect(news / 24).toBeGreaterThan(0.2);
+    expect(news / 24).toBeLessThan(1.5);
     expect(made).toBeGreaterThan(0);
+  });
+
+  it("over 15 years offers only the offers stepOffers makes: none deeper than 50% off, launch at most 20%, about 6 a year", () => {
+    let s = fresh(7);
+    const seen = new Map<string, Offer>();
+    for (let i = 0; i < 15 * 365; i++) {
+      s = stepOffers({ ...s, world: { ...s.world, day: s.world.day + 1 }, pendingEvents: [] });
+      for (const o of s.offers) seen.set(o.id, o);
+    }
+    const all = [...seen.values()];
+    expect(all.length).toBeGreaterThan(30);
+    expect(all.length).toBeLessThan(160);
+    for (const o of all) {
+      expect(o.discount).toBeLessThanOrEqual(0.5 + 1e-9);
+      if (o.kind === "launch") expect(o.discount).toBeLessThanOrEqual(0.2 + 1e-9);
+    }
   });
 
   it("builds each kind within its documented bounds", () => {
     const year = (d: number) => 2015 + d / 365.25;
-    for (const [kind, lo, hi] of [["launch", 0.15, 0.3], ["endOfLife", 0.1, 0.25], ["distressed", 0.2, 0.4]] as const) {
+    for (const [kind, lo, hi] of [["launch", 0.1, 0.2], ["endOfLife", 0.1, 0.25], ["distressed", 0.2, 0.4]] as const) {
       const s = until(3, kind);
       const o = first(s, kind)!;
       const t = aircraftTypes.find((x) => x.id === o.typeId)!;
@@ -69,7 +85,8 @@ describe("offer generation", () => {
     }
     const u = first(until(5, "used"), "used")!;
     expect(u.ageYears).toBeGreaterThanOrEqual(2);
-    expect(u.discount).toBeGreaterThan(0.2);
+    expect(u.discount).toBeGreaterThanOrEqual(0.15 - 1e-9);
+    expect(u.discount).toBeLessThanOrEqual(0.5 + 1e-9);
   });
 
   it("emits a notice for a new offer", () => {
@@ -148,7 +165,7 @@ describe("acceptance", () => {
     const { state } = applyCommand(s, { kind: "acceptOffer", offerId: o.id, quantity: 1 });
     const order = state.orders.at(-1)!;
     expect(order.ageDays).toBeGreaterThan(700);
-    expect(order.ownershipFactor).toBeLessThan(0.8);
+    expect(order.ownershipFactor).toBeLessThan(0.86);
     const done = runDays(state, order.deliveryDays[0]! - state.world.day + 2);
     const ac = done.world.fleet.find((a) => a.id === order.aircraftIds[0])!;
     expect(ac.status).not.toBe("delivery");

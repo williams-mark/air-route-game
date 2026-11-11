@@ -82,6 +82,8 @@ export interface RivalCtx {
   rng: () => number;
   /** Player routes by market key, with the seats and fare they currently put in the market. */
   player: Map<string, { route: Route; seatsPerFlight: number; frequency: number }>;
+  /** Demand multiplier for a pair today (the pandemic shock); absent = 1. */
+  demandFactor?: (a: Airport, b: Airport) => number;
 }
 
 /** Stricter of the data package's feasibility (`canFlyRoute`) and the ledger's own range/runway test. */
@@ -158,7 +160,8 @@ export function evaluateMarket(ctx: RivalCtx, a: Airport, b: Airport, entries: E
   const dist = distanceKm(a, b);
   const key = marketKey(a.id, b.id);
   const market = marketOnDay(a, b, ctx.day);
-  const demand = segmentMap((s) => market.bySegment[s]);
+  const shock = ctx.demandFactor ? ctx.demandFactor(a, b) : 1;
+  const demand = segmentMap((s) => market.bySegment[s] * shock);
   const its: Itinerary[] = [];
   const index: (RivalRoute | null)[] = [];
   const pl = playerItinerary(ctx, key, a, b, dist);
@@ -518,6 +521,7 @@ function newAirline(ctx: RivalCtx, id: string, name: string, archetype: Archetyp
 export function makeContext(
   airports: ReadonlyMap<string, Airport>, types: ReadonlyMap<string, AircraftType>, day: Day, rng: () => number,
   playerRoutes: readonly Route[], opFraction: (id: Id) => number = () => 1, seatsOf: (r: Route) => number = () => 0,
+  demandFactor?: (a: Airport, b: Airport) => number,
 ): RivalCtx {
   const player = new Map<string, { route: Route; seatsPerFlight: number; frequency: number }>();
   for (const r of playerRoutes) {
@@ -525,7 +529,7 @@ export function makeContext(
     const seats = seatsOf(r) || (t ? Math.floor(t.maxSeats * 0.86) : 0);
     player.set(marketKey(r.origin, r.destination), { route: r, seatsPerFlight: seats, frequency: r.weeklyFrequency * opFraction(r.id) });
   }
-  return { airports, types, day, year: dayToDate(day).year, rng, player };
+  return { airports, types, day, year: dayToDate(day).year, rng, player, demandFactor };
 }
 
 /** Build the 2015 field. Deterministic in `seed`. */
