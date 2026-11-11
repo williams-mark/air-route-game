@@ -60,7 +60,7 @@ export function formatRun(r: BalanceRun): string {
   return out.join("\n");
 }
 
-if (process.argv[1]?.includes("balance")) {
+if (process.argv[1]?.includes("vite-node") && !process.env.VITEST) {
   const games = arg("games", 3), years = arg("years", 15), seed = arg("seed", 1);
   const bots = sarg("bots", "passive,greedy").split(",").map((n) => (n === "greedy" ? greedy : passive));
   const runs: BalanceRun[] = [];
