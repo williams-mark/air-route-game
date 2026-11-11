@@ -414,6 +414,16 @@ export const FARE_SOLVER_PARAMS = {
   deadband: 0.005,
   /** Bisection steps on the log of the fare multiplier (range ln 2.5 - ln 0.4 = 1.83; 16 steps = 3e-5). */
   iterations: 16,
+  /**
+   * Fare floor (lane/fare-preview-fixes). A demand shock with an 84% target cut LAX-SAN to $17 and LAX-SFO to $40, which no
+   * load factor repays. The controller may not cut a fare below the larger of (a) this fraction of the route's cost-covering
+   * fare (the fare at which the route earns its costs at the seats the target load factor would fill) and (b) the
+   * benchmark fare fraction below. The floor only stops cuts; a fare already under it is held, not raised.
+   * 0.9: the floor sits just under break-even, so the controller can trim into thin margins but never into certain losses.
+   */
+  floorBreakEvenFraction: 0.9,
+  /** Backstop for routes whose costs cannot be covered at any fare: no cut below this fraction of benchmarkFare(distance). */
+  floorBenchmarkFraction: 0.5,
 } as const;
 
 /** Every fare class multiplied by `scale` (premium fares keep their ratio to economy). */

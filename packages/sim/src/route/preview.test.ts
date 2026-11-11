@@ -114,3 +114,31 @@ describe("substituted aircraft use their own economics", () => {
     expect(Object.values(sch.roundTripsByAircraft!).reduce((x, y) => x + y, 0)).toBe(sch.scheduledFrequency);
   });
 });
+
+describe("previewNewRoute reports the cap on frequency", () => {
+  const one = { ...ac("w1", "B787-9"), hubId: "LAX" };
+  const state = runDays(mini([one], []), 3);
+
+  it("says what was asked, what the hub can fly, and the hours behind it", () => {
+    const p10 = previewNewRoute(state, route("x", "LAX", "HNL", 10, "B787-9", 300))!;
+    const p12 = previewNewRoute(state, route("x", "LAX", "HNL", 12, "B787-9", 300))!;
+    expect(p10.requestedFrequency).toBe(10);
+    expect(p12.requestedFrequency).toBe(12);
+    expect(p12.capped).toBe(true);
+    expect(p12.hoursNeeded).toBeGreaterThan(p12.hoursFree);
+    expect(p12.achievableFrequency).toBeLessThan(12);
+    expect(p12.achievableFrequency * (p12.hoursNeeded / 12)).toBeLessThanOrEqual(p12.hoursFree + 1e-6);
+    // Asking for more than the hub can fly changes nothing but the stated request: same achievable frequency, same figures.
+    if (p10.capped) {
+      expect(p10.achievableFrequency).toBe(p12.achievableFrequency);
+      expect(p10.figures.profit).toBe(p12.figures.profit);
+    }
+  });
+
+  it("is not capped when the hours are there", () => {
+    const p = previewNewRoute(state, route("x", "LAX", "HNL", 1, "B787-9", 300))!;
+    expect(p.capped).toBe(false);
+    expect(p.achievableFrequency).toBe(1);
+  });
+});
+

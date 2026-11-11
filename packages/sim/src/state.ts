@@ -44,7 +44,18 @@ export interface RouteReport {
   connecting?: RouteConnecting;
   /** Passenger experience of the cabins flown (score and fare multiplier per cabin). Absent in older saves. */
   experience?: RouteExperience;
+  /** Set while the fare floor stopped the last weekly cut (kept until the next weekly solve): the floor fare and the target it blocked. */
+  fareFloor?: { floorFare: number; target: number };
+  /** Day of the last "fare floor" notice for this route (at most one a quarter). */
+  fareFloorNoticeDay?: Day;
+  /** Consecutive weekly checks at or above FULL_ROUTE_LOAD_FACTOR; the app warns after 4 on a route with no fare target. */
+  fullWeeks?: number;
 }
+
+/** Load factor at which a route counts as full for the "Route is full" warning. */
+export const FULL_ROUTE_LOAD_FACTOR = 0.98;
+/** Fare floor notices per route are spaced at least this many days apart (one a quarter). */
+export const FARE_FLOOR_NOTICE_DAYS = 91;
 
 export interface SimParams {
   /** Corporate overhead per day, USD. */
