@@ -1,6 +1,6 @@
 // UI <-> sim boundary. The UI only talks to a SimBridge; swap `createBridge` to plug in the real sim.
 import type { CabinLayout, Command, Day, Id, Route, WorldState } from "@arg/contracts";
-import { newWorld, stepDay, type CheckKind, type CreditStatus, type Offer, type CabinCommand, type OfferCommand, type PlannerCommand, type RouteReport, type SimState } from "@arg/sim";
+import { newWorld, stepDay, type CheckKind, type CreditStatus, type FleetDiversity, type Offer, type CabinCommand, type OfferCommand, type PlannerCommand, type RouteReport, type SimState } from "@arg/sim";
 import { routeName, validateRouteDraft, type CommandError } from "../routes/helpers";
 import type { DayRecord } from "./finance";
 import { EMPTY_RIVALS, type RivalsView } from "../rivals/helpers";
@@ -33,6 +33,8 @@ export interface FleetItem {
   hub?: Id;
   /** How it was acquired (absent for starting or mock aircraft). */
   financing?: "purchase" | "lease";
+  /** Owned outright ("purchase", can be sold) or paying a lease-equivalent ("lease", can be returned for a fee). Absent in mock data. */
+  holding?: "purchase" | "lease";
   /** Calendar year it reaches the 30-year lifespan cap (absent in mock data). */
   retireYear?: number;
   /** Names of the routes this aircraft flies today (empty when idle). */
@@ -98,6 +100,8 @@ export interface SimSnapshot {
   ledger: DayRecord[];
   /** Credit line, distress and bankruptcy (real sim only; the mock bridge has none). */
   credit?: CreditStatus;
+  /** Fleet commonality overhead (real sim only). */
+  diversity?: FleetDiversity;
 }
 
 /** Outcome of a command. Bridges that cannot report an outcome return nothing, which the UI treats as accepted. */

@@ -35,6 +35,40 @@ export const CREDIT_PARAMS = {
   reminderDays: 30,
 } as const;
 
+/**
+ * Selling and returning aircraft (fleet/disposal.ts). Design parameters, not sourced figures.
+ * Sale value = depreciated book value (the same straight-line value the credit line uses, CREDIT_PARAMS.residualValueFraction)
+ * x a dealer/market factor x a type factor; it is capped by the price actually paid (so ordering at a bulk discount and selling at
+ * once never earns money). Proceeds are paid at once (no settlement delay): a delay would put cash movements inside stepDay, and a
+ * sale is a cure for distress that should show on the day it is made.
+ */
+export const DISPOSAL_PARAMS = {
+  /** Share of book value a dealer pays on a quick sale (the rest is their margin and remarketing cost). */
+  marketFactor: 0.88,
+  /** Extra haircut on widebodies: a thinner buyer pool than narrowbodies. */
+  widebodyFactor: 0.92,
+  /** Extra haircut on types that are obsolete (isObsolete: 15 years past production end): spares and buyers are scarce. */
+  obsoleteFactor: 0.8,
+  /** Early lease return: termination fee in months of the aircraft's lease payment (leases here have no fixed term, so this stands in for the remaining commitment). */
+  leaseTerminationMonths: 3,
+} as const;
+
+/**
+ * Fleet commonality (fleet/diversity.ts). Every type beyond `freeTypes` adds a monthly overhead for pilot and cabin-crew type ratings
+ * and recurrent training, spares pools, tooling and manuals, and ops/engineering support. Each extra type costs a fixed amount plus
+ * an amount per aircraft in the whole fleet (bigger fleets spread more crews and rosters over more types).
+ * Typical sizes (a 30-aircraft airline earns about $80M a month): 4 types (the starting fleet) pay nothing; 5 types pay about $0.7M a month
+ * (under 1% of revenue); 8 types $2.7M; 12 types $5.4M; 15 types $7.4M (about 9% of revenue). Design parameters, not sourced figures.
+ */
+export const DIVERSITY_PARAMS = {
+  /** Types a fleet can run with no commonality penalty (the starting fleet runs four). */
+  freeTypes: 4,
+  /** Fixed monthly overhead per extra type, USD. */
+  perExtraTypeMonthlyUsd: 250_000,
+  /** Further monthly overhead per extra type for each aircraft in the fleet, USD. */
+  perExtraTypePerAircraftMonthlyUsd: 14_000,
+} as const;
+
 export const LIFECYCLE_PARAMS = {
   daysPerYear: 365.25,
   /** Hard lifespan: aircraft retire on reaching this age. */

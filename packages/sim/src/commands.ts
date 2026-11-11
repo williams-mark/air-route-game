@@ -12,6 +12,7 @@ import { initialMeta } from "./fleet/maintenance";
 import { FINANCING_PARAMS } from "./fleet/lifecycle";
 import { deliveredCollateralUsd, isBankrupt, orderFundingRefusal, type ScheduledBalance } from "./finance/credit";
 import { typeCanServe } from "./fleet/scheduler";
+import { disposalQuote, withoutAircraft } from "./fleet/disposal";
 import { homeHubOf, isOwnedHub, ownedHubsOf, routeHourSummary } from "./fleet/hubs";
 import { makeRng, mixSeed } from "./rng";
 import type { AircraftOrder, SimState } from "./state";
@@ -86,6 +87,9 @@ export type CommandErrorCode =
   | "not_a_hub"
   | "credit_limit"
   | "unknown_order"
+  | "aircraft_on_route"
+  | "leased_aircraft"
+  | "not_leased"
   | "bankrupt";
 
 export interface CommandError {
@@ -105,6 +109,8 @@ export interface CommandResultMap {
   setServiceLevel: { ok: true; kind: "setServiceLevel"; cabin: CabinClass; level: ServiceLevel };
   setAircraftHub: { ok: true; kind: "setAircraftHub"; aircraftId: Id; hubId: Id };
   unlockHub: { ok: true; kind: "unlockHub"; airportId: Id; costUsd: number };
+  sellAircraft: { ok: true; kind: "sellAircraft"; aircraftId: Id; tail: string; proceedsUsd: number; creditLimitBeforeUsd: number; creditLimitAfterUsd: number };
+  returnLease: { ok: true; kind: "returnLease"; aircraftId: Id; tail: string; feeUsd: number; monthlySavingUsd: number };
   cancelOrder: { ok: true; kind: "cancelOrder"; orderId: Id; cancelled: number; forfeitedUsd: number; balancesRelievedUsd: number };
   orderAircraft: {
     ok: true;
@@ -129,7 +135,12 @@ export type HubCommand = { kind: "setAircraftHub"; aircraftId: Id; hubId: Id } |
  * Cancel the aircraft of an order that have not been delivered yet (a cure for financial distress). The deposit paid for them is
  * forfeited, and the balances that would have fallen due at their delivery are no longer owed. Delivered aircraft stay.
  */
-export type FinanceCommand = { kind: "cancelOrder"; orderId: Id };
+export type FinanceCommand =
+  | { kind: "cancelOrder"; orderId: Id }
+  /** Sell an aircraft owned outright that flies no route. Proceeds (fleet/disposal.ts `saleValueUsd`) are paid into cash at once; the credit line loses its collateral. A cure for distress. */
+  | { kind: "sellAircraft"; aircraftId: Id }
+  /** Return a leased aircraft that flies no route, paying a termination fee of `DISPOSAL_PARAMS.leaseTerminationMonths` months of lease. Leases here have no end date, so there is no fee-free return. */
+  | { kind: "returnLease"; aircraftId: Id };
 
 export type AnyCommand = Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand;
 type OfferOk = Exclude<OfferResult, CommandError>;
@@ -424,6 +435,24 @@ function doCancelOrder(state: SimState, orderId: Id): { state: SimState; result:
   return { state: next, result: { ok: true, kind: "cancelOrder", orderId, cancelled: gone.length, forfeitedUsd: forfeited, balancesRelievedUsd: relieved } };
 }
 
+/** Sell an owned aircraft or return a leased one (fleet/disposal.ts holds the rules and the price). Cash moves at once and is logged. */
+function doDispose(state: SimState, aircraftId: Id, action: "sell" | "return"): { state: SimState; result: CommandResult<"sellAircraft"> | CommandResult<"returnLease"> } {
+  const q = disposalQuote(state, aircraftId, action);
+  if (!q.ok) return { state, result: fail(q.error, q.message) };
+  const delta = q.proceedsUsd - q.feeUsd;
+  const text = action === "sell"
+    ? `Sold ${q.tail} (${q.typeId}) for ${usdM(q.proceedsUsd)}. Credit line ${usdM(q.creditLimitBeforeUsd)} to ${usdM(q.creditLimitAfterUsd)}.`
+    : `Returned leased ${q.tail} (${q.typeId}) for a ${usdM(q.feeUsd)} termination fee. Lease and overhead of ${usdM(q.monthlySavingUsd)} a month stop.`;
+  const gone = withoutAircraft(state, aircraftId);
+  const next = pushEvents(
+    { ...gone, world: { ...gone.world, cash: gone.world.cash + delta, cashLog: [...(gone.world.cashLog ?? []), { day: state.world.day, amountUsd: delta, text }] } },
+    [notice(state, text)],
+  );
+  return action === "sell"
+    ? { state: next, result: { ok: true, kind: "sellAircraft", aircraftId, tail: q.tail, proceedsUsd: q.proceedsUsd, creditLimitBeforeUsd: q.creditLimitBeforeUsd, creditLimitAfterUsd: q.creditLimitAfterUsd } }
+    : { state: next, result: { ok: true, kind: "returnLease", aircraftId, tail: q.tail, feeUsd: q.feeUsd, monthlySavingUsd: q.monthlySavingUsd } };
+}
+
 // ---------------------------------------------------------------------------
 // Fare policies
 // ---------------------------------------------------------------------------
@@ -579,6 +608,10 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
     }
     case "cancelOrder":
       return doCancelOrder(state, cmd.orderId);
+    case "sellAircraft":
+      return doDispose(state, cmd.aircraftId, "sell");
+    case "returnLease":
+      return doDispose(state, cmd.aircraftId, "return");
     case "unlockHub": {
       const ap = state.airports.find((x) => x.id === cmd.airportId);
       if (!ap) return { state, result: fail("unknown_airport", `Unknown airport "${cmd.airportId}".`) };

@@ -130,6 +130,7 @@ export function validateSimState(raw: unknown): string[] {
       if (!isObj(cr) || !isNum(cr.interestPaidUsd) || !isNum(cr.lastInterestUsd) || (cr.distressSinceDay !== null && !isInt(cr.distressSinceDay))
         || (cr.bankrupt !== null && !(isObj(cr.bankrupt) && isInt(cr.bankrupt.day)))) add("the credit data is damaged");
     }
+    if (s.diversity !== undefined && (!isObj(s.diversity) || !isNum(s.diversity.lastUsd) || !isNum(s.diversity.totalUsd))) add("the fleet commonality data is damaged");
     if (s.rivals !== null && s.rivals !== undefined && (!isObj(s.rivals) || !Array.isArray(s.rivals.airlines) || !Array.isArray(s.rivals.news))) add("the rivals data is damaged");
     if (out.length > 0) return out; // the reference checks below need the shapes above
 

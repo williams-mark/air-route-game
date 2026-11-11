@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { CREDIT_PARAMS, dayToDate, maintenanceEnabled } from "@arg/sim";
+import { CREDIT_PARAMS, DIVERSITY_PARAMS, dayToDate, maintenanceEnabled } from "@arg/sim";
 import { monthly, type CostKey, type DayRecord, type MonthRecord } from "../sim/finance";
 import { formatMoney } from "../sim/format";
 import { useSimSelector } from "../sim/useSim";
@@ -80,6 +80,7 @@ const COLS: Array<[string, (m: MonthRecord) => number, CostKey | null]> = [
   ["Airport fees", (m) => -m.by.fees, "fees"],
   ["Sales & overhead", (m) => -m.by.sales, "sales"],
   ["Fleet & corporate", (m) => -m.by.fleet, "fleet"],
+  ["Fleet types", (m) => -m.by.diversity, "diversity"],
   ["Interest", (m) => -m.by.interest, "interest"],
   ["Profit", (m) => m.profit, null],
 ];
@@ -109,10 +110,31 @@ function CreditPanel() {
         <div><dt>Cash after those balances</dt><dd className={credit.cashAfterBalancesUsd < 0 ? "neg" : ""}>{formatMoney(credit.cashAfterBalancesUsd)}</dd></div>
       </dl>
       {credit.distress ? (
-        <p className="credit-status bad" role="status">Distress: cash {formatMoney(cash)} is beyond the limit. {credit.distress.daysLeft} days left before bankruptcy. Close routes or cancel pending orders to get back within the line.</p>
+        <p className="credit-status bad" role="status">Distress: cash {formatMoney(cash)} is beyond the limit. {credit.distress.daysLeft} days left before bankruptcy. Sell idle aircraft you own (Fleet), close routes or cancel pending orders to get back within the line.</p>
       ) : tone === "warn" ? (
         <p className="credit-status" role="status">More than three quarters of the credit line is drawn.</p>
       ) : null}
+    </section>
+  );
+}
+
+/** Fleet commonality: how many aircraft types are in service, how many are free, and what the extra ones cost each month. */
+function DiversityPanel() {
+  const d = useSimSelector((s) => s.diversity);
+  if (!d) return null;
+  return (
+    <section className="panel-box" aria-label="Fleet types">
+      <h2>Fleet types</h2>
+      <p className="foot-note" style={{ margin: 0 }}>
+        Every aircraft type beyond the first {d.freeTypes} adds crew training, spares and operations overhead: {formatMoney(DIVERSITY_PARAMS.perExtraTypeMonthlyUsd)} a month plus {formatMoney(DIVERSITY_PARAMS.perExtraTypePerAircraftMonthlyUsd)} for each aircraft in the fleet.
+        Sell or return the last aircraft of a type to stop paying for it.
+      </p>
+      <dl className="credit-grid">
+        <div><dt>Types in service</dt><dd>{d.types} ({d.freeTypes} free)</dd></div>
+        <div><dt>Extra types</dt><dd className={d.extraTypes > 0 ? "neg" : ""}>{d.extraTypes}</dd></div>
+        <div><dt>Aircraft</dt><dd>{d.fleetSize}</dd></div>
+        <div><dt>Type overhead</dt><dd className={d.monthlyUsd > 0 ? "neg" : ""}>{formatMoney(d.monthlyUsd)} a month</dd></div>
+      </dl>
     </section>
   );
 }
@@ -123,7 +145,7 @@ export default function FinanceView() {
   const months = useMemo(() => monthly(ledger), [ledger]);
   // Maintenance is suspended (sim MAINTENANCE_ENABLED): hide its column unless an older save has maintenance costs in it.
   // Interest only appears once there has been some.
-  const cols = useMemo(() => COLS.filter(([c]) => (c !== "Maintenance" || maintenanceEnabled() || months.some((m) => m.by.maintenance !== 0)) && (c !== "Interest" || months.some((m) => m.by.interest !== 0))), [months]);
+  const cols = useMemo(() => COLS.filter(([c]) => (c !== "Maintenance" || maintenanceEnabled() || months.some((m) => m.by.maintenance !== 0)) && (c !== "Interest" || months.some((m) => m.by.interest !== 0)) && (c !== "Fleet types" || months.some((m) => m.by.diversity !== 0))), [months]);
   if (ledger.length === 0) {
     return (
       <div className="page">
@@ -145,6 +167,7 @@ export default function FinanceView() {
         <div className="fin-stat"><span className="k">Margin</span><span className={`v ${ytd.profit >= 0 ? "pos" : "neg"}`}>{ytd.revenue > 0 ? `${((ytd.profit / ytd.revenue) * 100).toFixed(1)}%` : "n/a"}</span></div>
       </section>
       <CreditPanel />
+      <DiversityPanel />
       <section className="panel-box" aria-label="Profit by month"><h2>Profit by month</h2><ProfitChart months={months} /></section>
       {ledger.length > 1 && <section className="panel-box" aria-label="Cash balance"><h2>Cash balance</h2><CashChart ledger={ledger} /></section>}
       <section className="panel-box" aria-label="Monthly profit and loss">

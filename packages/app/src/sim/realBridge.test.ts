@@ -235,6 +235,37 @@ describe("distress and bankruptcy in the bridge", () => {
     for (const r of l) expect(Object.values(r.by).reduce((a, x) => a + x, 0)).toBeCloseTo(r.costs, 2);
   });
 
+  it("sells an owned aircraft through the bridge once it is off its routes: cash up, fleet down; a flying one is refused", () => {
+    const b = make({ seed: 11 });
+    expect(b.dispatch({ kind: "orderAircraft", typeId: "A320", count: 1, layout: { sections: [] }, financing: "purchase" })).toMatchObject({ ok: true });
+    for (let i = 0; i < 40 && !b.getState().fleet.some((a) => a.holding === "purchase" && a.status === "active"); i++) b.stepDays(30);
+    const mine = b.getState().fleet.find((a) => a.holding === "purchase" && a.status === "active")!;
+    expect(mine).toBeDefined();
+    // Starting-fleet aircraft pay the lease-equivalent: they are returned, not sold.
+    const leased = b.getState().fleet.find((a) => a.holding === "lease" && a.status === "active")!;
+    expect(b.dispatch({ kind: "sellAircraft", aircraftId: leased.id })).toMatchObject({ ok: false, error: { code: "leased_aircraft" } });
+    // With the network closed nothing flies, so the owned aircraft can go.
+    for (const r of b.getState().routes) b.dispatch({ kind: "closeRoute", id: r.id });
+    const cash = b.getState().cash, n = b.getState().fleet.length;
+    expect(b.dispatch({ kind: "sellAircraft", aircraftId: mine.id })).toMatchObject({ ok: true });
+    expect(b.getState().cash).toBeGreaterThan(cash);
+    expect(b.getState().fleet).toHaveLength(n - 1);
+    expect(b.dispatch({ kind: "returnLease", aircraftId: leased.id })).toMatchObject({ ok: true });
+    expect(b.getState().fleet).toHaveLength(n - 2);
+    b.stepDays(5);
+    for (const r of b.getState().ledger) expect(Object.values(r.by).reduce((a, x) => a + x, 0)).toBeCloseTo(r.costs, 2);
+  });
+
+  it("refuses to sell an aircraft that flies a route, naming the route", () => {
+    const b = make({ seed: 11 });
+    b.stepDays(3);
+    const flying = b.getState().fleet.find((a) => a.routes.length > 0)!;
+    expect(flying).toBeDefined();
+    const res = b.dispatch({ kind: flying.holding === "purchase" ? "sellAircraft" : "returnLease", aircraftId: flying.id });
+    expect(res).toMatchObject({ ok: false, error: { code: "aircraft_on_route" } });
+    expect(res && !res.ok && res.error.message).toMatch(/first/);
+  });
+
   it("classifies the credit notices", () => {
     expect(classifyNotice("Financial distress: cash -$300.0M")).toBe("alert");
     expect(classifyNotice("Bankruptcy: cash stayed beyond")).toBe("alert");
