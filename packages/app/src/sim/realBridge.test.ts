@@ -192,3 +192,52 @@ describe("trimNotices", () => {
     expect(trimNotices(short, 5)).toEqual(short);
   });
 });
+
+describe("distress and bankruptcy in the bridge", () => {
+  const broke = (cash: number) => {
+    const b = make();
+    const sim = b.simState;
+    return new RealSimBridge({ startPaused: true, initial: { ...sim, world: { ...sim.world, cash } } });
+  };
+
+  it("reports the credit line, raises an alert on distress and the monthly alert text mentions the line", () => {
+    const b = broke(-200_000_000);
+    expect(b.getState().credit?.limitUsd).toBeGreaterThan(0);
+    b.stepDays(1);
+    const s = b.getState();
+    expect(s.credit?.distress?.daysLeft).toBe(90);
+    expect(s.notices.some((n) => n.severity === "alert" && /Financial distress/.test(n.text))).toBe(true);
+  });
+
+  it("stops the clock at bankruptcy, keeps it stopped and refuses to resume", () => {
+    const b = broke(-300_000_000);
+    b.setSpeed(5);
+    b.advance(250);
+    for (let i = 0; i < 12 && !b.getState().credit?.bankrupt; i++) b.advance(250);
+    expect(b.getState().credit?.bankrupt).not.toBeNull();
+    const day = b.getState().day;
+    expect(b.getState().speed).toBe(0);
+    b.setSpeed(3);
+    expect(b.getState().speed).toBe(0);
+    b.advance(1000);
+    expect(b.getState().day).toBe(day);
+    // One ledger row per simulated day, no duplicates from the frozen state.
+    expect(b.getState().ledger.length).toBe(day);
+    expect(b.dispatch({ kind: "closeRoute", id: "route-1" })).toMatchObject({ ok: false, error: { code: "bankrupt" } });
+  });
+
+  it("books overdraft interest in its own ledger column", () => {
+    const b = broke(-20_000_000);
+    b.stepDays(40);
+    const m = monthly(b.getState().ledger);
+    expect(m.reduce((a, x) => a + x.by.interest, 0)).toBeGreaterThan(0);
+    const l = b.getState().ledger;
+    for (const r of l) expect(Object.values(r.by).reduce((a, x) => a + x, 0)).toBeCloseTo(r.costs, 2);
+  });
+
+  it("classifies the credit notices", () => {
+    expect(classifyNotice("Financial distress: cash -$300.0M")).toBe("alert");
+    expect(classifyNotice("Bankruptcy: cash stayed beyond")).toBe("alert");
+    expect(classifyNotice("Distress over: cash")).toBe("good");
+  });
+});

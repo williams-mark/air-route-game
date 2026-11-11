@@ -3,6 +3,8 @@ import { bridge, bumpSpeed, setSpeed, togglePause } from "./sim/useSim";
 import type { Speed } from "./sim/bridge";
 import { useUi, type ViewId } from "./store";
 import { TopBar } from "./shell/TopBar";
+import { DistressBanner } from "./shell/DistressBanner";
+import { GameOver } from "./shell/GameOver";
 import { Toolbar } from "./shell/Toolbar";
 import { useDock } from "./notify/dockStore";
 import { NotificationDock, minimizeDock, toggleDock } from "./notify/NotificationDock";
@@ -82,7 +84,8 @@ function useGlobalKeys() {
 
 function useAutosave() {
   useEffect(() => installAutosave(bridge, {
-    blocked: () => useUi.getState().startOpen,
+    // A bankrupt airline is not autosaved: "Continue" must not drop the player back into the game-over screen.
+    blocked: () => useUi.getState().startOpen || !!bridge.getState().credit?.bankrupt,
     onError: (m) => useToasts.getState().push("info", `Autosave failed: ${m}`),
   }), []);
 }
@@ -102,6 +105,7 @@ export function Shell() {
   return (
     <div className="shell">
       <TopBar />
+      <DistressBanner />
       <Toolbar />
       <div className={`main ${view === "map" ? "on-map" : ""} ${panel ? "has-panel" : ""}`}>
         <MapView />
@@ -114,6 +118,7 @@ export function Shell() {
       {palette && <CommandPalette />}
       {help && <ShortcutsOverlay />}
       {saveDialog && <SaveDialog />}
+      {!startOpen && !saveDialog && <GameOver />}
       {startOpen && <StartScreen />}
     </div>
   );

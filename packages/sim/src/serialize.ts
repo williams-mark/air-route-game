@@ -125,6 +125,11 @@ export function validateSimState(raw: unknown): string[] {
     if (!Array.isArray(w.fleet)) add("the fleet list is missing");
     if (!isStr(s.airlineName)) add("the airline name is missing");
     if (![0, 1, 2, 3, 4, 5].includes(s.speed as number)) add("the speed is invalid");
+    if (s.credit !== undefined) {
+      const cr = s.credit;
+      if (!isObj(cr) || !isNum(cr.interestPaidUsd) || !isNum(cr.lastInterestUsd) || (cr.distressSinceDay !== null && !isInt(cr.distressSinceDay))
+        || (cr.bankrupt !== null && !(isObj(cr.bankrupt) && isInt(cr.bankrupt.day)))) add("the credit data is damaged");
+    }
     if (s.rivals !== null && s.rivals !== undefined && (!isObj(s.rivals) || !Array.isArray(s.rivals.airlines) || !Array.isArray(s.rivals.news))) add("the rivals data is damaged");
     if (out.length > 0) return out; // the reference checks below need the shapes above
 

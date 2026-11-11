@@ -42,6 +42,7 @@ function play(seed: number, strategyIdx: number): Out {
       }
       lastCash = s.world.cash;
     }
+    if (s.credit?.bankrupt) break; // frozen after bankruptcy: nothing more to simulate or check
     const ordersBefore = s.orders.length;
     const deliveringBefore = s.world.fleet.filter((a) => a.status === "delivery").length;
     try { s = stepDay(s); } catch (e) { note(`day ${d}: stepDay threw ${(e as Error).message}`); break; }

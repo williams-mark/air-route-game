@@ -123,6 +123,23 @@ export interface AircraftOrder {
   delayDays?: Day;
 }
 
+/**
+ * Credit and distress bookkeeping (finance/credit.ts). Absent until the airline first pays overdraft interest or enters distress,
+ * so a game that never goes into the red is byte-identical to one from before the credit line existed.
+ */
+export interface CreditState {
+  /** Day the current distress began (cash below minus the credit limit); null while within the limit. */
+  distressSinceDay: Day | null;
+  /** Last day a distress reminder was issued. */
+  lastReminderDay: Day | null;
+  /** Overdraft interest charged on the most recent day, USD (part of that day's costs). */
+  lastInterestUsd: number;
+  /** Overdraft interest charged since the start, USD. */
+  interestPaidUsd: number;
+  /** Set when distress outlasted the grace period: the game is over and the sim no longer advances. */
+  bankrupt: { day: Day } | null;
+}
+
 export interface SimState {
   world: WorldState;
   airports: Airport[];
@@ -151,6 +168,8 @@ export interface SimState {
   rivals: RivalsState | null;
   /** Airlines that failed, with the fleet they released (for the offers lane). Oldest first. */
   bankruptcies: BankruptcyRecord[];
+  /** Credit line and distress state; absent until first used. */
+  credit?: CreditState;
   /** Fleet-planner steering of the scheduler (pins, preferred types, spares). Absent = defaults. */
   planner?: PlannerState;
   /** Monotonic counters for ids: route, aircraft, order. */

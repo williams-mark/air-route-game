@@ -1,8 +1,8 @@
 /* App shell. Sizes in rem so the UI scale setting applies; colours come from theme.css variables. */
 :root { --topbar-h: 3.5rem; --toolbar-w: 4.25rem; --side-w: 346px; /* bottom strip kept clear of the floating time pill and the collapsed notification pill */ --pill-clear: 5.25rem; }
 
-.shell { position: fixed; inset: 0; display: grid; grid-template-columns: var(--toolbar-w) 1fr; grid-template-rows: var(--topbar-h) 1fr; }
-.main { grid-column: 2; grid-row: 2; position: relative; overflow: hidden; --right-inset: 14px; }
+.shell { position: fixed; inset: 0; display: grid; grid-template-columns: var(--toolbar-w) 1fr; grid-template-rows: var(--topbar-h) auto minmax(0, 1fr); }
+.main { grid-column: 2; grid-row: 3; position: relative; overflow: hidden; --right-inset: 14px; }
 .main.on-map { --right-inset: var(--side-w); }
 .map-view { position: absolute; inset: 0; }
 .map-tools { position: absolute; top: 14px; left: 14px; max-width: calc(100% - 90px); z-index: 5; display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
@@ -36,7 +36,7 @@ button:focus-visible, [role="option"]:focus-visible { outline-offset: 1px; }
 .pill-btn { display: inline-flex; align-items: center; gap: .35rem; height: 2rem; border-radius: 999px; font-weight: 650; border-color: var(--sev-warn); color: var(--text); }
 
 /* Toolbar */
-.toolbar { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; gap: .25rem; padding: .5rem .35rem; background: var(--panel); border-right: 1px solid var(--line); z-index: 30; }
+.toolbar { grid-column: 1; grid-row: 3; display: flex; flex-direction: column; gap: .25rem; padding: .5rem .35rem; background: var(--panel); border-right: 1px solid var(--line); z-index: 30; }
 .tool-btn { display: flex; flex-direction: column; align-items: center; gap: .15rem; padding: .5rem 0 .35rem; background: transparent; border: 1px solid transparent; color: var(--text-dim); border-radius: 10px; font-size: .66rem; }
 .tool-btn:hover { background: var(--panel-2); color: var(--text); border-color: var(--line); }
 .tool-btn[aria-current="page"] { background: var(--panel-2); color: var(--accent); border-color: var(--line); box-shadow: inset 3px 0 0 var(--accent); }
@@ -220,3 +220,29 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 /* The global button.on fill would make the dim body text unreadable; mark the chosen card with its border only. */
 .fin-card.on { background: var(--panel-2); color: var(--text); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 .fin-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Financial distress banner (a grid row between the top bar and the views) and the game-over card */
+.distress-banner { grid-column: 1 / -1; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; padding: .5rem .9rem; background: var(--distress-bg); color: var(--distress-text); border-bottom: 2px solid var(--distress-line); z-index: 29; font-size: .86rem; }
+.distress-banner strong { color: var(--distress-text); }
+.distress-banner .db-text { flex: 1 1 24rem; min-width: 0; line-height: 1.35; }
+.distress-banner .db-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+.distress-banner button { font-size: .8rem; padding: .25rem .65rem; }
+.gameover-card { width: min(34rem, 100%); background: var(--panel); border: 1px solid var(--distress-line); border-top-width: 4px; border-radius: 14px; box-shadow: var(--shadow); padding: 1.5rem 1.6rem 1.3rem; display: flex; flex-direction: column; gap: .8rem; }
+.gameover-card:focus { outline: none; }
+.gameover-card h1 { margin: 0; font-size: 1.6rem; }
+.gameover-card p { margin: 0; color: var(--text-dim); font-size: .9rem; line-height: 1.4; }
+.gameover-card dl.mini { font-size: .9rem; row-gap: .35rem; }
+.gameover-actions { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .3rem; }
+.gameover-actions .primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+/* Credit line (Finance view) */
+.credit-bar { height: .7rem; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; margin: .5rem 0 .2rem; }
+.credit-bar > span { display: block; height: 100%; background: var(--credit-bar); }
+.credit-bar.warn > span { background: var(--credit-bar-warn); }
+.credit-bar.over > span { background: var(--credit-bar-over); }
+.credit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .5rem 1.2rem; margin: .6rem 0 0; font-size: .85rem; }
+.credit-grid div { display: flex; justify-content: space-between; gap: .6rem; border-bottom: 1px solid var(--line); padding: .2rem 0; }
+.credit-grid dt { color: var(--text-dim); } .credit-grid dd { margin: 0; font-variant-numeric: tabular-nums; }
+.credit-status { margin: .6rem 0 0; font-size: .85rem; }
+.credit-status.bad { color: var(--neg); }
+.cancel-confirm { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; font-size: .8rem; }

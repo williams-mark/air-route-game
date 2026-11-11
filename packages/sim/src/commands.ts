@@ -10,6 +10,7 @@ import { baseSlotFeeUsd, playerSlotsAt, rivalSlotsAt, backgroundSlots, routeSlot
 import { defaultLayout, validateLayout } from "./fleet/layout";
 import { initialMeta } from "./fleet/maintenance";
 import { FINANCING_PARAMS } from "./fleet/lifecycle";
+import { deliveredCollateralUsd, isBankrupt, orderFundingRefusal, type ScheduledBalance } from "./finance/credit";
 import { typeCanServe } from "./fleet/scheduler";
 import { homeHubOf, isOwnedHub, ownedHubsOf, routeHourSummary } from "./fleet/hubs";
 import { makeRng, mixSeed } from "./rng";
@@ -82,7 +83,10 @@ export type CommandErrorCode =
   | "invalid_service_level"
   | "invalid_financing"
   | "already_hub"
-  | "not_a_hub";
+  | "not_a_hub"
+  | "credit_limit"
+  | "unknown_order"
+  | "bankrupt";
 
 export interface CommandError {
   ok: false;
@@ -101,6 +105,7 @@ export interface CommandResultMap {
   setServiceLevel: { ok: true; kind: "setServiceLevel"; cabin: CabinClass; level: ServiceLevel };
   setAircraftHub: { ok: true; kind: "setAircraftHub"; aircraftId: Id; hubId: Id };
   unlockHub: { ok: true; kind: "unlockHub"; airportId: Id; costUsd: number };
+  cancelOrder: { ok: true; kind: "cancelOrder"; orderId: Id; cancelled: number; forfeitedUsd: number; balancesRelievedUsd: number };
   orderAircraft: {
     ok: true;
     kind: "orderAircraft";
@@ -120,7 +125,13 @@ export type ServiceCommand = { kind: "setServiceLevel"; cabin: CabinClass; level
 
 export type HubCommand = { kind: "setAircraftHub"; aircraftId: Id; hubId: Id } | ServiceCommand;
 
-export type AnyCommand = Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand;
+/**
+ * Cancel the aircraft of an order that have not been delivered yet (a cure for financial distress). The deposit paid for them is
+ * forfeited, and the balances that would have fallen due at their delivery are no longer owed. Delivered aircraft stay.
+ */
+export type FinanceCommand = { kind: "cancelOrder"; orderId: Id };
+
+export type AnyCommand = Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand;
 type OfferOk = Exclude<OfferResult, CommandError>;
 type FullResultMap = CommandResultMap & { acceptOffer: Extract<OfferOk, { kind: "acceptOffer" }>; dismissOffer: Extract<OfferOk, { kind: "dismissOffer" }>; refitAircraft: Extract<RefitResult, { ok: true }> }
   & { [K in PlannerCommand["kind"]]: Extract<PlannerOk, { kind: K }> };
@@ -352,6 +363,13 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
     aircraft.push(ac);
     deliveryDays.push(day);
   }
+  // Funding guard: the balances due at delivery (all open purchase orders plus this one) must stay within the credit line.
+  if (financing === "purchase") {
+    const balance = unitPriceUsd * (1 - FINANCING_PARAMS.purchaseDownFraction);
+    const added: ScheduledBalance[] = deliveryDays.map((day) => ({ day, orderId, amountUsd: balance, collateralUsd: deliveredCollateralUsd(type.listPriceUsdM * 1e6) }));
+    const refusal = orderFundingRefusal(state, depositUsd, added);
+    if (refusal) return { state, result: fail("credit_limit", refusal) };
+  }
   const order: AircraftOrder = {
     id: orderId, typeId: type.id, count: cmd.count, layout, orderDay: state.world.day, discount, unitPriceUsd, depositUsd, financing,
     aircraftIds: aircraft.map((a) => a.id), deliveryDays,
@@ -377,6 +395,33 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
     state: next,
     result: { ok: true, kind: "orderAircraft", orderId, aircraftIds: order.aircraftIds, deliveryDays, discount, unitPriceUsd, depositUsd, financing },
   };
+}
+
+function doCancelOrder(state: SimState, orderId: Id): { state: SimState; result: CommandResult<"cancelOrder"> } {
+  const order = state.orders.find((o) => o.id === orderId);
+  if (!order) return { state, result: fail("unknown_order", `No order with id "${orderId}".`) };
+  const waiting = new Set(state.world.fleet.filter((a) => a.status === "delivery").map((a) => a.id));
+  const gone = order.aircraftIds.filter((id) => waiting.has(id));
+  if (gone.length === 0) return { state, result: fail("aircraft_unavailable", `Every aircraft on ${orderId} has been delivered; there is nothing left to cancel.`) };
+  const keep = order.aircraftIds.filter((id) => !waiting.has(id));
+  const perAircraftDeposit = order.depositUsd / order.count;
+  const forfeited = perAircraftDeposit * gone.length;
+  const relieved = order.financing === "purchase" ? order.unitPriceUsd * (1 - FINANCING_PARAMS.purchaseDownFraction) * gone.length : 0;
+  const dropped = new Set(gone);
+  const fleetMeta = { ...state.fleetMeta };
+  for (const id of gone) delete fleetMeta[id];
+  const orders = keep.length === 0
+    ? state.orders.filter((o) => o.id !== orderId)
+    : state.orders.map((o) => (o.id !== orderId ? o : {
+      ...o, count: keep.length, depositUsd: perAircraftDeposit * keep.length, aircraftIds: keep,
+      deliveryDays: o.deliveryDays.filter((_, i) => !dropped.has(o.aircraftIds[i]!)),
+    }));
+  const text = `Cancelled ${gone.length} undelivered aircraft on ${orderId}: ${usdM(forfeited)} deposit forfeited, ${usdM(relieved)} of delivery balances no longer owed.`;
+  const next = pushEvents(
+    { ...state, world: { ...state.world, fleet: state.world.fleet.filter((a) => !dropped.has(a.id)) }, fleetMeta, orders },
+    [notice(state, text)],
+  );
+  return { state: next, result: { ok: true, kind: "cancelOrder", orderId, cancelled: gone.length, forfeitedUsd: forfeited, balancesRelievedUsd: relieved } };
 }
 
 // ---------------------------------------------------------------------------
@@ -426,6 +471,8 @@ export function applyCommand<C extends AnyCommand>(state: SimState, cmd: C): { s
 }
 
 function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: CommandResult } {
+  // A bankrupt airline accepts no commands: the game is over (start a new game or load a save).
+  if (isBankrupt(state)) return { state, result: fail("bankrupt", "The airline is bankrupt. Load a save or start a new game.") };
   switch (cmd.kind) {
     case "acceptOffer":
     case "dismissOffer":
@@ -530,6 +577,8 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
         result: { ok: true, kind: "setAircraftHub", aircraftId: ac.id, hubId: cmd.hubId },
       };
     }
+    case "cancelOrder":
+      return doCancelOrder(state, cmd.orderId);
     case "unlockHub": {
       const ap = state.airports.find((x) => x.id === cmd.airportId);
       if (!ap) return { state, result: fail("unknown_airport", `Unknown airport "${cmd.airportId}".`) };
