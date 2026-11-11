@@ -70,7 +70,7 @@ export interface SimParams {
 }
 
 export const DEFAULT_SIM_PARAMS: SimParams = {
-  corporateOverheadPerDay: 8000,
+  corporateOverheadPerDay: 32000,
   overheadPerAircraftPerDay: 600,
   demandNoise: 0.03,
   snapshotHistory: 800,

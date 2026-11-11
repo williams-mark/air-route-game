@@ -179,7 +179,7 @@ describe("scripted play", () => {
       for (let n = 40; n >= 1; n = Math.floor(n / 2)) {
         const r = applyCommand(s, order(typeId, n, financing));
         if (r.result.ok) { s = r.state; break; }
-        if (r.result.error === "credit_limit") refusals.n++;
+        if (r.result.error === "credit_limit" || r.result.error === "insufficient_cash") refusals.n++; // either order guard counts: which one bites first depends on the cost level
       }
     }
     return s;

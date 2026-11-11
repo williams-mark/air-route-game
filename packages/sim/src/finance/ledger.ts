@@ -29,7 +29,7 @@ export const LEDGER_PARAMS = {
   utilizationBlockHoursPerDay: { narrow: 11, wide: 13 },
   ancillaryUsdPerPax: 14,
   distributionShareOfRevenue: 0.06,
-  generalOverheadShareOfRevenue: 0.10,
+  generalOverheadShareOfRevenue: 0.06,
   routeFixedOverheadUsdPerWeek: 5000,
   cabinFillWeight: { F: 0.75, J: 0.8, W: 0.88, Y: 1 } as Record<CabinClass, number>,
 } as const;
