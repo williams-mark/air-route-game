@@ -1,6 +1,7 @@
 import type {
   Aircraft, AircraftType, Airport, FinanceSnapshot, Id, Route, SimEvent, WorldState,
 } from "@arg/contracts";
+import { campaignOf, campaignReviewDue, markCampaignReview, recordCampaignDay } from "./campaign/campaign";
 import { monthlyOwnershipUsd } from "./finance/ledger";
 import { simulateRouteWeek } from "./route/routeModel";
 import { evaluateLiveRoutes } from "./route/liveModel";
@@ -65,6 +66,7 @@ export { mixSeed } from "./rng";
 export * from "./rivals";
 export * from "./serialize";
 export * from "./planner";
+export * from "./campaign/campaign";
 
 export function newWorld(seed: number): WorldState {
   return { seed, day: 0, playerId: "player", cash: 100_000_000, routes: [], fleet: [] };
@@ -135,6 +137,8 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
 
   // Bankruptcy ends the game: the sim no longer advances (the UI shows the game-over screen).
   if (isBankrupt(state)) return state;
+  // The campaign review is due: the sim is paused on its end date until the player dismisses it (campaign/campaign.ts).
+  if (campaignReviewDue(state)) return markCampaignReview(state);
   state = closeRoutesAtClosedAirports(state);
   let { world } = state;
   const { params } = state;
@@ -327,8 +331,11 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   };
   const credit = stepCredit(state, next, interest);
   const done: SimState = credit.credit === next.credit ? next : { ...next, credit: credit.credit };
-  const frozen: SimState = credit.bankrupt ? { ...done, speed: 0 } : done;
-  const pushed = pushEvents(frozen, [...events, ...notices, ...credit.notices.map((text): SimEvent => ({ kind: "notice", day, text }))]);
+  const tracked = recordCampaignDay(done, profit);
+  const frozen: SimState = credit.bankrupt ? { ...tracked, speed: 0 } : markCampaignReview(tracked);
+  const reviewNow = !credit.bankrupt && campaignOf(tracked)?.reviewDay == null && campaignOf(frozen)?.reviewDay != null;
+  const reviewNotice: SimEvent[] = reviewNow ? [{ kind: "notice", day: day + 1, text: `${state.airlineName}: the campaign has reached its end date. The review is ready.` }] : [];
+  const pushed = pushEvents(frozen, [...events, ...notices, ...credit.notices.map((text): SimEvent => ({ kind: "notice", day, text })), ...reviewNotice]);
   // A failed airline stops here: no more offers or rival moves.
   return credit.bankrupt ? pushed : stepOffers(stepRivals(pushed, day));
 }

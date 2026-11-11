@@ -23,6 +23,7 @@ import { DEFAULT_SERVICE_LEVEL, SERVICE_LEVEL_NAME, SERVICE_LEVELS } from "./cab
 import { CLASS_NAME } from "./cabin/rules";
 import { applyPlannerCommand, type PlannerOk } from "./planner/commands";
 import type { PlannerCommand } from "./planner/types";
+import { continueEndless } from "./campaign/campaign";
 
 // ---------------------------------------------------------------------------
 // Parameters (documented in MODEL.md section 6)
@@ -131,10 +132,14 @@ export type HubCommand = { kind: "setAircraftHub"; aircraftId: Id; hubId: Id } |
  */
 export type FinanceCommand = { kind: "cancelOrder"; orderId: Id };
 
-export type AnyCommand = Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand;
+/** Dismiss the end-of-campaign review and play on with no end date (campaign/campaign.ts). */
+export type CampaignCommand = { kind: "continueEndless" };
+
+export type AnyCommand = Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand;
 type OfferOk = Exclude<OfferResult, CommandError>;
 type FullResultMap = CommandResultMap & { acceptOffer: Extract<OfferOk, { kind: "acceptOffer" }>; dismissOffer: Extract<OfferOk, { kind: "dismissOffer" }>; refitAircraft: Extract<RefitResult, { ok: true }> }
-  & { [K in PlannerCommand["kind"]]: Extract<PlannerOk, { kind: K }> };
+  & { [K in PlannerCommand["kind"]]: Extract<PlannerOk, { kind: K }> }
+  & { continueEndless: { ok: true; kind: "continueEndless" } };
 export type CommandResult<K extends AnyCommand["kind"] = AnyCommand["kind"]> = FullResultMap[K] | CommandError;
 export type ResultOf<C extends AnyCommand> = CommandResult<C["kind"]>;
 
@@ -579,6 +584,8 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
     }
     case "cancelOrder":
       return doCancelOrder(state, cmd.orderId);
+    case "continueEndless":
+      return { state: continueEndless(state), result: { ok: true, kind: "continueEndless" } };
     case "unlockHub": {
       const ap = state.airports.find((x) => x.id === cmd.airportId);
       if (!ap) return { state, result: fail("unknown_airport", `Unknown airport "${cmd.airportId}".`) };

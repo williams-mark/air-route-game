@@ -117,6 +117,8 @@ export function StartScreen() {
   const presentYear = useMemo(() => new Date().getFullYear(), []);
   const minYear = Math.max(MIN_START_YEAR, earliestFleetYear(aircraftTypes) ?? MIN_START_YEAR);
   const [yearText, setYearText] = useState("2015");
+  // Campaign length: the review is due on 1 January of the year it ends. Endless has no review.
+  const [campaign, setCampaign] = useState("15");
   const yearNum = yearText.trim() === "" ? NaN : Number(yearText);
   const yearErr = Number.isNaN(yearNum) ? "Start year must be a whole number." : startYearError(yearNum, presentYear, aircraftTypes);
   const [hub, setHub] = useState("LAX");
@@ -141,7 +143,7 @@ export function StartScreen() {
             <span>{latest.airline} {"·"} {formatDate(latest.day)} {"·"} {slotName(latest.slot)}</span>
           </button>
         ) : (<p className="start-none">{metas === null ? "Looking for saved games…" : "No saved game yet."}</p>)}
-        <form className="start-new" onSubmit={(e) => { e.preventDefault(); if (parsed === null) { setMsg({ ok: false, message: "Seed must be a whole number from 0 to 999999999." }); return; } if (yearErr) { setMsg({ ok: false, message: yearErr }); return; } bridge.newGame?.(parsed, { hub, name: airline, startYear: yearNum, presentYear }); bridge.setSpeed(0); const home = airports.find((x) => x.id === hub); if (home && hub !== "LAX") useUi.getState().flyTo(presetForAirport(home)); begin({ ok: true, message: `New game, seed ${parsed}, ${yearNum}, ${airline.trim() || STARTING_AIRLINE} at ${hub}. Paused: press Space to start.` }); }}>
+        <form className="start-new" onSubmit={(e) => { e.preventDefault(); if (parsed === null) { setMsg({ ok: false, message: "Seed must be a whole number from 0 to 999999999." }); return; } if (yearErr) { setMsg({ ok: false, message: yearErr }); return; } bridge.newGame?.(parsed, { hub, name: airline, startYear: yearNum, presentYear, campaignYears: campaign === "endless" ? null : Number(campaign) }); bridge.setSpeed(0); const home = airports.find((x) => x.id === hub); if (home && hub !== "LAX") useUi.getState().flyTo(presetForAirport(home)); begin({ ok: true, message: `New game, seed ${parsed}, ${yearNum}, ${airline.trim() || STARTING_AIRLINE} at ${hub}. Paused: press Space to start.` }); }}>
           <label htmlFor="start-airline">Airline name</label>
           <input id="start-airline" className="wide" maxLength={40} value={airline} placeholder={STARTING_AIRLINE} onChange={(e) => setAirline(e.target.value)} />
           <label htmlFor="start-hub">Home airport</label>
@@ -157,6 +159,14 @@ export function StartScreen() {
           <label htmlFor="start-year">Start year</label>
           <input id="start-year" inputMode="numeric" value={yearText} onChange={(e) => setYearText(e.target.value)} aria-invalid={yearErr !== null} aria-describedby="start-year-hint" />
           <p id="start-year-hint" className="start-hint">{yearErr ?? `${minYear} to ${presentYear}. Older starts use the aircraft that were in production that year.`}</p>
+          <label htmlFor="start-campaign">Campaign length</label>
+          <select id="start-campaign" value={campaign} onChange={(e) => setCampaign(e.target.value)} aria-describedby="start-campaign-hint">
+            <option value="10">10 years</option>
+            <option value="15">15 years (default)</option>
+            <option value="25">25 years</option>
+            <option value="endless">Endless</option>
+          </select>
+          <p id="start-campaign-hint" className="start-hint">At the end date the game pauses for a campaign review. Endless never does.</p>
           <label htmlFor="start-seed">Seed</label>
           <input id="start-seed" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} aria-invalid={parsed === null} />
           <button type="submit" className="primary">New game</button>

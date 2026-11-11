@@ -140,6 +140,26 @@ export interface CreditState {
   bankrupt: { day: Day } | null;
 }
 
+/**
+ * Campaign length and end-of-campaign review (campaign/campaign.ts). Absent for endless games and for every save made before
+ * the campaign existed, so those never reach a review. Profit and peak cash are kept here because the daily snapshot history is
+ * capped (a 15-year game has more days than that).
+ */
+export interface CampaignState {
+  /** First day of the campaign (1 January of the start year). */
+  startDay: Day;
+  /** Day the campaign ends and the review is due; null = endless (the review was dismissed with "Keep playing"). */
+  endDay: Day | null;
+  /** Day the review was first reached; set once and kept. Null until then. */
+  reviewDay: Day | null;
+  /** Cash at the start, USD (the grade compares final equity with it). */
+  startCashUsd: number;
+  /** Profit by calendar year, USD, keyed by the year as a string. */
+  profitByYear: Record<string, number>;
+  /** Highest cash balance at the end of any day, USD. */
+  peakCashUsd: number;
+}
+
 export interface SimState {
   world: WorldState;
   airports: Airport[];
@@ -170,6 +190,8 @@ export interface SimState {
   bankruptcies: BankruptcyRecord[];
   /** Credit line and distress state; absent until first used. */
   credit?: CreditState;
+  /** Campaign end and review; absent = endless (see CampaignState). */
+  campaign?: CampaignState;
   /** Fleet-planner steering of the scheduler (pins, preferred types, spares). Absent = defaults. */
   planner?: PlannerState;
   /** Monotonic counters for ids: route, aircraft, order. */

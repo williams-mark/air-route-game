@@ -5,6 +5,7 @@ import { useUi, type ViewId } from "./store";
 import { TopBar } from "./shell/TopBar";
 import { DistressBanner } from "./shell/DistressBanner";
 import { GameOver } from "./shell/GameOver";
+import { CampaignReviewCard } from "./shell/CampaignReview";
 import { Toolbar } from "./shell/Toolbar";
 import { useDock } from "./notify/dockStore";
 import { NotificationDock, minimizeDock, toggleDock } from "./notify/NotificationDock";
@@ -86,7 +87,8 @@ function useGlobalKeys() {
 function useAutosave() {
   useEffect(() => installAutosave(bridge, {
     // A bankrupt airline is not autosaved: "Continue" must not drop the player back into the game-over screen.
-    blocked: () => useUi.getState().startOpen || !!bridge.getState().credit?.bankrupt,
+    // Nor is the campaign review: the last autosave stays the pre-end game, and "Keep playing" writes the endless state itself.
+    blocked: () => useUi.getState().startOpen || !!bridge.getState().credit?.bankrupt || !!bridge.getState().review,
     onError: (m) => useToasts.getState().push("info", `Autosave failed: ${m}`),
   }), []);
 }
@@ -120,6 +122,7 @@ export function Shell() {
       {help && <ShortcutsOverlay />}
       {saveDialog && <SaveDialog />}
       {!startOpen && !saveDialog && <GameOver />}
+      {!startOpen && !saveDialog && <CampaignReviewCard />}
       {startOpen && <StartScreen />}
     </div>
   );

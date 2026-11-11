@@ -1,0 +1,20 @@
+/* Campaign review card. Colours come from theme.css variables (light and dark). */
+.campaign-review { width: min(44rem, 100%); max-height: calc(100vh - 2rem); overflow-y: auto; border-top-color: var(--accent); }
+.campaign-review section { display: flex; flex-direction: column; gap: .35rem; }
+.campaign-review h2 { margin: .3rem 0 0; font-size: 1rem; }
+.review-head { display: flex; gap: 1rem; justify-content: space-between; align-items: flex-start; }
+.review-head h1 { margin: 0 0 .25rem; font-size: 1.5rem; }
+.review-head p { margin: 0; color: var(--text-dim); font-size: .9rem; }
+.review-grade { min-width: 5.5rem; display: flex; flex-direction: column; align-items: center; padding: .4rem .6rem; border: 2px solid var(--line); border-radius: 12px; background: var(--panel-2); }
+.review-letter { font-size: 2.4rem; font-weight: 700; line-height: 1; }
+.review-mult { font-size: .75rem; color: var(--text-dim); }
+.grade-A, .grade-B { border-color: var(--pos); } .grade-A .review-letter, .grade-B .review-letter { color: var(--pos); }
+.grade-C, .grade-D { border-color: var(--sev-warn); } .grade-C .review-letter, .grade-D .review-letter { color: var(--sev-warn); }
+.grade-F { border-color: var(--neg); } .grade-F .review-letter { color: var(--neg); }
+.review-formula { margin: 0; font-size: .82rem; color: var(--text-dim); line-height: 1.4; }
+.campaign-review dl.mini dd.neg { color: var(--neg); }
+.review-years { width: 100%; border-collapse: collapse; font-size: .85rem; font-variant-numeric: tabular-nums; }
+.review-years th, .review-years td { padding: .2rem .4rem; border-bottom: 1px solid var(--line); text-align: right; font-weight: 400; }
+.review-years th:first-child { text-align: left; }
+.review-years td.neg { color: var(--neg); }
+@media (max-width: 480px) { .review-head { flex-direction: column; } }

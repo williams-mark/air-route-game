@@ -6,7 +6,7 @@ import { formatMoney } from "./format";
 import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as rawAirports, terminalsFor } from "@arg/data";
 import {
-  applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, LIFECYCLE_PARAMS, dayToDate, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay,
+  applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, LIFECYCLE_PARAMS, dayToDate, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay, campaignReview, campaignReviewDue, type CampaignReview, type CampaignCommand,
   validateSimState, type Clock, type SimState, type HubCommand, type FinanceCommand, homeHubOf, creditStatus, isBankrupt,
 } from "@arg/sim";
 
@@ -116,7 +116,7 @@ export class RealSimBridge implements SimBridge {
     this.sim = sim;
     this.notices = []; this.lastOverdrawnAlert = -Infinity; this.nextNotice = 1; this.ledger = []; this.pending = []; this.engine = new DecisionEngine();
     this.lowCash = false; this.offersOf = null; this.viewOf = null; this.rivalsOf = null;
-    this.clock = createClock({ startDay: this.sim.world.day, speed: isBankrupt(this.sim) ? 0 : speed, maxDtMs: this.opts.maxDtMs ?? 250 });
+    this.clock = createClock({ startDay: this.sim.world.day, speed: this.frozen() ? 0 : speed, maxDtMs: this.opts.maxDtMs ?? 250 });
     this.sim = { ...this.sim, speed: this.clock.speed };
     if (extras) {
       this.notices = extras.notices; this.nextNotice = extras.nextNotice; this.ledger = extras.ledger; this.pending = extras.pending;
@@ -172,7 +172,7 @@ export class RealSimBridge implements SimBridge {
   }
 
   /** Start a fresh game with `seed`, optionally at another home airport and under another airline name (see sim `startingScenario`). */
-  newGame(seed: number, options: { hub?: string; name?: string; startYear?: number; presentYear?: number } = {}): void {
+  newGame(seed: number, options: { hub?: string; name?: string; startYear?: number; presentYear?: number; campaignYears?: number | null } = {}): void {
     this.reset(startingScenario(dataAirports, dataTypes, seed, options), 1, true);
   }
 
@@ -216,11 +216,11 @@ export class RealSimBridge implements SimBridge {
 
   private stepOne(): void {
     // A bankrupt airline is frozen: nothing more to simulate (and the sim would hand back its last events again).
-    if (isBankrupt(this.sim)) { this.clock.setSpeed(0); return; }
+    if (this.frozen()) { this.clock.setSpeed(0); return; }
     this.sim = stepDay(this.sim);
     const snap = this.sim.events.find((e): e is Extract<SimEvent, { kind: "finance" }> => e.kind === "finance");
     if (snap) this.ledger.push(dayRecord(snap.snapshot, this.sim.routeReports, this.sim.credit?.lastInterestUsd ?? 0));
-    if (isBankrupt(this.sim)) this.clock.setSpeed(0); // the sim has paused itself; keep the clock in step
+    if (this.frozen()) this.clock.setSpeed(0); // the sim has paused itself (bankruptcy or the campaign review); keep the clock in step
     const raised = this.engine.onDay(this.sim, this.pending);
     if (raised.length) this.pending = [...this.pending, ...raised];
     // Drain regularly so the sim queue (cap 2000) never drops events at high speed.
@@ -273,7 +273,7 @@ export class RealSimBridge implements SimBridge {
   get simState(): SimState { return this.sim; }
 
   setSpeed(speed: Speed): void {
-    if (speed === this.clock.speed || (speed > 0 && isBankrupt(this.sim))) return;
+    if (speed === this.clock.speed || (speed > 0 && this.frozen())) return;
     this.clock.setSpeed(speed);
     this.syncSpeed();
     this.emit();
@@ -281,7 +281,7 @@ export class RealSimBridge implements SimBridge {
 
   getSim = (): SimState => this.sim;
 
-  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand): CommandResult | void {
+  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand): CommandResult | void {
     if (cmd.kind === "setSpeed") {
       if (![0, 1, 2, 3, 4, 5].includes(cmd.speed)) return { ok: false, error: { code: "invalid_speed", message: "Speed must be 0 to 5." } };
       this.setSpeed(cmd.speed);
@@ -348,7 +348,22 @@ export class RealSimBridge implements SimBridge {
       reports: sim.routeReports,
       ledger: this.ledger.slice(),
       credit: creditStatus(sim),
+      review: this.reviewView(),
     };
+  }
+
+  /** The end-of-campaign review while it is due (the sim is paused on its end date); null otherwise. Cached per sim state. */
+  private reviewOf: SimState | null = null;
+  private reviewCache: CampaignReview | null = null;
+  private reviewView(): CampaignReview | null {
+    if (!campaignReviewDue(this.sim)) return null;
+    if (this.reviewOf !== this.sim) { this.reviewOf = this.sim; this.reviewCache = campaignReview(this.sim); }
+    return this.reviewCache;
+  }
+
+  /** The sim will not advance: bankrupt, or the campaign review is due and not dismissed. */
+  private frozen(): boolean {
+    return isBankrupt(this.sim) || campaignReviewDue(this.sim);
   }
 
   private offersOf: SimState["offers"] | null = null;

@@ -13,6 +13,7 @@ import { newSim, stepDay, type StartOptions } from "./index";
 import { inProduction } from "./fleet/availability";
 import { jan1Day, START_YEAR } from "./time/calendar";
 import { startYearError } from "./time/startYear";
+import { startCampaign } from "./campaign/campaign";
 import { createRivals } from "./rivals";
 import type { SimState } from "./state";
 
@@ -59,6 +60,8 @@ export interface ScenarioOptions {
   startYear?: number;
   /** The caller's notion of the current year, for validating `startYear` (the sim never reads a clock). Default: the start year. */
   presentYear?: number;
+  /** Campaign length in years from the start year; the review is due on 1 January of the year it ends. Null = endless. Omitted = endless (no review). */
+  campaignYears?: number | null;
 }
 
 /** Fleet plan of a start year: aircraft type ids with counts, and the hub slots (type id and distance band) for derived routes. */
@@ -325,5 +328,6 @@ export function startingScenario(airports: Airport[], aircraftTypes: AircraftTyp
   }
   const opts: StartOptions = { cash: STARTING_CASH_USD, fleet, routes, airlineName, baseAirport: hubId, day: startDay };
   const sim = newSim(seed, airports, aircraftTypes, { notionalFleet: false }, opts);
-  return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, sim.world.routes, startDay) };
+  const campaign = startCampaign(startYear, options.campaignYears, STARTING_CASH_USD);
+  return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, sim.world.routes, startDay), ...(campaign ? { campaign } : {}) };
 }

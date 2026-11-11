@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { aircraftTypes } from "@arg/data";
-import { dayToDate } from "@arg/sim";
+import { aircraftTypes, airports } from "@arg/data";
+import { dayToDate, startingScenario } from "@arg/sim";
 import { RealSimBridge, classifyNotice, trimNotices } from "./realBridge";
 import { createBridge } from "./create";
 import { monthly } from "./finance";
@@ -10,6 +10,25 @@ const make = (o: ConstructorParameters<typeof RealSimBridge>[0] = {}) => new Rea
 const draft = { origin: "LAX", destination: "SEA", weeklyFrequency: 1, fares: { Y: 110 }, typeId: "B737-800" };
 
 describe("RealSimBridge", () => {
+  it("the campaign review pauses the game on its end date, is shown once, and Keep playing carries on", () => {
+    const base = startingScenario(airports, aircraftTypes, 7, { campaignYears: 15 });
+    const b = make({ initial: { ...base, campaign: { ...base.campaign!, endDay: base.world.day + 2 } }, startPaused: false });
+    expect(b.getState().review).toBeNull();
+    b.stepDays(2);
+    const due = b.getState();
+    expect(due.speed).toBe(0);
+    expect(due.review).not.toBeNull();
+    expect(due.review!.fleetCount).toBe(8);
+    b.stepDays(3);
+    expect(b.getState().day).toBe(due.day);
+    b.dispatch({ kind: "continueEndless" });
+    expect(b.getState().review).toBeNull();
+    b.setSpeed(1);
+    b.stepDays(3);
+    expect(b.getState().day).toBe(due.day + 3);
+    expect(b.getState().review).toBeNull();
+  });
+
   it("starts with the four-route scenario and 150M cash", () => {
     const s = make().getState();
     expect(s.routes).toHaveLength(4);

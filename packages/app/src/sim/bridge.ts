@@ -1,6 +1,6 @@
 // UI <-> sim boundary. The UI only talks to a SimBridge; swap `createBridge` to plug in the real sim.
 import type { CabinLayout, Command, Day, Id, Route, WorldState } from "@arg/contracts";
-import { newWorld, stepDay, type CheckKind, type CreditStatus, type Offer, type CabinCommand, type OfferCommand, type PlannerCommand, type RouteReport, type SimState } from "@arg/sim";
+import { newWorld, stepDay, type CampaignReview, type CheckKind, type CreditStatus, type Offer, type CabinCommand, type CampaignCommand, type OfferCommand, type PlannerCommand, type RouteReport, type SimState } from "@arg/sim";
 import { routeName, validateRouteDraft, type CommandError } from "../routes/helpers";
 import type { DayRecord } from "./finance";
 import { EMPTY_RIVALS, type RivalsView } from "../rivals/helpers";
@@ -98,6 +98,8 @@ export interface SimSnapshot {
   ledger: DayRecord[];
   /** Credit line, distress and bankruptcy (real sim only; the mock bridge has none). */
   credit?: CreditStatus;
+  /** End-of-campaign review, present while the review is due and not dismissed (real sim only). */
+  review?: CampaignReview | null;
 }
 
 /** Outcome of a command. Bridges that cannot report an outcome return nothing, which the UI treats as accepted. */
@@ -107,7 +109,7 @@ export type { CommandError };
 export interface SimBridge {
   getState(): SimSnapshot;
   subscribe(listener: () => void): () => void;
-  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand): CommandResult | void;
+  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand): CommandResult | void;
   /** Read-only sim state for the fleet planner (real bridge only). */
   getSim?(): SimState | null;
   setSpeed(speed: Speed): void;
@@ -116,7 +118,7 @@ export interface SimBridge {
   /** Save/load support (real bridge only). */
   serialize?(): SaveFile;
   loadGame?(save: SaveFile): void;
-  newGame?(seed: number, options?: { hub?: string; name?: string; startYear?: number; presentYear?: number }): void;
+  newGame?(seed: number, options?: { hub?: string; name?: string; startYear?: number; presentYear?: number; campaignYears?: number | null }): void;
 }
 
 export const DAYS_PER_SECOND: Record<Speed, number> = { 0: 0, 1: 1, 2: 3, 3: 7, 4: 14, 5: 30 };
@@ -207,7 +209,7 @@ export class MockSimBridge implements SimBridge {
   getState = (): SimSnapshot => this.snap;
   subscribe = (l: () => void): (() => void) => { this.listeners.add(l); return () => { this.listeners.delete(l); }; };
 
-  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand): CommandResult | void {
+  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand): CommandResult | void {
     switch (cmd.kind) {
       case "setSpeed": this.setSpeed(cmd.speed); return;
       case "openRoute": {
