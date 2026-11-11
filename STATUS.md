@@ -1,3 +1,10 @@
+## lane/balance-calibration (pandemic, fuel, margins, used offers)
+Answers the QA open items on balance. Details and sources: MODEL.md "Pandemic shock and margin calibration", fuel and offers sections.
+- 2020-23 pandemic demand shock (`demand/pandemic.ts`, sourced anchors BTS/IATA, intra-year path and 2022-24 recovery are assumptions), five dated notices, off via `SimParams.pandemic=false` / `startingScenario(..., {pandemic:false})`; games starting after it are untouched. Passive airline revenue falls 45-55% in 2020.
+- Fuel series now runs past 2040 (FRED annual means to 2025, BTS 2026, then +2%/yr, flagged as assumption). `corporateOverheadPerDay` 8,000 to 32,000. Used offers: about 6 a year (was about 24), max 5 open, discounts capped at 50% (launch deals 10-20%).
+- Harness: `pnpm --filter @arg/sim balance -- --games 2 --years 15`. Passive bot margin mostly 7-19% outside 2020; aggressive "greedy" bot is erratic (-20% to +18%) and one seed goes bankrupt in 2022 after the pandemic.
+- Approximations: West Coast fuel premium, within-year fuel shape, post-Oct-2026 fuel path, pandemic recovery curve, offer discount bands. Maintenance is still suspended; re-check margins when it returns.
+
 ## lane/fleet-sales (sell aircraft, return leases, fleet-diversity cost)
 Answers the QA open items "no aircraft sale or early return" and "no cost for a mixed fleet". Details: MODEL.md.
 - Sim: `sellAircraft` (owned outright, paid immediately; value = min(book, price paid rolled forward) x 0.88 x 0.92 widebody x 0.8 obsolete; refused on a route, leased, on order or in the hangar, or if it would shrink the credit line while cash is below zero) and `returnLease` (3 months of lease as a fee, `DISPOSAL_PARAMS.leaseTerminationMonths`; no lease end dates exist, so no fee-free return). Diversity overhead: types beyond 4 cost $250k + $14k per aircraft per extra type per month (about 1% of revenue at 5 types, 5% at 12); `SimState.diversity`.
@@ -32,13 +39,10 @@ Two agents played 2015-2029 from LAX with no context beyond "build a semi-realis
 - Decision cards: a frequency increase is offered only when the route's own forecast says it adds profit, and in steps of at most half the current frequency (no more "add 37 a week" on a 180 km route).
 - Start screen: the hint no longer shifts the label grid; New game starts paused. Autosave also runs on `pagehide` (best effort). Cabin designer warns at 100% length. "Connections -0%" reads "Connections at full fare". Order and unlock inputs are themed in dark mode. Unused `COMMAND_PARAMS.depositFraction` (0.15) removed; the live deposit is `FINANCING_PARAMS.purchaseDownFraction` (20%).
 - Gate: `pnpm install --frozen-lockfile`, typecheck, test (data 82, sim 382, app 202), build all green; e2e 48/48 (24 checks x 2 themes, no console errors). The Hubs e2e check now types the code into the "Unlock a hub" field instead of using a select.
-Open (found by the playthroughs, not fixed; most need an owner decision):
-- No credit limit or bankruptcy: purchase balances fall due at delivery unchecked and cash reached -$567M to -$727M. Needs a rule (loan, forced sale or bankruptcy).
-- No sale, return or early lease exit of aircraft; no commonality cost for a mixed fleet.
-- Balance: margins 26-37% (real airlines 5-15%), no 2020 shock, fuel series flat after 2026, used offers up to 80% off appear often.
-- No end of campaign (no review or score at 15 years or 2025).
-- Target load factor fare swings: fixed in lane/fare-swing (see its section); seasonal load factor still floats a few points by design.
-- Sandbox pauses the clock with no obvious way back; aircraft names differ between cards, toasts and tables (A321ceo vs A321, B737-800 vs Boeing 737-800); the route creator needs aircraft already based at the origin hub and offers no move flow.
+Still open after the follow-up lanes (credit/bankruptcy, fleet sales, balance, campaign end, fare swing, UI polish are done; see their entries):
+- The route creator needs aircraft already based at the origin hub and offers no way to move one there (hub-move flow).
+- Greedy-bot margins are erratic; maintenance (A/B/C/D) is suspended; 25-year campaigns run past the 2025 data range; `validateSimState` does not check the campaign field.
+- Seasonal load factor floats up to ~8 points under the fare controller (`seasonalFollow` is the dial).
 
 ## lane/start-year (optional start year, prior-generation aircraft)
 - Start year: the new game form has a Start year field (default 2015). The sim takes `startYear` and `presentYear` in `startingScenario` (`startYearError` in sim/src/time/startYear.ts validates them; the sim never reads a clock). The campaign calendar is absolute (day 0 = 2015-01-01, negative before), so `jan1Day(year)` gives the start day and every year-keyed rule still works. 2015 is byte-identical to before.
@@ -91,7 +95,7 @@ Open (found by the playthroughs, not fixed; most need an owner decision):
 
 # Build status (update at the end of every work session)
 
-Last updated: Tue 10 Nov 2026 (lane/qa-playtest-fixes). Gate green on the lane: typecheck, test (data 82, sim 382, app 202), build, e2e 48/48. Credit/bankruptcy, fare-swing, UI polish, aircraft sales and campaign end are merged on this lane; balance calibration in progress. Not yet merged to main.
+Last updated: Tue 10 Nov 2026 (lane/qa-playtest-fixes). Gate green on the lane: typecheck, test (data 82, sim 382, app 202), build, e2e 48/48. Credit/bankruptcy, fare-swing, UI polish, aircraft sales and campaign end are merged on this lane; balance calibration all merged on this lane. Not yet merged to main.
 
 Last updated: Fri 6 Nov 2026: globe (1,006 airports, tiers, presets), terminals, slots, fare policy, Hubs and Fare policy panels merged on lane/integration-globe; gate green (data 82, sim 330, app ~176). e2e full suite not re-run.
 
