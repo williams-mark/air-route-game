@@ -7,18 +7,21 @@ import { usedSaleAllowed } from "../fleet/availability";
 import type { Offer, OfferKind } from "./types";
 
 /** All offer constants, documented in MODEL.md "Offers". */
+/** No offer of any kind is deeper than this fraction off list (distressed and end-of-life ~45-50%, launch 10-20%, used see usedMinRatio). */
+export const MAX_OFFER_DISCOUNT = 0.5;
+
 export const OFFER_PARAMS = {
-  /** New offers per day. 2 per 30.4-day month on average (Poisson), so most months see 1-3. */
-  perDay: 2 / 30.4375,
+  /** New offers per day. 0.5 per 30.4-day month on average (Poisson; about 6 a year), so most months see none and a few see one or two. Was 2 a month. */
+  perDay: 0.5 / 30.4375,
   /** No new offers while this many are open. */
-  maxOpen: 8,
+  maxOpen: 5,
   /** Relative frequency of each kind. */
   weights: { launch: 0.28, endOfLife: 0.24, distressed: 0.2, used: 0.28 } as Record<OfferKind, number>,
   /** Days before the same type may get another offer of the same kind. */
   cooldownDays: { launch: 365, endOfLife: 270, distressed: 120, used: 90 } as Record<OfferKind, number>,
   /** Launch offers appear this many years before introYear (min, max). */
   launchLeadYears: [0.75, 4] as const,
-  launchDiscount: [0.15, 0.3] as const,
+  launchDiscount: [0.1, 0.2] as const,
   launchDeposit: [0.06, 0.12] as const,
   /** First delivery is this many days after the later of introduction and the normal lead time. */
   launchExtraDays: [120, 360] as const,
@@ -27,19 +30,22 @@ export const OFFER_PARAMS = {
   launchExpiryDays: [60, 120] as const,
   /** End-of-life offers appear when production ends within this many years. */
   eolWindowYears: 2,
-  eolDiscount: [0.1, 0.25] as const,
+  eolDiscount: [0.1, 0.25] as const, // unchanged; hard cap is MAX_OFFER_DISCOUNT
   eolExpiryDays: [30, 75] as const,
-  distressedDiscount: [0.2, 0.4] as const,
+  distressedDiscount: [0.2, 0.4] as const, // unchanged; hard cap is MAX_OFFER_DISCOUNT
   distressedExpiryDays: [14, 45] as const,
   distressedDelivery: [7, 45] as const,
   distressedDeposit: 0.2,
   /** Chance a distressed lot carries a non-standard cabin. */
   distressedOddCabin: 0.4,
   /** Used price / list = clamp(base * exp(-decay * age) * (1 +- noise)). */
-  usedBase: 0.85,
-  usedDecayPerYear: 0.075,
+  usedBase: 0.9,
+  usedDecayPerYear: 0.03,
   usedNoise: 0.08,
-  usedMinRatio: 0.08,
+  /** Hard floor on used price / list, so a used lot is at most 50% off (was 8%: up to 92% off, 81-82% seen). */
+  usedMinRatio: 1 - MAX_OFFER_DISCOUNT,
+  /** Used price / list never above this (at least 15% off). */
+  usedMaxRatio: 0.85,
   usedMaxAgeYears: 22,
   usedHoursPerYear: 3000,
   usedDelivery: [14, 60] as const,
@@ -199,7 +205,7 @@ function usedAircraft(rng: () => number, type: AircraftType, day: Day) {
   const maxAge = Math.min(P.usedMaxAgeYears, yearFraction(day) - type.introYear + 1);
   if (maxAge < 2) return null;
   const age = Math.round((2 + rng() * (maxAge - 2)) * 10) / 10;
-  const ratio = Math.min(0.8, Math.max(P.usedMinRatio, P.usedBase * Math.exp(-P.usedDecayPerYear * age) * (1 + (rng() * 2 - 1) * P.usedNoise)));
+  const ratio = Math.min(P.usedMaxRatio, Math.max(P.usedMinRatio, P.usedBase * Math.exp(-P.usedDecayPerYear * age) * (1 + (rng() * 2 - 1) * P.usedNoise)));
   const quantity = rng() < 0.75 ? 1 : betweenInt(rng, [2, 3]);
   const hours = Math.round(age * P.usedHoursPerYear * (0.85 + rng() * 0.3));
   const first = day + betweenInt(rng, P.usedDelivery);

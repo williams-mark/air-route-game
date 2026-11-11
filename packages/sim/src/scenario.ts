@@ -62,6 +62,8 @@ export interface ScenarioOptions {
   presentYear?: number;
   /** Campaign length in years from the start year; the review is due on 1 January of the year it ends. Null = endless. Omitted = endless (no review). */
   campaignYears?: number | null;
+  /** Scripted 2020-2023 pandemic demand shock (demand/pandemic.ts). Default on; false for a sandbox or custom-start game. Stored in `SimState.params.pandemic`. */
+  pandemic?: boolean;
 }
 
 /** Fleet plan of a start year: aircraft type ids with counts, and the hub slots (type id and distance band) for derived routes. */
@@ -327,7 +329,7 @@ export function startingScenario(airports: Airport[], aircraftTypes: AircraftTyp
     routes = settleRoutes(airports, aircraftTypes, fleet, first.routes, seed, hub, startDay).routes;
   }
   const opts: StartOptions = { cash: STARTING_CASH_USD, fleet, routes, airlineName, baseAirport: hubId, day: startDay };
-  const sim = newSim(seed, airports, aircraftTypes, { notionalFleet: false }, opts);
+  const sim = newSim(seed, airports, aircraftTypes, options.pandemic === false ? { notionalFleet: false, pandemic: false } : { notionalFleet: false }, opts);
   const campaign = startCampaign(startYear, options.campaignYears, STARTING_CASH_USD);
   return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, sim.world.routes, startDay), ...(campaign ? { campaign } : {}) };
 }

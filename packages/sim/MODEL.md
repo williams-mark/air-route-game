@@ -175,9 +175,10 @@ Before the recalibration the same routes showed 42-51% margins before ownership 
 before corporate overhead and idle aircraft; the airline as a whole earns about 10% on the passive starting fleet (BALANCE.md). Sold-out routes earn 30%+.
 
 ### Fuel price series (`finance/fuel.ts`)
-Hard-coded USD/gal anchors (fraction of year, price), linearly interpolated, clamped outside 2015-2026. West Coast
-Jet-A, +0.35 for Hawaii. NOT sourced data; approximates: 2015 1.80 falling to 1.25 early 2016, 1.9-2.3 in 2018, 0.95 in
-spring 2020, spike to 4.4 mid-2022, about 2.3 by 2025. Edit `JET_A_ANCHORS` to refine.
+USD/gal anchors (fraction of year, price), linearly interpolated; before 2015 clamped, after the last anchor grown at `FUEL_LONG_RUN_GROWTH` = 2%/yr without limit. West Coast Jet-A, +0.35 for Hawaii.
+- SOURCED, 2015-2025: calendar-year means equal FRED/EIA AJFUELUSGULF (US Gulf Coast kerosene-type jet fuel spot: 1.522, 1.252, 1.558, 2.027, 1.879, 1.099, 1.858, 3.374, 2.699, 2.338, 2.114) plus a 0.30 West Coast into-plane premium (APPROXIMATION). The within-year shape is the older hand-drawn curve rescaled to those means (not monthly data). A test checks the annual means.
+- SOURCED, 2026: BTS airline-paid fuel cost per gallon, Dec 2025 2.32, Mar 2026 3.17, Apr 2026 4.11 (+29.6% on March, +78% on April 2025), later months from BTS releases; late-Oct 2026 about 4.6 is a rounded spot-price reading. ASSUMPTIONS: Jan-Feb 2026, May, Sep.
+- ASSUMPTION after Oct 2026: the spike eases to 2.65 by mid-2028 and then grows 2%/yr (flat in real terms).
 
 ## 4. Clock (`time/clock.ts`)
 Days per real second: `[0, 0.5, 1, 3, 7, 30]` for speeds 0-5. `advance(dtMs)` clamps dt to `maxDtMs` (1000), adds
@@ -274,20 +275,21 @@ with the extra passengers on board; `proratedTotal` equals `throughRevenue`. `st
 
 ## Offers (`offers/`, `OFFER_PARAMS`)
 `SimState.offers` holds open offers; `offerLog` maps `kind:typeId` to the last day offered (cooldown). `stepDay` calls `stepOffers` last: expire (notice) and warn 7 days before, roll launch-order delays, then draw at most one new offer.
-Generation is a pure function of (world seed, day): P(new offer today) = 2/30.4375 (about 2 a month, Poisson, so months of 0-5 happen), capped at 8 open. Kind weights launch .28, end-of-life .24, flash sale .20, used .28, restricted to kinds with
+Generation is a pure function of (world seed, day): P(new offer today) = 0.5/30.4375 (about 6 a year, Poisson; was 2 a month, which flooded the feed), capped at 5 open. Kind weights launch .28, end-of-life .24, flash sale .20, used .28, restricted to kinds with
 an eligible type; a type is not re-offered the same kind within 365 / 270 / 120 / 90 days. Offer id is `offer-<day>`.
 
 | kind | eligible types | discount vs list | deposit | first delivery | quantity | expiry |
 |---|---|---|---|---|---|---|
-| launch | introYear 0.75-4 years ahead | 15-30% | 6-12% | later of intro and today+180d, plus 120-360d (later than a normal order); gap 25-40d narrow, 45-70d wide | 4-20 narrow, 2-8 wide | 60-120d |
+| launch | introYear 0.75-4 years ahead | 10-20% | 6-12% | later of intro and today+180d, plus 120-360d (later than a normal order); gap 25-40d narrow, 45-70d wide | 4-20 narrow, 2-8 wide | 60-120d |
 | endOfLife | endYear in [this year, this year+2] | 10-25% | 15% | today+90-240d narrow, +150-330d wide | 2-10 narrow, 1-4 wide | 30-75d |
 | distressed | in service, not ended > 4 years ago | 20-40% | 20% | today+7-45d, gap 5-14d | 1-6 narrow, 1-3 wide | 14-45d |
 | used | in service for at least 1 year | age-based, see below | 15% | today+14-60d | 1 (75%) or 2-3 | 20-60d |
 
+- No offer of any kind is deeper than `MAX_OFFER_DISCOUNT` = 50% off list (distressed 20-40%, end-of-life 10-25%, launch 10-20%, used 15-50%). These bands are design choices, not sourced; real distressed sales and used-aircraft values vary widely.
 - Launch orders carry a delay risk (35-60%). One roll per order, seeded by (seed, order id), made when the first undelivered aircraft is within 120 days of delivery: on a slip all undelivered aircraft move 1-12 months and a
   "Delivery delayed" notice is emitted; otherwise an "on schedule" notice.
 - Distressed lots are 0-2.5 years old; 40% carry an unusual cabin (single-class high-density, or premium-heavy), always validated against the type's seat limit. Seller names are fictional.
-- Used: age 2 to min(22, years since introYear + 1); price / list = clamp(0.85 exp(-0.075 age) x (1 +- 8%), 0.08, 0.8); flight hours = age x 3000 +- 15%. Aircraft arrive with that age and hours.
+- Used: age 2 to min(22, years since introYear + 1); price / list = clamp(0.90 exp(-0.03 age) x (1 +- 8%), 0.50, 0.85), i.e. 15-50% off (was 0.08-0.8, up to 92% off, 81-82% seen in playtests); flight hours = age x 3000 +- 15%. Aircraft arrive with that age and hours.
 - `acceptOffer(offerId, quantity)`: needs 1 <= quantity <= remaining and cash >= deposit; creates an `AircraftOrder` (with `offerId`) and aircraft in `delivery` status; partial acceptance leaves the rest open. `dismissOffer` removes it.
   Deposit is credited back at delivery as for ordinary orders. Because that makes the price itself cash-neutral, offer orders set `ownershipFactor = net price / list`, which scales the lease-equivalent ownership cost of those aircraft in `stepDay` step 6.
   (Ordinary orders do not do this yet; their volume discount only changes the deposit.)
@@ -408,3 +410,7 @@ All values are design parameters, not sourced figures. Found by playtests: an ov
 - **`returnLease { aircraftId }`.** Only for aircraft that fly no route and are not on order or in the hangar. Fee = `leaseTerminationMonths` (3) x the aircraft's monthly lease payment (`monthlyOwnershipUsd` x price paid factor x obsolescence), paid at once from cash (refused as `insufficient_cash` if cash less the fee would fall below minus the credit limit). The lease payment and the 600/day overhead (plus the 15% lease uplift) stop at once. The down payment is not refunded.
 - **Fleet diversity.** Types in the delivered fleet (any status but `delivery`) beyond `freeTypes` (4, so the 4-type starting fleet is unaffected) each add, per month, `perExtraTypeMonthlyUsd` ($250k) + `perExtraTypePerAircraftMonthlyUsd` ($14k) x aircraft in the whole fleet, charged daily (/30.4375) as a company cost inside `FinanceSnapshot.costs` (so the cash identity holds). Stands for type ratings and recurrent training, spares pools, tooling, manuals and ops support. A 30-aircraft airline earning about $80M a month pays: 5 types $0.7M, 8 types $2.7M, 12 types $5.4M, 15 types $7.4M a month (about 9% of revenue). Airlines at or under 4 types are byte-identical to before (`SimState.diversity` appears only once the overhead has been charged). The cost depends on the number of types, not the mix: selling or returning the last aircraft of a type removes it. Read with `fleetDiversity(state)`; the app shows it as a "Fleet types" panel and a "Fleet types" column in the monthly P&L.
 - Verified: sim tests in `fleet/disposal.test.ts` (sale value, refusals, return fee, cash identity, 3-type versus 12-type fleet of equal size, determinism, save round trip); soak `--games 3 --years 3` 0 violations, cash identity exact, replays identical; passive and greedy bots end with exactly the same cash as before.
+
+## Pandemic shock and margin calibration (lane/balance-calibration)
+**Pandemic** (`demand/pandemic.ts`): `pandemicFactor(day, a, b)` multiplies a pair's demand (route model noise term and rival markets). Calendar-tied (any game passing through 2020-23 meets it; games starting later are untouched). Domestic-like pairs (same region group) and international pairs have separate curves fitted to SOURCED statistics: BTS April 2020 vs April 2019 passengers -96.1% (domestic -95.7%, international -98.6%); IATA global RPK 2020 -65.8%, 2021 -58.4% (domestic -28.2%, international -75.5%) vs 2019. The intra-year path and the 2022-24 recovery are ASSUMPTIONS drawn through those anchors; fares/yield and business-versus-leisure are not split. Five dated news notices (WHO declaration 11 Mar 2020, April trough, June 2020, mid 2021, mid 2022). Switch: `SimParams.pandemic` (false = off), set at start with `startingScenario(..., { pandemic: false })`; absent = on. Tests: `demand/pandemic.test.ts`.
+**Margins**: `corporateOverheadPerDay` 8,000 to 32,000 USD (SG&A not tied to routes; 8k was about 1% of revenue; this restores 5-15% operating margins). Route-level `generalOverheadShareOfRevenue` was left at 6% because raising it breaks route selection for remote hubs. Maintenance stays suspended (see `MAINTENANCE_ENABLED`); re-enabling it would add cost, so re-check margins then. Harness: `pnpm --filter @arg/sim balance -- --games 2 --years 15`.

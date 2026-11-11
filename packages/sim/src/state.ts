@@ -62,10 +62,15 @@ export interface SimParams {
   notionalFleet: boolean;
   /** Cap on queued (undrained) events. Oldest are dropped first. */
   eventQueueLimit: number;
+  /**
+   * Scripted 2020-2023 pandemic demand shock (demand/pandemic.ts). Absent or true = on; false = off (custom start years, sandbox).
+   * It follows the calendar, so a game that starts after 2020 is unaffected either way.
+   */
+  pandemic?: boolean;
 }
 
 export const DEFAULT_SIM_PARAMS: SimParams = {
-  corporateOverheadPerDay: 8000,
+  corporateOverheadPerDay: 32000,
   overheadPerAircraftPerDay: 600,
   demandNoise: 0.03,
   snapshotHistory: 800,

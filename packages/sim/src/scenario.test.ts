@@ -102,7 +102,7 @@ describe("startingScenario with a chosen hub and name", () => {
       // together the routes make money before fleet ownership, and the airline does not burn its cash in a year
       expect(reports.reduce((sum, r) => sum + r.evaluation.profit, 0)).toBeGreaterThan(0);
       st = runDays(st, 351);
-      expect(st.world.cash).toBeGreaterThan(STARTING_CASH_USD * 0.8);
+      expect(st.world.cash).toBeGreaterThan(STARTING_CASH_USD * 0.7);
     }, 60_000);
   }
 
