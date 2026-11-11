@@ -119,8 +119,8 @@ describe("aircraft", () => {
   });
   it("widebody flag consistent with seats", () => {
     for (const t of aircraftTypes) {
-      if (t.widebody) expect(t.maxSeats).toBeGreaterThanOrEqual(300);
-      else expect(t.maxSeats).toBeLessThanOrEqual(250);
+      if (t.widebody) expect(t.maxSeats).toBeGreaterThanOrEqual(250);
+      else expect(t.maxSeats).toBeLessThanOrEqual(300);
     }
   });
   it("range feasibility", () => {

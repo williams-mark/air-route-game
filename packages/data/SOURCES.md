@@ -1195,3 +1195,66 @@ Each is left out until its missing fields are confirmed. Fetched Wikipedia summa
 - Economic curves are still the 2015-2025 calibration: the Jet-A series (finance/fuel.ts) and carbon anchors (world/regions.ts) clamp to their first value before 2015, so pre-2015 fuel is 1.8 USD/gal, not the historical price. No pre-2015 fuel series is sourced.
 - Demand growth (demand/market.ts, 2.5% a year from 2015) compounds backward before 2015 and forward after it.
 - Airport opening and closing dates are absolute (world/closures.ts), so a 1972 start has the 2015 airports open at their 1972 status (closed airports only close later).
+
+## Historical Boeing jets (lane/aircraft-boeing)
+
+Adds 707/720, 717, 727, 737 Original and Classic, and further 747, 757, 767 and 777 variants (35 ids). Fetched 2026-11-11: Wikipedia pages Boeing_707, Boeing_720, Boeing_727, Boeing_737_Original, Boeing_737_Classic, Boeing_717, Boeing_747, Boeing_747-400, Boeing_747SP, Boeing_757, Boeing_767, Boeing_777 (https://en.wikipedia.org/wiki/<name>); airvectors.net/avb727.html and avb707_1.html; Boeing "Boeing Products" history PDF (https://www.boeing.com/resources/boeingdotcom/history/pdf/Boeing_Products.pdf: spans and lengths of 707-120, 727-100, 737-100/-200, 747-100/-200, 757-200, 767-200). Boeing airport-planning documents (boeing.com/.../acaps/*.pdf) were blocked by the proxy (403), so were not read. Wikipedia does not state many per-variant fields; those are flagged below. "recalled" = general knowledge, not fetched this pass; verify.
+
+Global rules for this section:
+- fuelBurnKgPerKm: ESTIMATE for every row, typical cruise fuel flow / cruiseKmh (no source fetched), same status as the existing table. Older types are higher than modern ones by ordering only; treat as +/-20%.
+- runwayNeededM: Wikipedia takeoff field length where stated (ft x 0.3048), otherwise APPROXIMATE as noted.
+- listPriceUsdM: 2018 USD. Where Wikipedia gives a unit cost, DERIVED = unit cost x CPI-U(2018)/CPI-U(year), CPI-U recalled (1968 34.8, 1972 41.8, 1976 56.9, 1982 96.5, 2018 251.1). Where none is stated, ESTIMATE as below.
+- Visual dimensions are metres from the sources named; "recalled" ones are flagged.
+- diversionMinutes (overwater.ts): null for three and four engines. Twins: ETOPS minutes only where stated; otherwise the US 60-minute rule (FAR 121.161) as for E175/CRJ, or the sibling type's value, flagged.
+
+### Rows
+
+| Id | Range km | Cruise km/h | Seats | Runway m | Years (intro-end) | Source / status |
+|---|---|---|---|---|---|---|
+| B707-120 | 5600 | 948 | 189 | 2300 | 1958-1960 | Boeing_707: 3,000 nmi; "up to 189"; 7,500 ft; first revenue flight 26 Oct 1958; last delivered May 1960. Cruise = midpoint of the stated 896-1000 km/h. Length 44.22 / span 39.88 (Boeing_707 table; the Boeing Products PDF and airvectors give 44.04 m length) |
+| B707-120B | 6700 | 948 | 174 | 2300 | 1961-1969 | Boeing_707: 3,600 nmi; 174 one class; American, Mar 1961; last delivery Apr 1969. Cruise, runway, length and span DERIVED from the -120 (no per-variant value stated; airvectors gives 44.22 / 39.9 m) |
+| B707-320 | 6940 | 929 | 189 | 3250 | 1959-1963 | Boeing_707: 3,750 nmi; 189; 10,700 ft; 46.61 / 43.41 m; Pan Am Aug 1959; delivered through Jan 1963. Cruise = midpoint of 885-972 |
+| B707-420 | 6940 | 929 | 189 | 3250 | 1960-1963 | Boeing_707: "identical to the -320" apart from engines; 37 built 1960-1963. Every field DERIVED from the -320 |
+| B707-320B | 9300 | 929 | 189 | 3000 | 1962-1979 | Boeing_707: 5,000 nmi; 10,000 ft; span 44.42; first service Jun 1962. Seats and cruise DERIVED from the -320 (stated "interior allowed 189"). endYear 1979 = 707 program end (recalled; variant end not stated) |
+| B707-320C | 5400 | 929 | 219 | 3000 | 1963-1979 | Boeing_707: 2,900 nmi with full payload; exit limit "to 219"; 1963. Runway DERIVED from the -320B; endYear as -320B |
+| B720 | 5200 | 948 | 156 | 2700 | 1960-1967 | Boeing_720: 2,800 nmi; 136 ft 2 in x 130 ft 10 in; takeoff 9,000 ft; 156 one class; United 5 Jul 1960; built to 1967. Cruise DERIVED from the 707-120 (only max Mach 0.906 stated) |
+| B720B | 5900 | 948 | 156 | 2700 | 1961-1967 | Boeing_720: 3,200 nmi; 156 one class; Mar 1961. Runway DERIVED from the 720 |
+| B717-200 | 2645 | 811 | 134 | 2100 | 1999-2006 | Boeing_717: 1,644 mi (2,645 km); 504 mph; "up to 134"; 37.80 x 28.45 m; AirTran 12 Oct 1999; last delivery 23 May 2006. Runway APPROXIMATE (not stated). Twin: 60-minute rule (ETOPS approval not stated) |
+| B727-100 | 4170 | 938 | 129 | 2500 | 1964-1972 | Boeing_727: 2,250 nmi; 917-959 km/h (midpoint); takeoff 8,300 ft; 129 high-density (airvectors); 40.59 x 32.92 m; Eastern 1 Feb 1964; last Oct 1972 |
+| B727-100C | 4170 | 938 | 129 | 2500 | 1965-1972 | Convertible. No separate figures stated: range, cruise, seats, runway, dimensions DERIVED from the -100. introYear 1965 recalled |
+| B727-200 | 3500 | 910 | 155 | 2600 | 1967-1972 | Boeing_727: table 1,900 nmi (text gives 2,550 nmi, which is used for the Advanced); 865-954 km/h (midpoint); 8,400 ft; 155 one class; 46.69 m; span unchanged 32.92; Northeast Dec 1967; Advanced replaced it 1972 |
+| B727-200ADV | 4720 | 910 | 155 | 3100 | 1972-1984 | Boeing_727: 2,550 nmi; 10,100 ft; first delivery mid-1972; production to Sep 1984. Cruise and seats DERIVED from the -200 |
+| B737-100 | 2850 | 780 | 118 | 2000 | 1968-1969 | Boeing_737_Original: 1,540 nmi ([citation needed] on Wikipedia); 118; $3.6M 1968 -> 26.0 DERIVED; Lufthansa Feb 1968; last delivery 31 Oct 1969; length 28.57 / span 28.35 (Boeing Products PDF). Cruise ESTIMATE (780, not stated for the original 737). Runway APPROXIMATE (2,000, not stated). Twin: 60-minute rule |
+| B737-200 | 4174 | 780 | 130 | 2000 | 1968-1988 | Boeing_737_Original: 130; $4.0M 1968 -> 28.9 DERIVED; 30.53 x 28.35 m; United Apr 1968. Range DERIVED = 4,800 km / 1.15 (the page says the Advanced has about 15% more range than the original). endYear is the end of the whole -200 series (Aug 1988; base-only end not stated) |
+| B737-200ADV | 4800 | 780 | 130 | 2000 | 1971-1988 | Boeing_737_Original: 2,600 nmi (4,800 km); All Nippon 20 May 1971; price from the $5.2M 1972 -200 unit cost -> 31.2 DERIVED |
+| B737-300 | 4176 | 790 | 149 | 2286 | 1984-1999 | Boeing_737_Classic: 2,255 nmi; 790 km/h series; 149; 7,500 ft; 33.4 / 28.9 m; Nov-Dec 1984; last 17 Dec 1999. Price ESTIMATE |
+| B737-400 | 3820 | 790 | 168 | 2649 | 1988-2000 | Boeing_737_Classic: 2,060 nmi; 168; 8,690 ft; 36.4 m; 15 Sep 1988; last 28 Feb 2000. Price ESTIMATE |
+| B737-500 | 4398 | 790 | 132 | 2630 | 1990-1999 | Boeing_737_Classic: 2,375 nmi; 132; 8,630 ft; 31.0 m; 1990; last 21 Jul 1999. Price ESTIMATE |
+| B747-100 | 8556 | 894 | 452 | 3246 | 1970-1986 | Boeing_747: 4,620 nmi; Mach 0.84; 10,650 ft; $24M 1972 -> 144.2 DERIVED; Pan Am 22 Jan 1970. Seats 452 = the -100B payload figure (exit limit not stated). Cruise = Mach 0.84 x (910/0.855 Mach-0.855 factor of the -400 row). Length 70.51 / span 59.64 (Boeing Products PDF). endYear 1986 recalled (not stated) |
+| B747-200B | 12150 | 894 | 452 | 3322 | 1971-1991 | Boeing_747: 6,560 nmi; Mach 0.84; 10,900 ft; $39M 1976 -> 172.1 DERIVED; first revenue flight 14 Feb 1971 (KLM); 747-200 family ended 1991. Seats DERIVED from the -100 |
+| B747-300 | 11723 | 905 | 635 | 3322 | 1983-1990 | Boeing_747: 6,330 nmi; Mach 0.85; 10,900 ft; $83M 1982 -> 216.0 DERIVED; first delivered Mar 1983; last Sep 1990. Seats DERIVED: 660 x 400/416 (typical 400 three-class vs the -400's 416) |
+| B747SP | 10800 | 894 | 400 | 2820 | 1976-1987 | Boeing_747SP: 5,830 nmi; 9,250 ft; 400 maximum one class; length 56.31 (text; the box says 55.85), span 59.64; first delivery 1976; last built 1987. Cruise DERIVED as -100; price ESTIMATE |
+| B747-400ER | 14045 | 910 | 660 | 3260 | 2002-2003 | Boeing_747-400: 14,045 km; 3,260 m; Qantas Nov 2002; passenger version delivered 2002-2003. Seats, cruise, price DERIVED from B747-400 (existing row, 250). Span 212 ft (Boeing Products PDF, -400), length 70.66 (recalled) |
+| B757-300 | 6295 | 858 | 295 | 2605 | 1999-2004 | Boeing_757: 3,400 nmi (the page also gives 6,288 km); 295; 8,550 ft; 54.4 m; Condor 19 Mar 1999; production ended Oct 2004. Cruise as -200. Span 38.0 (-200 value, wing unchanged; recalled). Price DERIVED: 80 x 54.4/47.3 length ratio |
+| B767-200 | 7200 | 850 | 255 | 1900 | 1982-1987 | Boeing_767: 3,900 nmi; 255; 6,300 ft; 48.51 x 47.57 m; United 8 Sep 1982; produced to 1987; 90-minute ETOPS at first transatlantic use. Cruise 850 = Mach 0.8, 528 mph (family). Price ESTIMATE: 217.9 x 48.51/54.94 (767-300ER price scaled by length) |
+| B767-200ER | 12200 | 850 | 255 | 2480 | 1984-1993 | Boeing_767: 6,590 nmi; 8,150 ft; El Al 27 Mar 1984. Seats DERIVED from the -200. endYear ESTIMATE (production end not stated; 121 built). ETOPS 180 ESTIMATE: same value as the existing 767-300ER |
+| B767-300 | 7200 | 850 | 290 | 2800 | 1986-2000 | Boeing_767: 3,900 nmi; 290; 9,200 ft; 54.94 m; JAL 20 Oct 1986; produced to 2000. Price = 767-300ER (217.9), ESTIMATE. ETOPS 90 ESTIMATE (as -200) |
+| B767-400ER | 10415 | 850 | 409 | 3290 | 2000-2009 | Boeing_767: 5,625 nmi; 409; 10,800 ft; 61.37 x 51.92 m (the page also gives 62.52 m); Continental 14 Sep 2000; 180-minute ETOPS. endYear 2009 recalled (not stated). Price ESTIMATE: 217.9 x 61.37/54.94 |
+| B777-200 | 9700 | 905 | 440 | 3200 | 1995-2009 | Boeing_777: 5,240 nmi; ETOPS-180 at service entry; United 15 May 1995. Seats, cruise, runway, price (306.6) DERIVED from the existing 777-200ER (same fuselage). endYear = 200ER's, ESTIMATE. Length 63.73 / span 60.93 recalled |
+| B777-200LR | 15844 | 905 | 440 | 3200 | 2006-2013 | Boeing_777: 8,555 nmi; $346.9M (2019 list); PIA 26 Feb 2006. Seats and runway DERIVED from the 200ER. endYear 2013 recalled (not stated). ETOPS 330 as the 200ER (ESTIMATE). Span 64.8 recalled (raked tips) |
+| B777-300 | 11121 | 905 | 550 | 3050 | 1998-2006 | Boeing_777: 6,005 nmi; length 73.9 m; Cathay 27 May 1998; last delivered 2006; 550 all-economy design maximum. Runway DERIVED from the 300ER. Price ESTIMATE: 306.6 x 73.9/63.73. ETOPS 180 ESTIMATE (as the -200 at service entry) |
+| B737-600 | 5991 | 840 | 130 | 1878 | 1998-2006 | Boeing_737_Next_Generation: 3,235 nmi; 130 max capacity; takeoff 6,161 ft; 31.24 m length; span 34.32 m without winglets ("winglets were not an option"); SAS launch Mar 1995, first delivery Sep 1998; last delivery 2006 (WestJet). Cruise 840 = the existing NG rows (page gives 837 for the NG family). Price ESTIMATE: 737-700 price 89 x 31.24/33.6 length ratio (700 length recalled). ETOPS 180 as the other NG rows (ESTIMATE, not stated for the -600). Cabin 24.5 m ESTIMATE by the section rule. Family tile is "737 NG", matching the -700 |
+
+Price ESTIMATE rule (707, 720, 727, 717, 737 Classic, 747SP): 0.31 x maxSeats x cruiseKmh / 1000, rounded. The factor is the mean of the same ratio on the three sourced old prices (737-100/-200 and 747-100 give 0.26 to 0.35 once CPI-adjusted). It understates later types (737 Classic); no unit cost was found for them.
+
+### Cabin geometry (src/cabin/geometry.ts)
+ESTIMATE, same method as the existing rows: cabin length = max(0.77 x overall length, length needed to fit maxSeats all-economy at 28 in pitch plus the service allowance), rounded up to 0.5 m; 747 types use 0.9 (short upper deck), 0.95 (stretched) or 1.0 (-400ER) of the length because the upper deck counts as equivalent length. Widths: 148 in fuselage family (707, 720, 727, 737, 757) 3.54; 717 3.1 (DC-9 section, ESTIMATE); 767 4.72; 777 5.87; 747 6.10 (same as the existing rows).
+
+### Not added
+- 707-220 and 707-138/-138B: Wikipedia gives no range, seats, speed or runway (only service dates and build counts), so no sourced basis.
+- 747-100B, 747SR, 747-400D, 747-400M, 777F, 777-8, 777-9 (freighter, short-range, unbuilt or not yet delivered; out of scope of a passenger campaign).
+- 767-300F, 757 freighters.
+
+### Test changes
+- data.test.ts "widebody flag consistent with seats": thresholds relaxed from widebody >= 300 / narrowbody <= 250 to >= 250 / <= 300, because 767-200 (255 seats, widebody) and 757-300 (295 seats, narrowbody) are real counterexamples.
+- app families.test.ts: Boeing family list now includes the new families. sim startYear.test.ts and app realBridge.test.ts: expectations that hard-coded 1972 / DC10-30-only now follow the data, because the 707 (1958) lifts the first fleet year below the 1965 policy floor, so earliestStartYear() now returns the floor (1965) and several types are in production in 1972-1975. startYear.ts, MIN_START_YEAR and rival fleets are unchanged.
