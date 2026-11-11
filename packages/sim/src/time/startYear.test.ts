@@ -24,18 +24,18 @@ describe("start year validation", () => {
   it("rejects non-integers, years before the floor and years after the present", () => {
     expect(startYearError(2015.5, PRESENT, types)).toMatch(/whole number/);
     expect(startYearError(earliestStartYear(types) - 1, PRESENT, types)).toMatch(/1965 or later/);
-    expect(earliestStartYear(types)).toBe(1965);
+    expect(earliestStartYear(types)).toBe(1965); // the policy floor; the classic jets (lane/aircraft-classics) put the first fleet year at 1959
     expect(startYearError(PRESENT + 1, PRESENT, types)).toMatch(/cannot be after 2026/);
     expect(startYearError(Number.NaN, PRESENT, types)).toMatch(/whole number/);
   });
 
   it("rejects a year before the first fleet year, and names that year as the earliest start", () => {
-    // Historical Boeing jets (707-120, 1958) put the first fleet year below the 1965 policy floor, so the floor is now the earliest start.
-    expect(earliestFleetYear(types)).toBe(ty("B707-120").introYear);
-    const first = earliestStartYear(types);
-    expect(first).toBe(MIN_START_YEAR);
-    const msg = startYearError(first - 1, PRESENT, types);
-    expect(msg).toBe(`Start year must be ${first} or later.`);
+    const first = earliestFleetYear(types)!;
+    expect(first).toBe(ty("DC8-10").introYear);
+    // The policy floor (1965) is later than the first fleet year (1959), so it is the floor that names the earliest start.
+    const floor = earliestStartYear(types);
+    expect(floor).toBe(Math.max(1965, first));
+    expect(startYearError(floor - 1, PRESENT, types)).toBe(`Start year must be ${floor} or later.`);
   });
 });
 
@@ -57,6 +57,7 @@ describe("order availability", () => {
     const lead = COMMAND_PARAMS.orderLeadYears;
     const in1972 = orderableTypes(types, 1972, lead).map((t) => t.id);
     expect(in1972).toContain("DC10-30");
+    for (const t of types) if (t.introYear > 1972 + lead || (t.endYear !== null && t.endYear + RECENT_OUT_OF_PRODUCTION_YEARS < 1972)) expect(in1972, t.id).not.toContain(t.id);
     expect(in1972).not.toContain("B737-800");
     expect(canOrderNew(ty("B737-800"), 1972, lead)).toBe(false);
     expect(canOrderNew(ty("B737-800"), 1995, lead)).toBe(true); // 1998 introduction, three years of lead
@@ -94,7 +95,6 @@ describe("era fleet", () => {
     const plan = eraPlanFor(types, 1975);
     expect(plan.day).toBe(jan1Day(1975));
     const counts = Object.fromEntries(plan.fleet);
-    // With the historical Boeing rows several types are in production in 1975; every planned type must be one of them.
     expect(Object.keys(counts).length).toBeGreaterThan(0);
     for (const id of Object.keys(counts)) expect(inProduction(ty(id), 1975), id).toBe(true);
     expect(inProduction(eraTypeFor(types, "B737-800", 1975)!, 1975)).toBe(true);
@@ -104,7 +104,7 @@ describe("era fleet", () => {
     const s = startingScenario(airports, types, 2015, { startYear: 1975, presentYear: PRESENT });
     expect(s.world.day).toBe(jan1Day(1975));
     expect(dayToDate(s.world.day).year).toBe(1975);
-    // The fleet is trimmed to the aircraft the derived routes use (as for any non-default hub), so 1 to 8 aircraft.
+    // The fleet is trimmed to the aircraft the derived routes use (as for any non-default hub), so 1 to 8 DC-10s.
     expect(s.world.fleet.length).toBeGreaterThanOrEqual(1);
     expect(s.world.fleet.length).toBeLessThanOrEqual(8);
     expect(s.world.fleet.every((a) => inProduction(ty(a.typeId), 1975))).toBe(true);

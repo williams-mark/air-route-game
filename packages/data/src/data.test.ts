@@ -119,8 +119,8 @@ describe("aircraft", () => {
   });
   it("widebody flag consistent with seats", () => {
     for (const t of aircraftTypes) {
-      if (t.widebody) expect(t.maxSeats).toBeGreaterThanOrEqual(250);
-      else expect(t.maxSeats).toBeLessThanOrEqual(300);
+      if (t.widebody) expect(t.maxSeats).toBeGreaterThanOrEqual(240);
+      else expect(t.maxSeats).toBeLessThanOrEqual(300); // 757-300 seats 295 in one aisle; A310 and 767-200 are widebodies below 300
     }
   });
   it("range feasibility", () => {

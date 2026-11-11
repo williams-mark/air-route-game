@@ -63,6 +63,9 @@ const diversionMinutes: Record<string, number | null> = {
   "B737-600": 180,
   "DC10-30": null,
   E175: 60, CRJ700: 60, CRJ900: 60, "ATR72-600": 60,
+  // Classic types (lane/aircraft-classics): null = three or four engines; 60 = twins without a documented ETOPS rating (ASSUMPTION, see SOURCES.md).
+  "DC8-10": null, "DC8-20": null, "DC8-30": null, "DC8-40": null, "DC8-50": null, "DC8-61": null, "DC8-62": null, "DC8-63": null, "MD11": null, "DC10-10": null, "DC10-40": null, "L1011-1": null, "L1011-100": null, "L1011-200": null, "L1011-500": null, "CV880": null, "CV990": null, "TRIDENT-1C": null, "TRIDENT-2E": null, "TRIDENT-3B": null, "BAE146-100": null, "BAE146-200": null, "BAE146-300": null, "CONCORDE": null,
+  "DC9-10": 60, "DC9-30": 60, "DC9-40": 60, "DC9-50": 60, "MD81": 60, "MD82": 60, "MD83": 60, "MD87": 60, "MD88": 60, "MD90-30": 60, "BAC111-200": 60, "BAC111-500": 60, "CARAVELLE-6R": 60, "CARAVELLE-12": 60, "F28-1000": 60, "F28-3000": 60, "F28-4000": 60, "F100": 60,
 };
 
 /**
