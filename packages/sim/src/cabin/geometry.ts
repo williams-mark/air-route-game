@@ -79,6 +79,11 @@ const TABLE: Record<string, Row> = {
   "A380-800": [72.0, 6.5, [10, 11]],
   "A300B4-200": [38.5, 5.28, [8, 9]],
   "A300-600R": [39.0, 5.28, [8, 9]],
+  A300B2: [38.5, 5.28, [8, 9]],
+  "A300B4-100": [38.5, 5.28, [8, 9]],
+  "A300-600": [39.0, 5.28, [8, 9]],
+  "A310-200": [35.5, 5.28, [8, 9]],
+  "A310-300": [35.5, 5.28, [8, 9]],
   // ESTIMATE (lane/start-year): DC-10 cabin length about 42 m (overall length ~55 m less nose and tail cone), width typical of the wide-body fallback.
   "DC10-30": [42.0, 5.5, [8, 9]],
 };

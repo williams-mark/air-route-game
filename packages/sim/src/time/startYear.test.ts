@@ -54,7 +54,7 @@ describe("order availability", () => {
   it("follows the sim date: a 1972 order list has the DC-10 and no 2015 types; orders open lead years early", () => {
     const lead = COMMAND_PARAMS.orderLeadYears;
     const in1972 = orderableTypes(types, 1972, lead).map((t) => t.id);
-    expect(in1972).toEqual(["DC10-30"]);
+    expect(in1972).toEqual(["A300B2", "A300B4-100", "DC10-30"]); // A300B2 (1974) and B4-100 (1975) are open within the order lead; sorted by seats
     expect(canOrderNew(ty("B737-800"), 1972, lead)).toBe(false);
     expect(canOrderNew(ty("B737-800"), 1995, lead)).toBe(true); // 1998 introduction, three years of lead
     expect(canOrderNew(ty("B737-800"), 1994, lead)).toBe(false);
@@ -91,8 +91,8 @@ describe("era fleet", () => {
     const plan = eraPlanFor(types, 1975);
     expect(plan.day).toBe(jan1Day(1975));
     const counts = Object.fromEntries(plan.fleet);
-    expect(counts).toEqual({ "DC10-30": 8 });
-    expect(eraTypeFor(types, "B737-800", 1975)?.id).toBe("DC10-30");
+    expect(counts).toEqual({ A300B2: 6, "DC10-30": 2 }); // A300B2 in production from 1974 (lane/aircraft-airbus)
+    expect(eraTypeFor(types, "B737-800", 1975)?.id).toBe("A300B2"); // was DC10-30 before the A300 rows
   });
 
   it("builds a 1975 scenario with only aircraft in production", () => {
@@ -102,8 +102,8 @@ describe("era fleet", () => {
     // The fleet is trimmed to the aircraft the derived routes use (as for any non-default hub), so 1 to 8 DC-10s.
     expect(s.world.fleet.length).toBeGreaterThanOrEqual(1);
     expect(s.world.fleet.length).toBeLessThanOrEqual(8);
-    expect(s.world.fleet.every((a) => a.typeId === "DC10-30")).toBe(true);
-    expect(s.world.routes.every((r) => r.typeId === "DC10-30")).toBe(true);
+    expect(s.world.fleet.every((a) => ["DC10-30", "A300B2"].includes(a.typeId))).toBe(true);
+    expect(s.world.routes.every((r) => ["DC10-30", "A300B2"].includes(r.typeId))).toBe(true);
     expect(s.world.routes.length).toBeGreaterThanOrEqual(3);
   });
 

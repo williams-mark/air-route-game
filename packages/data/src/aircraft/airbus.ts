@@ -24,6 +24,11 @@ const entry: Entry = {
     ["A380-800", "Airbus", "Airbus A380-800", 14800, 903, 853, 13.5, 3000, 445.6, 2007, 2021, true],
     ["A300B4-200", "Airbus", "Airbus A300B4-200", 5375, 833, 345, 6.6, 2300, 105.1, 1979, 1984, true],
     ["A300-600R", "Airbus", "Airbus A300-600R", 7500, 833, 345, 6.3, 2400, 105.1, 1988, 2007, true],
+    ["A300B2", "Airbus", "Airbus A300B2", 3427, 833, 281, 6.3, 2300, 105.1, 1974, 1984, true],
+    ["A300B4-100", "Airbus", "Airbus A300B4-100", 5375, 833, 336, 6.5, 2300, 105.1, 1975, 1984, true],
+    ["A300-600", "Airbus", "Airbus A300-600", 7500, 833, 345, 6.4, 2400, 105.1, 1984, 1988, true],
+    ["A310-200", "Airbus", "Airbus A310-200", 6500, 875, 280, 5.7, 2300, 105.1, 1983, 1988, true],
+    ["A310-300", "Airbus", "Airbus A310-300", 9540, 875, 280, 5.8, 2300, 105.1, 1986, 1998, true],
   ],
   family: {
       "A319": "A320 family",
@@ -46,7 +51,12 @@ const entry: Entry = {
       "A340-600": "A340",
       "A380-800": "A380",
       "A300B4-200": "A300",
-      "A300-600R": "A300"
+      "A300-600R": "A300",
+      "A300B2": "A300",
+      "A300B4-100": "A300",
+      "A300-600": "A300",
+      "A310-200": "A310",
+      "A310-300": "A310"
   },
   // Dimensions: SOURCES.md, "Airbus catalogue (lane/aircraft-airbus)".
   visual: {
@@ -71,6 +81,11 @@ const entry: Entry = {
     "A380-800": { lengthM: 72.72, wingspanM: 79.75, layout: "wing4" },
     "A300B4-200": { lengthM: 53.61, wingspanM: 44.84, layout: "wing2" },
     "A300-600R": { lengthM: 54.08, wingspanM: 44.84, layout: "wing2" },
+    A300B2: { lengthM: 53.61, wingspanM: 44.84, layout: "wing2" },
+    "A300B4-100": { lengthM: 53.61, wingspanM: 44.84, layout: "wing2" },
+    "A300-600": { lengthM: 54.08, wingspanM: 44.84, layout: "wing2" },
+    "A310-200": { lengthM: 46.66, wingspanM: 43.9, layout: "wing2" },
+    "A310-300": { lengthM: 46.66, wingspanM: 43.9, layout: "wing2" },
   },
 };
 

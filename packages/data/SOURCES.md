@@ -1224,10 +1224,15 @@ A340 and A380: null (four engines). A318 180 (A320-family assumption, as above).
 ### Cabin geometry (src/cabin/geometry.ts)
 ESTIMATE rows, same method as the existing table (see its header comment); A330-800 (44.5 m) and A340-200 (46.0 m) were lengthened beyond the overall-length rule so their certified maxSeats default layout fits. No cabin dimension was sourced for the new types.
 
+### Rows added in the second pass (A300 and A310 variants; family figures, all flagged)
+Shared flags: fuelBurnKgPerKm ESTIMATE; listPriceUsdM 105.1 is the A300 FAMILY unit cost ($17.5M 1972, Airbus_A300) CPI-adjusted, DERIVED, and is an ESTIMATE for the A310 (no A310 price found; likely overstated); cabin geometry ESTIMATE; maxSeats for B4-100, A310 are DERIVED (below).
+- A300B2: length 53.61 (B1 51 m + 2.6 m, Airbus_A300), span 44.84. Range 3427 km is the "2,130 miles" spec-block figure on aircraftworlddirectory for the B2/B4 page, variant not named; used for the B2, ESTIMATE. Seats 281 is the typical figure "up to 281" for the B2-100 (Airbus_A300), not an exit limit. Runway 2300 = B4-200 value, DERIVED. Intro 1974 (Air France 23 May 1974). End 1984 (aircraftworlddirectory only). Cruise 833 family. ETOPS 60 ESTIMATE (pre-ETOPS).
+- A300B4-100: range 5375 is the B4-200 figure (no B4-100 figure found), DERIVED. Seats 336 = "336 seat" type-level figure on aircraftworlddirectory, DERIVED. Intro 1975 (Bavaria Germanair, Dec 1975). Runway 2300 DERIVED from B4-200. ETOPS 120 ESTIMATE.
+- A300-600: range 7500, seats 345, runway 2400 are the -600R figures (Airbus_A300), DERIVED; the base -600 range is probably lower. Intro 1984 (Saudia, June 1984). endYear 1988 is an ESTIMATE (the -600R replaced it from 1988; no end date stated). ETOPS 180 (page: the 1984 entry enabled 180-minute certification).
+- A310-200: length 46.66, span 43.90 (Airbus_A310, both variants), range 6500 km, intro 1983 (Swissair, April 1983), end 1988 ("production of the A310-200 ended in 1988"). Cruise 875 km/h is the -300 figure (Mach 0.8, aerospaceweb), used for both, DERIVED. Seats 280 = one-class figure listed for the -300 (aerospaceweb), used for both, DERIVED (the Wikipedia 243 is typical). Runway 2300 ESTIMATE: no A310 field length found; A300B4-200 value used. ETOPS 120 ESTIMATE (page: ETOPS certified, no minutes).
+- A310-300: range 9540 km, intro 1986 (Swissair), end 1998 (final A310 delivery June 1998; the line stayed open to 2007). Other fields as the -200.
+
 ### Considered and skipped (no sourced figure for a required field)
 - A300B1: only two built, never in airline service; no range, seats, runway, price.
-- A300B2-100/-200: no range, runway or seats on any page read; price is family-level only.
-- A300-600 (original, JT9D): range found only for the -600R; end of -600 production not stated.
-- A300-600F: no range, cruise or field length found (Airbus history page blocked by bot protection).
-- A310-200 and A310-300: Wikipedia gives range (6,500 / 9,540 km), intro and end years, but no price and no takeoff field length; aerospaceweb also lists cost "unknown". Seats only typical (243; 280 one-class from aerospaceweb), not an exit limit. Rows would need invented price and runway.
+- A300-600F: a freighter; the game has no cargo model, so maxSeats would be invented, and no -600F range or field length was found (Airbus history page blocked).
 - A319neo (not requested): not added. A220 and A321ceo/neo already exist.

@@ -119,7 +119,7 @@ describe("aircraft", () => {
   });
   it("widebody flag consistent with seats", () => {
     for (const t of aircraftTypes) {
-      if (t.widebody) expect(t.maxSeats).toBeGreaterThanOrEqual(300);
+      if (t.widebody) expect(t.maxSeats).toBeGreaterThanOrEqual(240); // A310 and A300B2 are twin-aisle with 280 seats (SOURCES.md, Airbus catalogue)
       else expect(t.maxSeats).toBeLessThanOrEqual(250);
     }
   });
