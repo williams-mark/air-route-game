@@ -42,3 +42,18 @@ export function cancelTerms(o: Pick<OrderItem, "count" | "delivered" | "unitPric
     relievedUsd: o.financing === "purchase" ? left * o.unitPriceUsd * (1 - FINANCING_PARAMS.purchaseDownFraction) : 0,
   };
 }
+
+/** A deposit above this needs an explicit confirm step before the order goes to the sim (a purchase always does). */
+export const ORDER_CONFIRM_DEPOSIT_USD = 10_000_000;
+/** After a successful order the button stays disabled this long (or until the quote changes), so a double or triple click cannot place it again. */
+export const ORDER_LOCK_MS = 1500;
+
+/** True when placing the order needs the confirm step: any purchase, or a deposit above `ORDER_CONFIRM_DEPOSIT_USD`. Small lease orders go straight through. */
+export function needsOrderConfirm(financing: "purchase" | "lease", depositUsd: number): boolean {
+  return financing === "purchase" || depositUsd > ORDER_CONFIRM_DEPOSIT_USD;
+}
+
+/** Identifies the quote the form is showing. Changing any input (type, quantity, financing, hub) is a new quote and clears the lock. */
+export function orderQuoteKey(q: { typeId: string; count: number; financing: "purchase" | "lease"; deliveryHubId: string }): string {
+  return `${q.typeId}|${q.count}|${q.financing}|${q.deliveryHubId}`;
+}

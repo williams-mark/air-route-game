@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { shortTypeLabel } from "../aircraft/names";
 import { aircraftTypes } from "@arg/data";
 import { homeHubOf, maintenanceEnabled, ownedHubsOf, refitQuote, typeBlockHours, type DisposalAction } from "@arg/sim";
 import type { CabinLayout } from "@arg/contracts";
@@ -231,7 +232,7 @@ export default function FleetView() {
   const byType = useMemo(() => {
     const m = new Map<string, number>();
     for (const a of fleet) if (a.status !== "delivery") m.set(a.typeId, (m.get(a.typeId) ?? 0) + 1);
-    return [...m].map(([t, c]) => `${c} ${t}`).join(", ");
+    return [...m].map(([t, c]) => `${c} ${shortTypeLabel(t)}`).join(", ");
   }, [fleet]);
   if (fleet.length === 0) {
     return (

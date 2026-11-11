@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
 import type { AircraftType } from "@arg/contracts";
 import {
-  canOrderNew, dayToDate, earliestFleetYear, eraPlanFor, eraTypeFor, inProduction, jan1Day, MIN_START_YEAR, orderableTypes,
+  canOrderNew, dayToDate, earliestFleetYear, earliestStartYear, eraPlanFor, eraTypeFor, inProduction, jan1Day, MIN_START_YEAR, orderableTypes,
   RECENT_OUT_OF_PRODUCTION_YEARS, startYearError, startingScenario, usedSaleAllowed, COMMAND_PARAMS, newSim,
 } from "../index";
 
@@ -23,17 +23,17 @@ describe("start year validation", () => {
 
   it("rejects non-integers, years before the floor and years after the present", () => {
     expect(startYearError(2015.5, PRESENT, types)).toMatch(/whole number/);
-    expect(startYearError(MIN_START_YEAR - 1, PRESENT, types)).toMatch(/1965 or later/);
+    expect(startYearError(earliestStartYear(types) - 1, PRESENT, types)).toMatch(/1972 or later/);
+    expect(earliestStartYear(types)).toBe(1972);
     expect(startYearError(PRESENT + 1, PRESENT, types)).toMatch(/cannot be after 2026/);
     expect(startYearError(Number.NaN, PRESENT, types)).toMatch(/whole number/);
   });
 
-  it("rejects a year with no aircraft in production, and names the earliest year that has a fleet", () => {
+  it("rejects a year before the first fleet year, and names that year as the earliest start", () => {
     const first = earliestFleetYear(types)!;
     expect(first).toBe(ty("DC10-30").introYear);
     const msg = startYearError(first - 1, PRESENT, types);
-    expect(msg).toMatch(/No aircraft were in production/);
-    expect(msg).toContain(`earliest start with a fleet is ${first}`);
+    expect(msg).toBe(`Start year must be ${first} or later.`);
   });
 });
 
@@ -114,8 +114,8 @@ describe("era fleet", () => {
   });
 
   it("throws on an invalid start year instead of building a broken world", () => {
-    expect(() => startingScenario(airports, types, 2015, { startYear: 1960, presentYear: PRESENT })).toThrow(/1965 or later/);
-    expect(() => startingScenario(airports, types, 2015, { startYear: 1971, presentYear: PRESENT })).toThrow(/No aircraft were in production/);
+    expect(() => startingScenario(airports, types, 2015, { startYear: 1960, presentYear: PRESENT })).toThrow(/1972 or later/);
+    expect(() => startingScenario(airports, types, 2015, { startYear: 1971, presentYear: PRESENT })).toThrow(/1972 or later/);
   });
 
   it("a 1980 scenario steps a few days without error", () => {

@@ -10,3 +10,11 @@ describe("money formatting for messages", () => {
     expect(usdK(-1_234_000)).toBe("-$1234k");
   });
 });
+
+describe("money formatting in billions", () => {
+  it("reads large amounts in $B with two decimals", () => {
+    expect(usdM(2_552_900_000)).toBe("$2.55B");
+    expect(usdM(-1_000_000_000)).toBe("-$1.00B");
+    expect(usdM(999_900_000)).toBe("$999.9M");
+  });
+});

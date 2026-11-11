@@ -132,7 +132,7 @@ export function RouteInspector({ route }: { route: Route }) {
       <header className="rp-head">
         <div>
           <h2 id="rp-title"><span className={`dot tier-${tier}`} aria-hidden="true" />{routeName(route)}</h2>
-          <p>{a?.city} to {b?.city} {"·"} {Math.round(ev.distanceKm).toLocaleString()} km {"·"} {substituted ?? (type ? typeShortName(type) : route.typeId)} {"·"} {tierWord}</p>
+          <p>{a?.city} to {b?.city} {"·"} {Math.round(ev.distanceKm).toLocaleString()} km {"·"} {substituted ?? (type ? typeShortName(type) : shortTypeLabel(route.typeId))} {"·"} {tierWord}</p>
         </div>
         <button ref={headRef} className="icon-btn" aria-label="Close route inspector" title="Close (Esc)" onClick={() => select(null)}>{"✕"}</button>
       </header>
@@ -153,7 +153,7 @@ export function RouteInspector({ route }: { route: Route }) {
             <ul><li>
               {substituted
                 ? `${ownershipReason(shortTypeLabel(route.typeId), ownership)}, so the scheduler is substituting. Seats, fuel, crew and fees below use the aircraft actually flying.`
-                : `The scheduler will substitute ${stand ? `another aircraft such as your ${stand.typeId}` : "whatever it can find"} until you have one.`}
+                : `The scheduler will substitute ${stand ? `another aircraft such as your ${shortTypeLabel(stand.typeId)}` : "whatever it can find"} until you have one.`}
             </li></ul></div></div>
         )}
         {fareFloorText(report) && <div className="rp-warn" role="status"><b>Fare floor.</b> {fareFloorText(report)}</div>}

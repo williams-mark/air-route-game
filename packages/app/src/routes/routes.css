@@ -249,3 +249,5 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 /* Profit basis note (before / after aircraft ownership) and fare/frequency warnings */
 .profit-basis { display: block; font-size: 0.72em; font-weight: 400; color: var(--text-dim); white-space: nowrap; }
 .rc-capline, .rp-warn { margin: 6px 0; padding: 6px 8px; border-radius: 6px; font-size: 0.9em; border: 1px solid var(--sev-warn); color: var(--text); }
+.rp-input-note { color: var(--sev-warn); font-size: .75rem; margin: .25rem 0 0; line-height: 1.3; }
+.rc-move-more { margin: 0 0 .5rem; font-size: .82rem; } .rc-move-more summary { cursor: pointer; color: var(--text-dim); } .rc-move-more .rc-move-list { margin-top: .4rem; }

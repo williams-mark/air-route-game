@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { typeShortName } from "../aircraft/names";
 import { aircraftTypes } from "@arg/data";
 import { COMMAND_PARAMS, dayToDate, defaultLayout, FINANCING_PARAMS, homeHubOf, layoutSeats, orderableTypes, orderDiscount, ownedHubsOf } from "@arg/sim";
 import { bridge, useSim } from "../sim/useSim";
@@ -12,7 +13,7 @@ import { useOffersUi } from "../offers/store";
 import { CabinDialog } from "../cabin/CabinDialog";
 import { useCabinDrafts } from "../cabin/store";
 import { ownedHubChoices } from "../hubs/hubs";
-import { cancelTerms, orderFundingQuote, parseQuantity, pendingBalanceUsd } from "./orderExposure";
+import { cancelTerms, needsOrderConfirm, ORDER_LOCK_MS, orderFundingQuote, orderQuoteKey, parseQuantity, pendingBalanceUsd } from "./orderExposure";
 
 type Financing = "purchase" | "lease";
 
@@ -63,12 +64,31 @@ export default function OrdersView() {
   const hubs = ownedHubChoices(simNow ? ownedHubsOf(simNow) : [home], home);
   const [deliveryHub, setDeliveryHub] = useState<string>(home);
   const deliveryHubId = hubs.includes(deliveryHub) ? deliveryHub : home;
+  // Double-click guard: after an order the button stays disabled until the quote changes or the lock runs out. Purchases and deposits over $10M
+  // first show an inline confirm step, since the deposit cannot be refunded if the order is cancelled.
+  const quoteKey = orderQuoteKey({ typeId: type?.id ?? "", count, financing, deliveryHubId });
+  const [confirming, setConfirming] = useState(false);
+  const [lockedKey, setLockedKey] = useState<string | null>(null);
+  useEffect(() => { setConfirming(false); setLockedKey(null); }, [quoteKey]);
+  useEffect(() => {
+    if (lockedKey === null) return;
+    const t = setTimeout(() => setLockedKey(null), ORDER_LOCK_MS);
+    return () => clearTimeout(t);
+  }, [lockedKey]);
+  const needsConfirm = needsOrderConfirm(financing, deposit);
+  const place = () => {
+    if (!type || parsedQty === null || funding?.refusal || lockedKey !== null) return;
+    const res = bridge.dispatch({ kind: "orderAircraft", typeId: type.id, count, layout: custom ?? { sections: [] }, financing, deliveryHubId });
+    setConfirming(false);
+    if (res && !res.ok) { push("alert", res.error.message); return; }
+    setLockedKey(quoteKey);
+    push("good", `Ordered ${count} ${typeShortName(type)} on ${financing}. ${financing === "purchase" ? "Deposit" : "Down payment"} ${formatMoney(deposit)} paid.`);
+  };
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!type || parsedQty === null || funding?.refusal) return;
-    const res = bridge.dispatch({ kind: "orderAircraft", typeId: type.id, count, layout: custom ?? { sections: [] }, financing, deliveryHubId });
-    if (res && !res.ok) { push("alert", res.error.message); return; }
-    push("good", `Ordered ${count} ${type.id} on ${financing}. ${financing === "purchase" ? "Deposit" : "Down payment"} ${formatMoney(deposit)} paid.`);
+    if (lockedKey !== null) return;
+    if (needsConfirm && !confirming) { setConfirming(true); return; }
+    place();
   };
 
   const open = orders.filter((o) => o.delivered < o.count);
@@ -139,7 +159,15 @@ export default function OrdersView() {
             {funding && <><dt>Room left within the credit line</dt><dd className={funding.outlook.marginUsd < 0 ? "neg" : ""}>{formatMoney(funding.outlook.marginUsd)}</dd></>}
           </dl>
           {funding?.refusal && <div className="rp-err" role="alert" data-testid="order-refusal">{funding.refusal}</div>}
-          <button type="submit" className="primary" disabled={!type || parsedQty === null || !!funding?.refusal}>Place order</button>
+          {confirming ? (
+            <div className="order-confirm" role="group" aria-label="Confirm order" data-testid="order-confirm">
+              <p>Place order: {formatMoney(deposit)} {financing === "purchase" ? "deposit" : "down payment"}, not refundable if cancelled.</p>
+              <button type="button" className="primary" disabled={lockedKey !== null} onClick={place}>Confirm</button>
+              <button type="button" onClick={() => setConfirming(false)}>Back</button>
+            </div>
+          ) : (
+            <button type="submit" className="primary" disabled={!type || parsedQty === null || !!funding?.refusal || lockedKey !== null}>Place order</button>
+          )}
         </form>
       </section>
       {designing && type && (

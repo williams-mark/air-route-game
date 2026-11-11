@@ -6,7 +6,7 @@ import {
   validateCabinLayout,
 } from "@arg/sim";
 import {
-  CLASS_LABEL, fillEconomy, lengthShares, maxRowsFor, newSection, PROJECTION_ROUTES, projectRoute, sectionOf, setSection, signed, usd,
+  CLASS_LABEL, fillEconomy, lengthShares, maxRowsFor, newSection, projectRoute, sectionOf, setSection, signed, usd,
 } from "./helpers";
 import { SeatMap } from "./SeatMap";
 import "./cabin.css";
@@ -34,18 +34,19 @@ const tone = (n: number, eps = 0.05): "pos" | "neg" | "neutral" => (n > eps ? "p
 export function CabinEditor({ type, layout, onChange, day, defaultRoute }: Props) {
   const uid = useId();
   const geo = cabinGeometry(type);
-  const wide = geo.bodyClass === "widebody";
-  const routes = useMemo(() => PROJECTION_ROUTES.map(([a, b]) => `${a}-${b}`), []);
-  const [route, setRoute] = useState(defaultRoute ?? (wide ? "LAX-HNL" : "LAX-SFO"));
-  const [origin, destination] = route.split("-") as [string, string];
+  // Projections are for routes the player flies with this type; a type with none says so instead of projecting routes the player does not run.
+  const serviceLevels = bridge.getSim?.()?.world.serviceLevels;
+  const routes = (bridge.getSim?.()?.world.routes ?? []).filter((r) => r.typeId === type.id).map((r) => `${r.origin}-${r.destination}`);
+  const [picked, setPicked] = useState<string | null>(defaultRoute ?? null);
+  const route = picked && routes.includes(picked) ? picked : routes[0] ?? "";
+  const [origin, destination] = route ? (route.split("-") as [string, string]) : [null, null];
   const v = useMemo(() => validateCabinLayout(type, layout), [type, layout]);
   const fx = useMemo(() => layoutEffects(type, layout), [type, layout]);
   const ref = useMemo(() => layoutEffects(type, defaultLayout(type)), [type]);
   const presets = useMemo(() => suggestLayouts(type), [type]);
   // Both projections use the airline's service levels, so the comparison isolates the layout change.
-  const serviceLevels = bridge.getSim?.()?.world.serviceLevels;
-  const proj = useMemo(() => projectRoute(type, layout, origin, destination, airports, aircraftTypes, day, serviceLevels), [type, layout, origin, destination, day, serviceLevels]);
-  const refProj = useMemo(() => projectRoute(type, defaultLayout(type), origin, destination, airports, aircraftTypes, day, serviceLevels), [type, origin, destination, day, serviceLevels]);
+  const proj = useMemo(() => (origin && destination ? projectRoute(type, layout, origin, destination, airports, aircraftTypes, day, serviceLevels) : null), [type, layout, origin, destination, day, serviceLevels]);
+  const refProj = useMemo(() => (origin && destination ? projectRoute(type, defaultLayout(type), origin, destination, airports, aircraftTypes, day, serviceLevels) : null), [type, origin, destination, day, serviceLevels]);
   const shares = lengthShares(layout);
   const used = v.lengthUsedM / v.lengthAvailableM;
 
@@ -138,14 +139,20 @@ export function CabinEditor({ type, layout, onChange, day, defaultRoute }: Props
 
           <div className="proj">
             <label htmlFor={`${uid}-route`}>Projected on</label>
-            <select id={`${uid}-route`} value={route} onChange={(e) => setRoute(e.target.value)}>{routes.map((r) => <option key={r}>{r}</option>)}</select>
-            {proj.feasible ? (
-              <dl className="mini">
-                <dt>Revenue per flight</dt><dd>{usd(proj.revenuePerFlight)} <span className={`delta ${tone(proj.revenuePerFlight - refProj.revenuePerFlight, 1)}`}>{refProj.feasible ? `${signed((proj.revenuePerFlight / refProj.revenuePerFlight - 1) * 100, 0)}%` : ""}</span></dd>
-                <dt>Profit per flight</dt><dd>{usd(proj.profitPerFlight)}</dd>
-                <dt>Load factor</dt><dd>{(proj.loadFactor * 100).toFixed(0)}%</dd>
-              </dl>
-            ) : <p className="sec-off">{proj.reason ?? "Cannot fly this route."}</p>}
+            {routes.length === 0 ? (
+              <p className="sec-off">No routes yet with this type. Its projection appears here once you fly one.</p>
+            ) : (
+              <>
+                <select id={`${uid}-route`} value={route} onChange={(e) => setPicked(e.target.value)}>{routes.map((r) => <option key={r}>{r}</option>)}</select>
+                {proj && proj.feasible && refProj ? (
+                  <dl className="mini">
+                    <dt>Revenue per flight</dt><dd>{usd(proj.revenuePerFlight)} <span className={`delta ${tone(proj.revenuePerFlight - refProj.revenuePerFlight, 1)}`}>{refProj.feasible ? `${signed((proj.revenuePerFlight / refProj.revenuePerFlight - 1) * 100, 0)}%` : ""}</span></dd>
+                    <dt>Profit per flight</dt><dd>{usd(proj.profitPerFlight)}</dd>
+                    <dt>Load factor</dt><dd>{(proj.loadFactor * 100).toFixed(0)}%</dd>
+                  </dl>
+                ) : <p className="sec-off">{proj?.reason ?? "Cannot fly this route."}</p>}
+              </>
+            )}
           </div>
 
           <ul className="issues" role="status">

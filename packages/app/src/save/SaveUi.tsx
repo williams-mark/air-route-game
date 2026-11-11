@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { aircraftTypes, airports } from "@arg/data";
-import { earliestFleetYear, hubCandidates, MIN_START_YEAR, startYearError, STARTING_AIRLINE } from "@arg/sim";
+import { earliestStartYear, hubCandidates, startYearError, STARTING_AIRLINE } from "@arg/sim";
 import { countryName } from "../routes/geoNames";
 import { hubsByContinent, START_HUB_COUNT } from "./startHubs";
 import { presetForAirport } from "../map/presets";
@@ -113,9 +113,9 @@ export function StartScreen() {
   const push = useToasts((s) => s.push);
   const { metas, error } = useSlots();
   const [seed, setSeed] = useState("2015");
-  // Start year: 2015 is the standard start. The floor is the policy minimum or the first year the data has aircraft in production, if later.
+  // Start year: 2015 is the standard start. The floor is the same `earliestStartYear` the sim validates against.
   const presentYear = useMemo(() => new Date().getFullYear(), []);
-  const minYear = Math.max(MIN_START_YEAR, earliestFleetYear(aircraftTypes) ?? MIN_START_YEAR);
+  const minYear = earliestStartYear(aircraftTypes);
   const [yearText, setYearText] = useState("2015");
   // Campaign length: the review is due on 1 January of the year it ends. Endless has no review.
   const [campaign, setCampaign] = useState("15");

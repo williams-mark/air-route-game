@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
 import { creditLimitUsd, FINANCING_PARAMS, startingScenario } from "@arg/sim";
-import { cancelTerms, orderFundingQuote, parseQuantity, pendingBalanceUsd } from "./orderExposure";
+import { cancelTerms, needsOrderConfirm, ORDER_LOCK_MS, orderFundingQuote, orderQuoteKey, parseQuantity, pendingBalanceUsd } from "./orderExposure";
 
 describe("pendingBalanceUsd", () => {
   it("sums the undelivered purchase balance and ignores leases and delivered aircraft", () => {
@@ -56,5 +56,23 @@ describe("cancelTerms", () => {
     expect(t.forfeitedUsd).toBeCloseTo(60e6, 0);
     expect(t.relievedUsd).toBeCloseTo(3 * 100e6 * keep, 0);
     expect(cancelTerms({ count: 2, delivered: 0, unitPriceUsd: 50e6, financing: "lease", depositUsd: 10e6 }).relievedUsd).toBe(0);
+  });
+});
+
+describe("order confirm and lock", () => {
+  it("confirms every purchase and any deposit over $10M, but lets small lease orders straight through", () => {
+    expect(needsOrderConfirm("purchase", 1e6)).toBe(true);
+    expect(needsOrderConfirm("lease", 10_000_000)).toBe(false);
+    expect(needsOrderConfirm("lease", 10_000_001)).toBe(true);
+    expect(needsOrderConfirm("lease", 2_552_900_000)).toBe(true);
+  });
+
+  it("keys the quote by every input that changes the order", () => {
+    const base = { typeId: "A320", count: 2, financing: "purchase" as const, deliveryHubId: "LAX" };
+    expect(orderQuoteKey(base)).not.toBe(orderQuoteKey({ ...base, count: 3 }));
+    expect(orderQuoteKey(base)).not.toBe(orderQuoteKey({ ...base, financing: "lease" }));
+    expect(orderQuoteKey(base)).not.toBe(orderQuoteKey({ ...base, deliveryHubId: "SFO" }));
+    expect(orderQuoteKey(base)).toBe(orderQuoteKey({ ...base }));
+    expect(ORDER_LOCK_MS).toBeGreaterThanOrEqual(1000);
   });
 });

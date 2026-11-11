@@ -36,10 +36,10 @@ export function CampaignReviewCard() {
   };
 
   return (
-    <Modal label="Campaign review" scrimClassName="scrim" className="gameover-card campaign-review" initialFocus="button.primary" closeOnEscape={false} closeOnBackdrop={false} onClose={() => undefined}>
+    <Modal label="Campaign review" scrimClassName="scrim" className="gameover-card campaign-review" initialFocus="h1" closeOnEscape={false} closeOnBackdrop={false} onClose={() => undefined}>
       <div className="review-head">
         <div>
-          <h1>{r.airline}: campaign review</h1>
+          <h1 tabIndex={-1}>{r.airline}: campaign review</h1>
           <p>{r.yearsPlayed} years, {r.startYear} to {r.endYear}. The campaign has reached its end date and the sim is paused.</p>
         </div>
         <div className={`review-grade grade-${sc.grade}`} aria-label={`Grade ${sc.grade}`}>

@@ -1,4 +1,5 @@
 import { Modal } from "../shell/Modal";
+import { shortTypeLabel } from "../aircraft/names";
 import { formatMoney } from "../sim/format";
 import type { DisposePlan } from "./disposePlan";
 
@@ -30,7 +31,7 @@ export function DisposeDialog({ plan, distress, onConfirm, onClose }: Props) {
         <ul className="dispose-lines" aria-label={sell ? "Aircraft to sell" : "Aircraft to return"}>
           {plan.lines.map((l) => (
             <li key={l.id} className={l.ok ? undefined : "refused"}>
-              <span className="dl-tail">{l.tail}{l.typeId ? <span className="hint"> {l.typeId}</span> : null}</span>
+              <span className="dl-tail">{l.tail}{l.typeId ? <span className="hint"> {shortTypeLabel(l.typeId)}</span> : null}</span>
               {l.ok
                 ? <span className={`dl-amt ${sell ? "pos" : "neg"}`}>{sell ? `+${formatMoney(l.amountUsd)}` : `−${formatMoney(l.amountUsd)}`}</span>
                 : <span className="dl-why neg">{l.reason}</span>}
