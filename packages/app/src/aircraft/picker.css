@@ -1,5 +1,5 @@
 /* Aircraft picker: manufacturer > family > variant tiles. Colours from theme.css variables only. */
-.ap { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+.ap { container-type: inline-size; display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
 .ap-label { font-size: .8rem; color: var(--text-dim); }
 .ap-toggle { display: flex; align-items: center; justify-content: space-between; gap: .6rem; width: 100%; text-align: left; padding: .45rem .65rem; border-radius: 8px; }
 .ap-sum { display: flex; flex-direction: column; min-width: 0; }
@@ -8,7 +8,7 @@
 .ap-change { display: inline-flex; align-items: center; gap: .25rem; font-size: .78rem; color: var(--accent); flex: none; }
 .ap-chev { display: inline-flex; transition: transform .15s; } .ap-chev.up { transform: rotate(180deg); }
 .ap-toggle[aria-expanded="true"] { border-color: var(--accent); }
-.ap-body { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: .5rem; container-type: inline-size; display: grid; grid-template-columns: 10.5rem minmax(0, 1fr); gap: .5rem; align-items: start; }
+.ap-body { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: .5rem; display: grid; grid-template-columns: 10.5rem minmax(0, 1fr); gap: .5rem; align-items: start; }
 .ap-body > .ap-empty { grid-column: 1 / -1; }
 .ap-mans { display: flex; flex-direction: column; gap: .35rem; }
 .ap-main { display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
