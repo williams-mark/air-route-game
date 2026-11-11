@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { typeShortName } from "../aircraft/names";
 import { aircraftTypes } from "@arg/data";
 import { COMMAND_PARAMS, dayToDate, defaultLayout, FINANCING_PARAMS, homeHubOf, layoutSeats, orderableTypes, orderDiscount, ownedHubsOf } from "@arg/sim";
 import { bridge, useSim } from "../sim/useSim";
@@ -80,7 +81,7 @@ export default function OrdersView() {
     setConfirming(false);
     if (res && !res.ok) { push("alert", res.error.message); return; }
     setLockedKey(quoteKey);
-    push("good", `Ordered ${count} ${type.id} on ${financing}. ${financing === "purchase" ? "Deposit" : "Down payment"} ${formatMoney(deposit)} paid.`);
+    push("good", `Ordered ${count} ${typeShortName(type)} on ${financing}. ${financing === "purchase" ? "Deposit" : "Down payment"} ${formatMoney(deposit)} paid.`);
   };
   const submit = (e: React.FormEvent) => {
     e.preventDefault();

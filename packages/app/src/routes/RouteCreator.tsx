@@ -219,7 +219,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
               {hoursShort && <span className="rp-err" role="alert">Short at {originId}: fewer flights or another aircraft.</span>}
             </div>
           )}
-          {sim && <HubMoveCallout originId={originId} typeId={typeId} available={hours?.available ?? 0} needed={hours?.needed ?? 0} free={hours?.free ?? 0} />}
+          {sim && <HubMoveCallout originId={originId} destinationId={destinationId} typeId={typeId} available={hours?.available ?? 0} needed={hours?.needed ?? 0} free={hours?.free ?? 0} />}
           <FareFields text={fareText} onChange={setFareText} km={market.distanceKm} from={a} to={b} compact />
           {footMsgs.length > 0 && <div className="rc-msgs">{footMsgs.map((m) => <p key={m} className="rp-err" role="alert">{m}</p>)}</div>}
         </section>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { shortTypeLabel } from "../aircraft/names";
 import { CLASS_NAME, homeHubOf, playerHubs, typeBlockHours } from "@arg/sim";
 import { pct, usd } from "../routes/fmt";
 import { bridge, useSim } from "../sim/useSim";
@@ -55,7 +56,7 @@ export default function HubBoardView() {
                   {rows.map((r) => (
                     <tr key={r.routeId}>
                       <th scope="row"><span className="hb-dir">{r.direction === "dep" ? "DEP" : "ARR"}</span>{r.direction === "dep" ? `${hub}–${r.other}` : `${r.other}–${hub}`}</th>
-                      <td>{r.typeId}</td>
+                      <td>{shortTypeLabel(r.typeId)}</td>
                       <td className="num" title={r.frequency < r.requested ? `${r.requested} requested, ${r.frequency} scheduled` : undefined}>
                         {r.frequency}{r.frequency < r.requested ? ` / ${r.requested}` : ""}
                       </td>
@@ -80,10 +81,10 @@ export default function HubBoardView() {
                 {hourRows.map((h) => (
                   <li key={h.typeId}>
                     <div className="hb-hours-top">
-                      <b>{h.typeId}</b>
+                      <b>{shortTypeLabel(h.typeId)}</b>
                       <span>{hours(h.used)} used / {hours(h.available)} h, <span className={h.free < 0 ? "neg" : undefined}>{hours(h.free)} free</span></span>
                     </div>
-                    <div className="hb-bar" role="img" aria-label={`${h.typeId}: ${hours(h.used)} of ${hours(h.available)} block hours used`}>
+                    <div className="hb-bar" role="img" aria-label={`${shortTypeLabel(h.typeId)}: ${hours(h.used)} of ${hours(h.available)} block hours used`}>
                       <i className={h.usedShare > 1 ? "over" : undefined} style={{ width: `${Math.min(100, h.usedShare * 100)}%` }} />
                     </div>
                   </li>

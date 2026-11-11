@@ -24,21 +24,27 @@ const STATUS_REASON: Record<FleetItem["status"], string | null> = {
 };
 
 /**
- * Aircraft that could be rebased to `target`: everything not already there. Eligible means active and flying no route
- * (the sim does not re-check routes, so this is the guard). `capacityHours(typeId)` is a type's weekly block hours per aircraft.
- * Eligible rows come first, the draft's type first within each group.
+ * Aircraft that could be rebased to `target`: everything not already there. Eligible means active, flying no route (the sim does not
+ * re-check routes, so this is the guard) and of a type that can fly the drafted pair (`canServe`: range and runway).
+ * `capacityHours(typeId)` is a type's weekly block hours per aircraft. Eligible rows come first, best fit first: the draft's type,
+ * then the most free block hours, then tail. The rest follow by tail, so the caller can collapse them.
  */
-export function moveCandidates(fleet: readonly FleetItem[], target: Id, capacityHours: (typeId: Id) => number, preferTypeId?: Id): MoveCandidate[] {
+export function moveCandidates(fleet: readonly FleetItem[], target: Id, capacityHours: (typeId: Id) => number, preferTypeId?: Id, canServe: (typeId: Id) => boolean = () => true): MoveCandidate[] {
   const rows = fleet.filter((a) => a.hub !== target).map((a): MoveCandidate => {
     const statusReason = STATUS_REASON[a.status];
-    const reason = statusReason ?? (a.routes.length > 0 ? `Flies ${a.routes.join(", ")}; remove it from its routes first.` : null);
+    const reason = statusReason
+      ?? (a.routes.length > 0 ? `Flies ${a.routes.join(", ")}; remove it from its routes first.` : null)
+      ?? (canServe(a.typeId) ? null : `${a.typeName} cannot fly this pair (range or runway).`);
     return {
       id: a.id, tail: a.tail, typeId: a.typeId, typeName: a.typeName, ageYears: a.ageYears, hub: a.hub,
       freeHours: reason ? 0 : capacityHours(a.typeId), eligible: reason === null, ...(reason ? { reason } : {}),
     };
   });
-  const rank = (c: MoveCandidate) => (c.eligible ? 0 : 2) + (preferTypeId && c.typeId === preferTypeId ? 0 : 1);
-  return rows.sort((x, y) => rank(x) - rank(y) || x.tail.localeCompare(y.tail));
+  const preferred = (c: MoveCandidate) => (preferTypeId && c.typeId === preferTypeId ? 1 : 0);
+  return rows.sort((x, y) =>
+    (x.eligible ? 0 : 1) - (y.eligible ? 0 : 1)
+    || (x.eligible && y.eligible ? preferred(y) - preferred(x) || y.freeHours - x.freeHours : 0)
+    || x.tail.localeCompare(y.tail));
 }
 
 export type HubCalloutState =

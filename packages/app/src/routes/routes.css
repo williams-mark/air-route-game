@@ -246,3 +246,4 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 .rc-move-meta { color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .rc-move-why { flex-basis: 100%; padding-left: 1.4rem; color: var(--text-dim); font-size: .72rem; }
 .rp-input-note { color: var(--sev-warn); font-size: .75rem; margin: .25rem 0 0; line-height: 1.3; }
+.rc-move-more { margin: 0 0 .5rem; font-size: .82rem; } .rc-move-more summary { cursor: pointer; color: var(--text-dim); } .rc-move-more .rc-move-list { margin-top: .4rem; }

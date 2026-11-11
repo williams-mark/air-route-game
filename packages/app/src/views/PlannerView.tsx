@@ -248,7 +248,7 @@ function LeftCell({ r, state, data, selected, onKey, onPick }: { r: PlannerRow<I
   const pinned = (state.planner?.pins[it.ac.id] ?? []).length > 0;
   return (
     <button type="button" className={`pl-row-btn${selected ? " sel" : ""}`} style={{ top: r.y, height: r.h }} aria-current={selected ? "true" : undefined} onKeyDown={onKey} onClick={() => onPick(it.ac.id)}
-      aria-label={`${it.ac.tailNumber}, ${it.ac.typeId}, ${st.text}`}>
+      aria-label={`${it.ac.tailNumber}, ${shortTypeLabel(it.ac.typeId)}, ${st.text}`}>
       <span className="pl-tail">{it.ac.tailNumber}{pinned && <svg viewBox="0 0 10 10" width="10" height="10" className="pl-pin-mini" aria-label="pinned"><path d="M1 1l4-1 5 5-1 1-2-1-2 3-1-1 1-3-2-2z" /></svg>}</span>
       <span className="pl-cabin">{cabinSummary(it.ac.layout)}</span>
       <span className={`pl-status ${st.cls}`}>{st.text}</span>
@@ -324,7 +324,7 @@ function Issue({ gap, open, state, data }: { gap: CoverageGap; open: boolean; st
             return (
               <li key={s.aircraftId}>
                 <div className="pl-sugg-top">
-                  <strong>{ac.tailNumber}</strong><span>{ac.typeId}</span>
+                  <strong>{ac.tailNumber}</strong><span>{shortTypeLabel(ac.typeId)}</span>
                   <span className="pl-dim">+{s.roundTripsPerWeek}/wk, {s.seats} seats</span>
                   <span className={s.profitDeltaPerWeek >= 0 ? "pos" : "neg"}>{money(s.profitDeltaPerWeek)}/wk</span>
                   <button type="button" className="primary" onClick={() => apply(s)}>Apply</button>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { typeShortName } from "../aircraft/names";
 import { aircraftTypes } from "@arg/data";
 import { CLASS_NAME, SERVICE_LEVELS, SERVICE_LEVEL_NAME, dayToDate, defaultLayout, layoutSeats } from "@arg/sim";
 import type { CabinClass, CabinLayout, ServiceLevel } from "@arg/contracts";
@@ -62,10 +63,10 @@ export default function CabinView() {
           onChange={(id) => { const t = TYPES.find((x) => x.id === id)!; setType(t.id); setDrafts((d) => ({ ...d, [t.id]: conform(t, d[t.id] ?? saved[t.id] ?? defaultLayout(t)) })); }} />
         <button
           type="button" className="primary"
-          onClick={() => { save(type.id, layout); push("good", `Saved this ${type.id} cabin (${layoutSeats(layout)} seats) for new orders.`); }}
+          onClick={() => { save(type.id, layout); push("good", `Saved this ${typeShortName(type)} cabin (${layoutSeats(layout)} seats) for new orders.`); }}
           disabled={isSaved}
         >{saved[type.id] ? (isSaved ? "Saved for new orders" : "Update saved design") : "Use for new orders"}</button>
-        {saved[type.id] && <button type="button" onClick={() => { save(type.id, null); push("info", `New ${type.id} orders use the standard cabin again.`); }}>Clear saved design</button>}
+        {saved[type.id] && <button type="button" onClick={() => { save(type.id, null); push("info", `New ${typeShortName(type)} orders use the standard cabin again.`); }}>Clear saved design</button>}
       </div>
       <ServiceLevels />
       <div className="panel-box"><CabinEditor type={type} layout={layout} onChange={set} day={day} /></div>

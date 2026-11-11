@@ -79,8 +79,8 @@ export function RouteAircraft({ route }: { route: Route }) {
     <section aria-labelledby="rp-ac" className="rp-sec" ref={secRef} id="rp-aircraft">
       <h3 id="rp-ac">Aircraft</h3>
       <dl className="mini rp-dl">
-        <dt>Planned type</dt><dd>{type ? typeShortName(type) : route.typeId}{type ? `, ${typicalSeats(type)} seats` : ""}</dd>
-        {operating.length > 0 && <><dt>Operating</dt><dd>{substituted ? substituted.replace(`Planned ${route.typeId}, flown by `, "") : operating.map((m) => `${m.aircraft} x ${m.typeId}`).join(", ")}{substituted ? " (substituted)" : " (as planned)"}</dd></>}
+        <dt>Planned type</dt><dd>{type ? typeShortName(type) : shortTypeLabel(route.typeId)}{type ? `, ${typicalSeats(type)} seats` : ""}</dd>
+        {operating.length > 0 && <><dt>Operating</dt><dd>{substituted ? substituted.replace(`Planned ${route.typeId}, flown by `, "") : operating.map((m) => `${m.aircraft} x ${shortTypeLabel(m.typeId)}`).join(", ")}{substituted ? " (substituted)" : " (as planned)"}</dd></>}
         <dt>Flown by</dt><dd>{flying.length === 0 ? "No aircraft assigned right now" : flying.slice(0, 6).map((f) => f.tail).join(", ") + (flying.length > 6 ? ` and ${flying.length - 6} more` : "")}</dd>
         <dt>You own ({shortTypeLabel(route.typeId)})</dt><dd>{owned.get(route.typeId) ? `${owned.get(route.typeId)!.total} ${shortTypeLabel(route.typeId)} (${owned.get(route.typeId)!.free} free)` : `None${onOrder.get(route.typeId) ? `, ${onOrder.get(route.typeId)} on order` : ""}`}{substituted ? "; the route is flown by substitutes" : ""}</dd>
       </dl>
@@ -108,7 +108,7 @@ export function RouteAircraft({ route }: { route: Route }) {
               {none && (
                 <div className="rp-alert" role="alert"><IconAlert size={16} /><div>
                   <b>No {nextType.id} in your fleet</b>
-                  <div>{ordered > 0 ? `${ordered} on order, but none delivered yet. ` : ""}The scheduler will substitute {sub ? `another aircraft such as your ${sub.typeId}` : "whatever it can find"} until you have one: order some or choose a type you own.</div>
+                  <div>{ordered > 0 ? `${ordered} on order, but none delivered yet. ` : ""}The scheduler will substitute {sub ? `another aircraft such as your ${shortTypeLabel(sub.typeId)}` : "whatever it can find"} until you have one: order some or choose a type you own.</div>
                   <button type="button" className="link-btn" onClick={orderIt}>Order {typeShortName(nextType)}{"…"}</button>
                 </div></div>
               )}

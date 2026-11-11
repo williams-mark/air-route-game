@@ -46,3 +46,23 @@ describe("hubCallout", () => {
     expect(hubCallout({ ...base, typeId: "" })).toEqual({ kind: "none" });
   });
 });
+
+describe("moveCandidates fit", () => {
+  const fleet = [
+    mk("S1", "B738", "active", "LAX"),
+    mk("S2", "A321", "active", "LAX"),
+    mk("S3", "E175", "active", "LAX"),
+    mk("S4", "B738", "active", "SFO"),
+  ];
+  const canServe = (t: string) => t !== "E175";
+  const rows = moveCandidates(fleet, "ATL", cap, "B738", canServe);
+  it("puts aircraft that can fly the pair first, the drafted type first within them", () => {
+    expect(rows.filter((r) => r.eligible).map((r) => r.tail)).toEqual(["S1", "S4", "S2"]);
+  });
+  it("says why a type that cannot fly the pair is unavailable, and keeps it out of the eligible group", () => {
+    const r = rows.find((x) => x.tail === "S3")!;
+    expect(r.eligible).toBe(false);
+    expect(r.reason).toMatch(/range or runway/);
+  });
+});
+
