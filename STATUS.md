@@ -105,7 +105,7 @@ Still open after the follow-up lanes (credit/bankruptcy, fleet sales, balance, c
 
 # Build status (update at the end of every work session)
 
-Last updated: Tue 10 Nov 2026 (lane/qa-playtest-fixes). Gate green on the lane: typecheck, test (data 82, sim 382, app 202), build, e2e 48/48. Credit/bankruptcy, fare-swing, UI polish, aircraft sales, campaign end, balance calibration and hub-move and the three follow-up lanes are all merged on this lane. Not yet merged to main.
+Last updated: Wed 11 Nov 2026 (lane/qa-playtest-fixes). Gate green on the lane: typecheck, test (data 82, sim 462, app 247), build, e2e 50/50. Credit/bankruptcy, fare-swing, UI polish, aircraft sales, campaign end, balance calibration and hub-move and the three follow-up lanes are all merged on this lane. Not yet merged to main.
 
 Last updated: Fri 6 Nov 2026: globe (1,006 airports, tiers, presets), terminals, slots, fare policy, Hubs and Fare policy panels merged on lane/integration-globe; gate green (data 82, sim 330, app ~176). e2e full suite not re-run.
 
