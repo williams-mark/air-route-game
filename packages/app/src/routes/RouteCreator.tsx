@@ -18,6 +18,7 @@ import {
 } from "./helpers";
 import { pct, usd, usdSigned } from "./fmt";
 import { useCreation, useToasts } from "./store";
+import { HubMoveCallout } from "./HubMoveCallout";
 
 const SEG_LABEL = { business: "Business", leisure: "Leisure", vfr: "Visiting family", budget: "Budget" } as const;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -125,7 +126,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const week = useMemo(() => (typeId ? projectRoute({ ...dDraft, id: "draft" }, wkDay) : null), [dDraft, wkDay, typeId]);
   // With a live sim the headline figures use the player's own fleet (substitutes included), rivals and hub network; otherwise the standalone model.
   const sim = bridge.getSim?.() ?? null;
-  const livePrevAll = useMemo(() => (sim && typeId ? previewNewRoute(sim, dDraft) : null), [dDraft, typeId, sim?.world.day]); // eslint-disable-line react-hooks/exhaustive-deps
+  const livePrevAll = useMemo(() => (sim && typeId ? previewNewRoute(sim, dDraft) : null), [dDraft, typeId, sim?.world.day, sim?.world.fleet]); // eslint-disable-line react-hooks/exhaustive-deps
   // No aircraft could fly it today: keep the standalone "planned, not yet operating" projection (what it would earn once you have the aircraft) instead of an idle-route loss.
   const planned = !!livePrevAll && !livePrevAll.ownershipIncluded && livePrevAll.operatedFraction === 0;
   const livePrev = planned ? null : livePrevAll;
@@ -141,7 +142,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   // standalone model (its shape is useful, its absolute numbers are not), and the suggestion is dropped when the live model says it is no better.
   const liveBest = useMemo(
     () => (sim && typeId && best && !planned && best.frequency !== dDraft.weeklyFrequency ? previewNewRoute(sim, { ...dDraft, weeklyFrequency: best.frequency }) : null),
-    [best?.frequency, dDraft, typeId, planned, sim?.world.day], // eslint-disable-line react-hooks/exhaustive-deps
+    [best?.frequency, dDraft, typeId, planned, sim?.world.day, sim?.world.fleet], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const useBest = best && (planned || !livePrev) ? { frequency: best.frequency, profit: best.profit }
     : best && liveBest && livePrev && liveBest.figures.feasible && liveBest.figures.profit > livePrev.figures.profit ? { frequency: best.frequency, profit: liveBest.figures.profit }
@@ -218,6 +219,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
               {hoursShort && <span className="rp-err" role="alert">Short at {originId}: fewer flights or another aircraft.</span>}
             </div>
           )}
+          {sim && <HubMoveCallout originId={originId} typeId={typeId} available={hours?.available ?? 0} needed={hours?.needed ?? 0} free={hours?.free ?? 0} />}
           <FareFields text={fareText} onChange={setFareText} km={market.distanceKm} from={a} to={b} compact />
           {footMsgs.length > 0 && <div className="rc-msgs">{footMsgs.map((m) => <p key={m} className="rp-err" role="alert">{m}</p>)}</div>}
         </section>

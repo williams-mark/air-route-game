@@ -233,3 +233,15 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 .route-panel .sandbox-close { flex: none; font: inherit; font-size: .8rem; padding: .3rem .65rem; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); color: var(--text); cursor: pointer; white-space: nowrap; }
 .route-panel .sandbox-close:hover { border-color: var(--accent); }
 .route-panel .sandbox-close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Hub callout in the route creator: why the origin cannot fly the draft, and the fix. */
+.rc-callout { margin: .5rem 0; padding: .55rem .7rem; border: 1px solid var(--sev-warn); border-left-width: 3px; border-radius: 6px; background: var(--panel-2); color: var(--text); font-size: .78rem; }
+.rc-callout p { margin: 0 0 .4rem; }
+.rc-callout button { margin-top: .1rem; }
+.rc-move-list { list-style: none; margin: 0 0 .5rem; padding: 0; max-height: 11rem; overflow: auto; border: 1px solid var(--line); border-radius: 4px; }
+.rc-move-list li { border-bottom: 1px solid var(--line); }
+.rc-move-list li:last-child { border-bottom: 0; }
+.rc-move-list label { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .6rem; padding: .3rem .5rem; cursor: pointer; }
+.rc-move-list li.off label { cursor: not-allowed; color: var(--text-dim); }
+.rc-move-meta { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.rc-move-why { flex-basis: 100%; padding-left: 1.4rem; color: var(--text-dim); font-size: .72rem; }
