@@ -12,12 +12,13 @@ import { useOffersUi } from "../offers/store";
 import { CabinDialog } from "../cabin/CabinDialog";
 import { useCabinDrafts } from "../cabin/store";
 import { ownedHubChoices } from "../hubs/hubs";
-import { parseQuantity, pendingBalanceUsd } from "./orderExposure";
+import { cancelTerms, orderFundingQuote, parseQuantity, pendingBalanceUsd } from "./orderExposure";
 
 type Financing = "purchase" | "lease";
 
 export default function OrdersView() {
-  const { day, cash, orders, decisions, offers } = useSim();
+  const { day, cash, orders, decisions, offers, credit } = useSim();
+  const [cancelling, setCancelling] = useState<string | null>(null);
   const tab = useOffersUi((s) => s.tab);
   const setTab = useOffersUi((s) => s.setTab);
   const push = useToasts((s) => s.push);
@@ -48,6 +49,11 @@ export default function OrdersView() {
   // Purchase balances fall due in full on delivery day and nothing checks cash then, so show what is already committed.
   const owedAtDelivery = pendingBalanceUsd(orders);
   const cashAfter = cash - deposit - owedAtDelivery - (financing === "purchase" ? balance : 0);
+  // The sim refuses an order whose delivery balances would take cash past the credit line; show its verdict before the click.
+  const simQuote = bridge.getSim?.() ?? null;
+  const funding = simQuote && type && parsedQty !== null && !short
+    ? orderFundingQuote(simQuote, { financing, count, depositUsd: deposit, netUnitUsd: unit, listEachUsd: listEach })
+    : null;
 
   const custom = type ? orderLayouts[type.id] : undefined;
   // New aircraft are delivered to a hub the player owns; the home hub is the default.
@@ -58,7 +64,7 @@ export default function OrdersView() {
   const deliveryHubId = hubs.includes(deliveryHub) ? deliveryHub : home;
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!type || parsedQty === null) return;
+    if (!type || parsedQty === null || funding?.refusal) return;
     const res = bridge.dispatch({ kind: "orderAircraft", typeId: type.id, count, layout: custom ?? { sections: [] }, financing, deliveryHubId });
     if (res && !res.ok) { push("alert", res.error.message); return; }
     push("good", `Ordered ${count} ${type.id} on ${financing}. ${financing === "purchase" ? "Deposit" : "Down payment"} ${formatMoney(deposit)} paid.`);
@@ -68,7 +74,7 @@ export default function OrdersView() {
   const done = orders.filter((o) => o.delivered >= o.count);
   return (
     <div className="page">
-      <header className="page-head"><h1>Orders / Offers</h1><p>Order new aircraft from the manufacturers. Delivery takes 6 to 30 months depending on size; buy outright (20% now, 80% at delivery) or lease (a 10% down payment on list price now, lease payments from delivery). Check the Offers tab for launch deals, last production slots, flash sales and used aircraft.</p></header>
+      <header className="page-head"><h1>Orders / Offers</h1><p>Order new aircraft from the manufacturers. Delivery takes 6 to 30 months depending on size; buy outright (20% now, 80% at delivery) or lease (a 10% down payment on list price now, lease payments from delivery). An order is refused when the balances falling due at delivery would take cash past your credit line (see Finance). Check the Offers tab for launch deals, last production slots, flash sales and used aircraft.</p></header>
 
       <div className="orders-tabs" role="tablist" aria-label="Orders and offers">
         <button role="tab" id="tab-orders" aria-selected={tab === "orders"} aria-controls="panel-orders" onClick={() => setTab("orders")}>Orders</button>
@@ -128,8 +134,11 @@ export default function OrdersView() {
             <dt>{financing === "purchase" ? "Deposit due now" : "Down payment due now"}</dt><dd className={short ? "neg" : ""}>{formatMoney(deposit)}{short ? " (more than your cash)" : ""}</dd>
             <dt>Already owed at delivery</dt><dd>{formatMoney(owedAtDelivery)} on open orders</dd>
             <dt>Cash after every balance is paid</dt><dd className={cashAfter < 0 ? "neg" : ""}>{formatMoney(cashAfter)}{cashAfter < 0 ? " (before the income you earn until then)" : ""}</dd>
+            {credit && <><dt>Credit line</dt><dd>{formatMoney(credit.limitUsd)} (grows as aircraft are delivered)</dd></>}
+            {funding && <><dt>Room left within the credit line</dt><dd className={funding.outlook.marginUsd < 0 ? "neg" : ""}>{formatMoney(funding.outlook.marginUsd)}</dd></>}
           </dl>
-          <button type="submit" className="primary" disabled={!type || parsedQty === null}>Place order</button>
+          {funding?.refusal && <div className="rp-err" role="alert" data-testid="order-refusal">{funding.refusal}</div>}
+          <button type="submit" className="primary" disabled={!type || parsedQty === null || !!funding?.refusal}>Place order</button>
         </form>
       </section>
       {designing && type && (
@@ -146,7 +155,7 @@ export default function OrdersView() {
         ) : (
           <div className="table-wrap">
             <table className="data">
-              <thead><tr><th scope="col">Order</th><th scope="col">Aircraft</th><th scope="col" className="num">Delivered</th><th scope="col">Ordered</th><th scope="col">Delivery window</th><th scope="col">Next delivery</th><th scope="col" className="num">Net price each</th></tr></thead>
+              <thead><tr><th scope="col">Order</th><th scope="col">Aircraft</th><th scope="col" className="num">Delivered</th><th scope="col">Ordered</th><th scope="col">Delivery window</th><th scope="col">Next delivery</th><th scope="col" className="num">Net price each</th><th scope="col"><span className="sr-only">Cancel</span></th></tr></thead>
               <tbody>
                 {open.map((o) => {
                   const next = o.deliveryDays.filter((d) => d >= day).sort((a, b) => a - b)[0];
@@ -159,6 +168,22 @@ export default function OrdersView() {
                       <td>{formatMonthYear(o.firstDelivery)}{o.lastDelivery - o.firstDelivery > 20 ? ` to ${formatMonthYear(o.lastDelivery)}` : ""}</td>
                       <td>{next !== undefined ? formatDate(next) : "–"}</td>
                       <td className="num">{formatMoney(o.unitPriceUsd)}</td>
+                      <td>
+                        {cancelling === o.id ? (() => {
+                          const t = cancelTerms(o);
+                          return (
+                            <span className="cancel-confirm">
+                              <span>Cancel {t.aircraft} undelivered: forfeit {formatMoney(t.forfeitedUsd)} deposit{t.relievedUsd > 0 ? `, no longer owe ${formatMoney(t.relievedUsd)} at delivery` : ""}.</span>
+                              <button onClick={() => {
+                                const res = bridge.dispatch({ kind: "cancelOrder", orderId: o.id });
+                                setCancelling(null);
+                                if (res && !res.ok) push("alert", res.error.message); else push("info", `Cancelled the undelivered aircraft on ${o.id}.`);
+                              }}>Confirm cancel</button>
+                              <button onClick={() => setCancelling(null)}>Keep order</button>
+                            </span>
+                          );
+                        })() : <button onClick={() => setCancelling(o.id)} aria-label={`Cancel the undelivered aircraft on ${o.id}`}>Cancel</button>}
+                      </td>
                     </tr>
                   );
                 })}

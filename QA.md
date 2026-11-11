@@ -46,7 +46,7 @@ Not tested by us: mobile devices (narrow desktop widths only), screen-reader beh
 Fixed on lane/qa-ui: B07 narrow layouts, B08 time controls covering content, B09 modal focus, suggestion 5 (notification context), suggestion 8 (these docs). Still open, with owner lane where known:
 - B01 P1 (FIXED, verified 5 Nov): a damaged save can replace the running game (serialize/realBridge; save lane).
 - B02 P1: route-change profit deltas compare preview and live models (route preview helpers).
-- B03 P1 design gap: no player bankruptcy or credit limit; 8 of 12 SQA games and 23 of 30 bot games end with negative cash.
+- B03 P1 (addressed on lane/credit-bankruptcy): credit line, order funding guard, distress and bankruptcy added; 8 of 12 SQA games and 23 of 30 bot games used to end with negative cash.
 - B04 P2: substituted aircraft use the requested type's economics (sim).
 - B05 P2 (FIXED, verified 5 Nov): A220-100/300 and A350-1000 default cabins fail the cabin rules (cabin lane).
 - B06 P2 (FIXED, verified 5 Nov): manufacturer discounts on regular orders have no lasting financial effect (sim).

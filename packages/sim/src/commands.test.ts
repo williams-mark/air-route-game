@@ -116,14 +116,15 @@ describe("orderAircraft", () => {
 
   it("delivery lead times: narrowbodies 6-18 months, widebodies 12-30 months; deterministic", () => {
     for (const [id, lo, hi] of [["B737-900ER", 6, 18], ["B787-9", 12, 30], ["A321", 6, 18], ["B777-300ER", 12, 30]] as const) {
-      const r = order(sc(), id, 2).result;
+      const rich = () => { const s = sc(); return { ...s, world: { ...s.world, cash: 2e9 } }; }; // lead times only: cash is not under test
+      const r = order(rich(), id, 2).result;
       expect(r.ok).toBe(true);
       if (!r.ok) continue;
       for (const d of r.deliveryDays) {
         expect(months(d), id).toBeGreaterThanOrEqual(lo - 0.05);
         expect(months(d), id).toBeLessThanOrEqual(hi + 0.05);
       }
-      expect(JSON.stringify(order(sc(), id, 2).result)).toBe(JSON.stringify(r));
+      expect(JSON.stringify(order(rich(), id, 2).result)).toBe(JSON.stringify(r));
     }
     // different seeds give different lead times
     const a = order(startingScenario(airports, aircraftTypes, 1), "B737-900ER", 1).result;

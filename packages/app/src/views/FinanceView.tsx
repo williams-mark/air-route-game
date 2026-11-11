@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { dayToDate, maintenanceEnabled } from "@arg/sim";
+import { CREDIT_PARAMS, dayToDate, maintenanceEnabled } from "@arg/sim";
 import { monthly, type CostKey, type DayRecord, type MonthRecord } from "../sim/finance";
 import { formatMoney } from "../sim/format";
 import { useSimSelector } from "../sim/useSim";
@@ -80,15 +80,50 @@ const COLS: Array<[string, (m: MonthRecord) => number, CostKey | null]> = [
   ["Airport fees", (m) => -m.by.fees, "fees"],
   ["Sales & overhead", (m) => -m.by.sales, "sales"],
   ["Fleet & corporate", (m) => -m.by.fleet, "fleet"],
+  ["Interest", (m) => -m.by.interest, "interest"],
   ["Profit", (m) => m.profit, null],
 ];
+
+/** The credit line: limit, how much of it is drawn, interest, and where the delivery balances on open orders leave it. */
+function CreditPanel() {
+  const credit = useSimSelector((s) => s.credit);
+  const cash = useSimSelector((s) => s.cash);
+  if (!credit) return null;
+  const used = credit.limitUsd > 0 ? Math.min(1, credit.drawnUsd / credit.limitUsd) : 0;
+  const tone = credit.drawnUsd > credit.limitUsd ? "over" : used >= 0.75 ? "warn" : "";
+  return (
+    <section className="panel-box" aria-label="Credit line">
+      <h2>Credit line</h2>
+      <p className="foot-note" style={{ margin: 0 }}>
+        Cash may go below zero up to the limit, at {(credit.annualRate * 100).toFixed(0)}% interest a year on the overdrawn amount, charged daily. The limit is a {formatMoney(CREDIT_PARAMS.baseLimitUsd)} base line plus {Math.round(CREDIT_PARAMS.fleetAdvanceRate * 100)}% of the value of aircraft you own outright plus {CREDIT_PARAMS.revenueMonths} months of revenue.
+      </p>
+      <div className="credit-bar" role="img" aria-label={`${formatMoney(credit.drawnUsd)} of the ${formatMoney(credit.limitUsd)} credit line is drawn`}><span style={{ width: `${(used * 100).toFixed(1)}%` }} /></div>
+      <dl className="credit-grid">
+        <div><dt>Limit</dt><dd>{formatMoney(credit.limitUsd)}</dd></div>
+        <div><dt>Drawn (overdrawn cash)</dt><dd className={credit.drawnUsd > 0 ? "neg" : ""}>{formatMoney(credit.drawnUsd)}</dd></div>
+        <div><dt>Headroom</dt><dd className={credit.headroomUsd < 0 ? "neg" : ""}>{formatMoney(credit.headroomUsd)}</dd></div>
+        <div><dt>Interest rate</dt><dd>{(credit.annualRate * 100).toFixed(1)}% a year</dd></div>
+        <div><dt>Interest today</dt><dd>{formatMoney(credit.interestPerDayUsd)}</dd></div>
+        <div><dt>Interest paid, total</dt><dd>{formatMoney(credit.interestPaidUsd)}</dd></div>
+        <div><dt>Owed at delivery (open orders)</dt><dd>{formatMoney(credit.owedAtDeliveryUsd)}</dd></div>
+        <div><dt>Cash after those balances</dt><dd className={credit.cashAfterBalancesUsd < 0 ? "neg" : ""}>{formatMoney(credit.cashAfterBalancesUsd)}</dd></div>
+      </dl>
+      {credit.distress ? (
+        <p className="credit-status bad" role="status">Distress: cash {formatMoney(cash)} is beyond the limit. {credit.distress.daysLeft} days left before bankruptcy. Close routes or cancel pending orders to get back within the line.</p>
+      ) : tone === "warn" ? (
+        <p className="credit-status" role="status">More than three quarters of the credit line is drawn.</p>
+      ) : null}
+    </section>
+  );
+}
 
 export default function FinanceView() {
   const ledger = useSimSelector((s) => s.ledger);
   const cash = useSimSelector((s) => s.cash);
   const months = useMemo(() => monthly(ledger), [ledger]);
   // Maintenance is suspended (sim MAINTENANCE_ENABLED): hide its column unless an older save has maintenance costs in it.
-  const cols = useMemo(() => (maintenanceEnabled() || months.some((m) => m.by.maintenance !== 0) ? COLS : COLS.filter(([c]) => c !== "Maintenance")), [months]);
+  // Interest only appears once there has been some.
+  const cols = useMemo(() => COLS.filter(([c]) => (c !== "Maintenance" || maintenanceEnabled() || months.some((m) => m.by.maintenance !== 0)) && (c !== "Interest" || months.some((m) => m.by.interest !== 0))), [months]);
   if (ledger.length === 0) {
     return (
       <div className="page">
@@ -109,6 +144,7 @@ export default function FinanceView() {
         <div className="fin-stat"><span className="k">Profit, {year}</span><span className={`v ${ytd.profit >= 0 ? "pos" : "neg"}`}>{formatMoney(ytd.profit, { sign: true })}</span></div>
         <div className="fin-stat"><span className="k">Margin</span><span className={`v ${ytd.profit >= 0 ? "pos" : "neg"}`}>{ytd.revenue > 0 ? `${((ytd.profit / ytd.revenue) * 100).toFixed(1)}%` : "n/a"}</span></div>
       </section>
+      <CreditPanel />
       <section className="panel-box" aria-label="Profit by month"><h2>Profit by month</h2><ProfitChart months={months} /></section>
       {ledger.length > 1 && <section className="panel-box" aria-label="Cash balance"><h2>Cash balance</h2><CashChart ledger={ledger} /></section>}
       <section className="panel-box" aria-label="Monthly profit and loss">

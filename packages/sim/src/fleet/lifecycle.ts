@@ -14,6 +14,27 @@ export const FINANCING_PARAMS = {
   leaseOperatingUplift: 0.15,
 } as const;
 
+/**
+ * Credit line and financial distress (finance/credit.ts). Design parameters, not sourced figures: the shape follows how airline
+ * revolving credit works (secured on owned aircraft, sized to cash flow, priced above the base rate) without modelling a lender.
+ */
+export const CREDIT_PARAMS = {
+  /** Overdraft limit before collateral and revenue: a small unsecured line every airline gets, USD. */
+  baseLimitUsd: 25_000_000,
+  /** Share of the depreciated value of delivered, purchased aircraft that the lender advances against (leased aircraft are not ours to pledge). */
+  fleetAdvanceRate: 0.5,
+  /** Depreciation of an owned aircraft: straight line from list price to this residual share over the hard lifespan (LIFECYCLE_PARAMS.maxAgeYears). */
+  residualValueFraction: 0.2,
+  /** Cash-flow part of the limit: this many months of revenue, measured over the last `revenueWindowDays`. */
+  revenueMonths: 1.5,
+  revenueWindowDays: 90,
+  /** Annual interest on the overdrawn amount, charged daily as a company cost (overdraft pricing in 2015-2025, base rate plus about 5 points). */
+  annualInterestRate: 0.08,
+  /** Distress begins when cash is below minus the limit and ends the day cash is back within the limit. Days of continuous distress after which the airline fails. A reminder goes out every `reminderDays`. */
+  graceDays: 90,
+  reminderDays: 30,
+} as const;
+
 export const LIFECYCLE_PARAMS = {
   daysPerYear: 365.25,
   /** Hard lifespan: aircraft retire on reaching this age. */

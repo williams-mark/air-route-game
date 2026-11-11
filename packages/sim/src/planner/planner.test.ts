@@ -43,7 +43,8 @@ describe("forecast", () => {
   });
 
   it("matches the real B/C/D check starts when nothing is deferred (no routes, so no deferral)", () => {
-    const quiet: SimState = { ...demo, world: { ...demo.world, routes: [] } };
+    // No routes means no revenue: plenty of cash keeps the airline out of bankruptcy (which would freeze the sim) for the 400 days.
+    const quiet: SimState = { ...demo, world: { ...demo.world, routes: [], cash: 5e10 } };
     const fc = forecastFleet(quiet, 400);
     const actual: Array<[string, number, string]> = [];
     let s = quiet;

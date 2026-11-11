@@ -68,6 +68,7 @@ export function runGame(airports: Airport[], types: AircraftType[], seed: number
       r.finalCash = cash;
       if (cash > r.peakCash) r.peakCash = cash;
       if (cash < r.minCash) r.minCash = cash;
+      if (state.credit?.bankrupt) { r.bankrupt = true; r.bankruptDay = day; break; }
       negative = cash < 0 ? negative + 1 : 0;
       if (negative >= bankruptAfter) { r.bankrupt = true; r.bankruptDay = day; break; }
       if (cash > exploitMultiple * STARTING_CASH_USD) { r.exploit = true; break; }

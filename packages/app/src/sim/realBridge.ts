@@ -7,7 +7,7 @@ import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as rawAirports, terminalsFor } from "@arg/data";
 import {
   applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, LIFECYCLE_PARAMS, dayToDate, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay,
-  validateSimState, type Clock, type SimState, type HubCommand, homeHubOf,
+  validateSimState, type Clock, type SimState, type HubCommand, type FinanceCommand, homeHubOf, creditStatus, isBankrupt,
 } from "@arg/sim";
 
 import type {
@@ -64,6 +64,9 @@ export const LOW_CASH_USD = 15_000_000;
 
 /** Severity from the text of a sim notice. Sim notices are plain strings; keep this list in step with the sim wording. */
 export function classifyNotice(text: string): Severity {
+  if (/Financial distress|Still in distress|Bankruptcy/.test(text)) return "alert";
+  if (/Distress over/.test(text)) return "good";
+  if (/Cash is below zero/.test(text)) return "warn";
   if (/under-supplied|forced|no spare aircraft can cover|deferring|Delivery delayed|Offer expiring soon/i.test(text)) return "warn";
   if (/cut .* fares|bankrupt|collapsed|ceased/i.test(text)) return "warn";
   if (/Delivered|back in service|back to its full|Opened|Ordered|is on schedule/i.test(text)) return "good";
@@ -113,7 +116,7 @@ export class RealSimBridge implements SimBridge {
     this.sim = sim;
     this.notices = []; this.lastOverdrawnAlert = -Infinity; this.nextNotice = 1; this.ledger = []; this.pending = []; this.engine = new DecisionEngine();
     this.lowCash = false; this.offersOf = null; this.viewOf = null; this.rivalsOf = null;
-    this.clock = createClock({ startDay: this.sim.world.day, speed, maxDtMs: this.opts.maxDtMs ?? 250 });
+    this.clock = createClock({ startDay: this.sim.world.day, speed: isBankrupt(this.sim) ? 0 : speed, maxDtMs: this.opts.maxDtMs ?? 250 });
     this.sim = { ...this.sim, speed: this.clock.speed };
     if (extras) {
       this.notices = extras.notices; this.nextNotice = extras.nextNotice; this.ledger = extras.ledger; this.pending = extras.pending;
@@ -212,9 +215,12 @@ export class RealSimBridge implements SimBridge {
   }
 
   private stepOne(): void {
+    // A bankrupt airline is frozen: nothing more to simulate (and the sim would hand back its last events again).
+    if (isBankrupt(this.sim)) { this.clock.setSpeed(0); return; }
     this.sim = stepDay(this.sim);
     const snap = this.sim.events.find((e): e is Extract<SimEvent, { kind: "finance" }> => e.kind === "finance");
-    if (snap) this.ledger.push(dayRecord(snap.snapshot, this.sim.routeReports));
+    if (snap) this.ledger.push(dayRecord(snap.snapshot, this.sim.routeReports, this.sim.credit?.lastInterestUsd ?? 0));
+    if (isBankrupt(this.sim)) this.clock.setSpeed(0); // the sim has paused itself; keep the clock in step
     const raised = this.engine.onDay(this.sim, this.pending);
     if (raised.length) this.pending = [...this.pending, ...raised];
     // Drain regularly so the sim queue (cap 2000) never drops events at high speed.
@@ -243,9 +249,10 @@ export class RealSimBridge implements SimBridge {
       this.say(today, "alert", `Cash is down to ${formatMoney(cash)}. Delivery balances and running costs keep falling due: slow your orders or close routes that lose money.`);
     } else if (cash >= LOW_CASH_USD * 1.5) this.lowCash = false;
     // Overdrawn is not a one-off event: say so again every month while it lasts (not saved; a loaded game is told once more).
-    else if (cash < 0 && today - this.lastOverdrawnAlert >= 30) {
+    // In distress the sim sends its own monthly reminder, so only the milder overdraft case is repeated here.
+    else if (cash < 0 && this.sim.credit?.distressSinceDay == null && today - this.lastOverdrawnAlert >= 30) {
       this.lastOverdrawnAlert = today;
-      this.say(today, "alert", `Still overdrawn: cash is ${formatMoney(cash)}.`);
+      this.say(today, "warn", `Still overdrawn: cash is ${formatMoney(cash)} against a credit line of ${formatMoney(creditStatus(this.sim).limitUsd)}.`);
     }
   }
 
@@ -266,7 +273,7 @@ export class RealSimBridge implements SimBridge {
   get simState(): SimState { return this.sim; }
 
   setSpeed(speed: Speed): void {
-    if (speed === this.clock.speed) return;
+    if (speed === this.clock.speed || (speed > 0 && isBankrupt(this.sim))) return;
     this.clock.setSpeed(speed);
     this.syncSpeed();
     this.emit();
@@ -274,7 +281,7 @@ export class RealSimBridge implements SimBridge {
 
   getSim = (): SimState => this.sim;
 
-  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand): CommandResult | void {
+  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand): CommandResult | void {
     if (cmd.kind === "setSpeed") {
       if (![0, 1, 2, 3, 4, 5].includes(cmd.speed)) return { ok: false, error: { code: "invalid_speed", message: "Speed must be 0 to 5." } };
       this.setSpeed(cmd.speed);
@@ -292,6 +299,7 @@ export class RealSimBridge implements SimBridge {
       case "openRoute": return { ok: true, routeId: result.routeId, warnings: result.warnings };
       case "updateRoute": return { ok: true, routeId: result.routeId, warnings: result.warnings };
       case "closeRoute": return { ok: true, routeId: result.routeId };
+      case "cancelOrder": return { ok: true, orderId: result.orderId };
       case "orderAircraft": return { ok: true, orderId: result.orderId };
       case "acceptOffer": return { ok: true, orderId: result.orderId, offerId: result.offerId };
       case "dismissOffer": return { ok: true, offerId: result.offerId };
@@ -339,6 +347,7 @@ export class RealSimBridge implements SimBridge {
       rivals: this.rivalsView(),
       reports: sim.routeReports,
       ledger: this.ledger.slice(),
+      credit: creditStatus(sim),
     };
   }
 

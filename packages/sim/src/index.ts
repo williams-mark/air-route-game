@@ -16,6 +16,7 @@ import { playerHubs } from "./route/farePolicy";
 import { weeklySlotFees } from "./route/congestion";
 import { stepOffers } from "./offers";
 import { airportOpen, closureOf, dayLabel } from "./world/closures";
+import { isBankrupt, overdraftInterestUsd, stepCredit } from "./finance/credit";
 import { rivalItinerariesFor, stepRivals } from "./rivals";
 import { DEFAULT_SIM_PARAMS, type AircraftMeta, type CheckKind, type RouteReport, type SimParams, type SimState } from "./state";
 
@@ -28,6 +29,7 @@ export * from "./world/regions";
 export * from "./world/closures";
 export * from "./finance/ledger";
 export * from "./finance/fuel";
+export * from "./finance/credit";
 export * from "./time/clock";
 export * from "./time/calendar";
 export { distanceKm, haversineKm } from "./geo";
@@ -131,6 +133,8 @@ export function stepDay(state: SimState): SimState;
 export function stepDay(state: WorldState | SimState): WorldState | SimState {
   if (!isSimState(state)) return { ...state, day: state.day + 1 };
 
+  // Bankruptcy ends the game: the sim no longer advances (the UI shows the game-over screen).
+  if (isBankrupt(state)) return state;
   state = closeRoutesAtClosedAirports(state);
   let { world } = state;
   const { params } = state;
@@ -297,7 +301,9 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     const overhead = params.overheadPerAircraftPerDay * (financing === "lease" ? 1 + FINANCING_PARAMS.leaseOperatingUplift : 1);
     fleetCost += lease / 30.4375 + overhead;
   }
-  const costs = routeCosts + fleetCost;
+  // Overdraft interest on the cash balance at the start of the day (credit line, finance/credit.ts); a company-level cost.
+  const interest = overdraftInterestUsd(world.cash);
+  const costs = routeCosts + fleetCost + interest;
   const profit = revenue - costs;
   const cash = world.cash + profit + cashAdjust;
   const snapshot: FinanceSnapshot = { day, cash, revenue, costs, profit };
@@ -319,7 +325,12 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     events,
     fleetMeta: meta,
   };
-  return stepOffers(stepRivals(pushEvents(next, [...events, ...notices]), day));
+  const credit = stepCredit(state, next, interest);
+  const done: SimState = credit.credit === next.credit ? next : { ...next, credit: credit.credit };
+  const frozen: SimState = credit.bankrupt ? { ...done, speed: 0 } : done;
+  const pushed = pushEvents(frozen, [...events, ...notices, ...credit.notices.map((text): SimEvent => ({ kind: "notice", day, text }))]);
+  // A failed airline stops here: no more offers or rival moves.
+  return credit.bankrupt ? pushed : stepOffers(stepRivals(pushed, day));
 }
 
 /**
