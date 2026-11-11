@@ -309,6 +309,36 @@ for (const theme of themes) {
     await page.getByRole("button", { name: /Cancel|Close/ }).first().click({ timeout: 1500 }).catch(() => {});
   });
 
+  await check(theme, "route creator: hub callout unlocks a hub, moves an idle aircraft there, and Open route enables", async () => {
+    const fresh = await newPage(theme);
+    const p = fresh.page;
+    try {
+      await p.keyboard.press("n");
+      await p.getByRole("combobox", { name: "From" }).waitFor({ timeout: 5000 });
+      await p.getByRole("combobox", { name: "From" }).fill("las");
+      await p.keyboard.press("Enter");
+      await p.getByRole("combobox", { name: "To" }).fill("phx");
+      await p.keyboard.press("Enter");
+      await p.waitForTimeout(600);
+      // Not yet a hub: the callout says so and offers the unlock with its cost.
+      const unlockBox = p.getByRole("group", { name: "LAS is not a hub" });
+      await unlockBox.waitFor({ timeout: 5000 });
+      assert(await p.getByRole("button", { name: "Open route" }).isDisabled(), "Open route should be disabled before LAS has aircraft");
+      await unlockBox.getByRole("button", { name: /Unlock hub for \$/ }).click();
+      // Now a hub with nothing based there: the move control lists idle aircraft.
+      const moveBox = p.getByRole("group", { name: "Move aircraft to LAS" });
+      await moveBox.waitFor({ timeout: 5000 });
+      assert(await moveBox.getByRole("button", { name: /^Move aircraft to LAS/ }).isDisabled(), "move button should be disabled until an aircraft is ticked");
+      await shot(p, theme, "route-hub-callout");
+      await moveBox.locator('input[type=checkbox]:not([disabled])').first().check();
+      await moveBox.getByRole("button", { name: /^Move 1 aircraft to LAS/ }).click();
+      await p.waitForTimeout(500);
+      // Validation updates at once: callout gone, block hours free, Open route enabled.
+      assert(await moveBox.count() === 0, "callout should disappear once the origin can fly the draft");
+      assert(await p.getByRole("button", { name: "Open route" }).isEnabled(), `Open route still disabled: ${await p.locator(".rc-msgs, .rc-hours").allInnerTexts()}`);
+    } finally { await p.close(); }
+  });
+
   await check(theme, "order an aircraft and see a pending order", async () => {
     await page.reload();
     await page.waitForFunction(() => window.__argMap && window.__argMap.loaded(), null, { timeout: 30000 });
