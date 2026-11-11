@@ -51,6 +51,8 @@ export const DISPOSAL_PARAMS = {
   obsoleteFactor: 0.8,
   /** Early lease return: termination fee in months of the aircraft's lease payment (leases here have no fixed term, so this stands in for the remaining commitment). */
   leaseTerminationMonths: 3,
+  /** In distress (cash beyond the credit line) a lease return is allowed anyway when its fee is at most this many months of the lease and overhead it stops. */
+  distressReturnPaybackMonths: 12,
 } as const;
 
 /**

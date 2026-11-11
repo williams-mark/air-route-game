@@ -147,8 +147,14 @@ export function disposalQuote(state: SimState, aircraftId: Id, action: DisposalA
     return { ...base, proceedsUsd: proceeds, feeUsd: 0, bookValueUsd: aircraftBookValueUsd(type, ac.ageDays), cashAfterUsd: cash + proceeds, monthlySavingUsd: overheadMonthly };
   }
   const fee = leaseReturnFeeUsd(state, ac, type);
-  if (cash - fee < -limitBefore) {
+  const monthlySaving = leasePaymentMonthlyUsd(state, ac, type) + overheadMonthly;
+  // Rule: the fee may be folded into the overdraft while cash after it stays within the credit line. Beyond the line (distress) the
+  // return is the cure, so the fee is charged anyway when the return pays for itself within a year of stopped lease and overhead.
+  // An aircraft that flies no route earns nothing, so that is nearly always true. Outside distress a fee that would push cash past
+  // the line is still refused.
+  const inDistress = cash < -limitBefore;
+  if (cash - fee < -limitBefore && !(inDistress && fee <= DISPOSAL_PARAMS.distressReturnPaybackMonths * monthlySaving)) {
     return refuse("insufficient_cash", `Returning ${ac.tailNumber} early costs ${usdM(fee)} (${DISPOSAL_PARAMS.leaseTerminationMonths} months of lease), but cash is ${usdM(cash)} against a credit line of ${usdM(limitBefore)}.`);
   }
-  return { ...base, proceedsUsd: 0, feeUsd: fee, bookValueUsd: 0, cashAfterUsd: cash - fee, monthlySavingUsd: leasePaymentMonthlyUsd(state, ac, type) + overheadMonthly };
+  return { ...base, proceedsUsd: 0, feeUsd: fee, bookValueUsd: 0, cashAfterUsd: cash - fee, monthlySavingUsd: monthlySaving };
 }

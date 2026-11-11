@@ -10,7 +10,7 @@ import { baseSlotFeeUsd, playerSlotsAt, rivalSlotsAt, backgroundSlots, routeSlot
 import { defaultLayout, validateLayout } from "./fleet/layout";
 import { initialMeta } from "./fleet/maintenance";
 import { FINANCING_PARAMS } from "./fleet/lifecycle";
-import { deliveredCollateralUsd, isBankrupt, orderFundingRefusal, type ScheduledBalance } from "./finance/credit";
+import { deliveredCollateralUsd, depositRefusal, isBankrupt, orderFundingRefusal, type ScheduledBalance } from "./finance/credit";
 import { typeCanServe } from "./fleet/scheduler";
 import { disposalQuote, withoutAircraft } from "./fleet/disposal";
 import { homeHubOf, isOwnedHub, ownedHubsOf, routeHourSummary } from "./fleet/hubs";
@@ -337,12 +337,9 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
     ? unitPriceUsd * FINANCING_PARAMS.purchaseDownFraction
     : type.listPriceUsdM * 1e6 * FINANCING_PARAMS.leaseDownFractionOfList;
   const depositUsd = unitDownUsd * cmd.count;
-  if (state.world.cash < depositUsd) {
-    return {
-      state,
-      result: fail("insufficient_cash", `The ${financing === "purchase" ? "deposit" : "down payment"} is ${usdM(depositUsd)} but cash is ${usdM(state.world.cash)}.`),
-    };
-  }
+  // Same credit-line rule for leases and purchases: cash after the deposit may go negative within the credit limit.
+  const depositNo = depositRefusal(state, depositUsd, financing === "purchase" ? "deposit" : "down payment");
+  if (depositNo) return { state, result: fail("credit_limit", depositNo) };
 
   const { id: orderNum, counters: c1 } = nextId(state, "order");
   const orderId = `order-${orderNum}`;
@@ -400,7 +397,10 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
   const next: SimState = pushEvents(
     {
       ...state,
-      world: { ...state.world, cash: state.world.cash - depositUsd, fleet: [...state.world.fleet, ...aircraft] },
+      world: {
+        ...state.world, cash: state.world.cash - depositUsd, fleet: [...state.world.fleet, ...aircraft],
+        cashLog: [...(state.world.cashLog ?? []), { day: state.world.day, amountUsd: -depositUsd, text: `${financing === "purchase" ? "Aircraft deposit" : "Lease down payment (not refunded)"}: ${cmd.count} x ${type.id}` }],
+      },
       fleetMeta: meta,
       orders: [...state.orders, order],
       counters,

@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { CREDIT_PARAMS, DIVERSITY_PARAMS, dayToDate, maintenanceEnabled } from "@arg/sim";
 import { monthly, type CostKey, type DayRecord, type MonthRecord } from "../sim/finance";
-import { formatMoney } from "../sim/format";
-import { useSimSelector } from "../sim/useSim";
+import { formatDate, formatMoney } from "../sim/format";
+import { bridge, useSimSelector } from "../sim/useSim";
 
 const SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const CHART_MONTHS = 24;
@@ -139,6 +139,36 @@ function DiversityPanel() {
   );
 }
 
+/** Deposits and lease down payments paid on aircraft orders (sim cash log), by month, newest first. They are cash out but not a P&L cost. */
+function DepositsPanel() {
+  useSimSelector((s) => s.ledger); // re-render as days pass
+  const log = (bridge.getSim?.()?.world.cashLog ?? []).filter((e) => /deposit|down payment/i.test(e.text));
+  if (log.length === 0) return null;
+  const byMonth = new Map<string, number>();
+  for (const e of log) {
+    const d = dayToDate(e.day);
+    const k = `${d.year}-${String(d.month + 1).padStart(2, "0")}`;
+    byMonth.set(k, (byMonth.get(k) ?? 0) + -e.amountUsd);
+  }
+  const total = log.reduce((s, e) => s - e.amountUsd, 0);
+  const recent = [...log].reverse().slice(0, 8);
+  return (
+    <section className="panel-box" aria-label="Aircraft deposits">
+      <h2>Aircraft deposits</h2>
+      <p className="foot-note" style={{ margin: 0 }}>
+        Deposits on purchases and lease down payments are paid in cash when you order. They are not in the monthly P&amp;L below (a purchase deposit becomes part of the aircraft's price, a lease down payment is not refunded), but they reduce cash. Total paid: {formatMoney(total)}.
+      </p>
+      <div className="table-wrap">
+        <table className="data">
+          <thead><tr><th scope="col">Month</th><th scope="col" className="num">Deposits paid</th></tr></thead>
+          <tbody>{[...byMonth].reverse().slice(0, 12).map(([k, v]) => <tr key={k}><th scope="row">{k}</th><td className="num neg">{formatMoney(-v)}</td></tr>)}</tbody>
+        </table>
+      </div>
+      <ul className="foot-note">{recent.map((e, i) => <li key={i}>{formatDate(e.day)}: {e.text} ({formatMoney(e.amountUsd)})</li>)}</ul>
+    </section>
+  );
+}
+
 export default function FinanceView() {
   const ledger = useSimSelector((s) => s.ledger);
   const cash = useSimSelector((s) => s.cash);
@@ -168,6 +198,7 @@ export default function FinanceView() {
       </section>
       <CreditPanel />
       <DiversityPanel />
+      <DepositsPanel />
       <section className="panel-box" aria-label="Profit by month"><h2>Profit by month</h2><ProfitChart months={months} /></section>
       {ledger.length > 1 && <section className="panel-box" aria-label="Cash balance"><h2>Cash balance</h2><CashChart ledger={ledger} /></section>}
       <section className="panel-box" aria-label="Monthly profit and loss">

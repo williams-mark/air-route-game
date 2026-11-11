@@ -51,7 +51,7 @@ export function CampaignReviewCard() {
       <section className="review-score" aria-label="Score">
         <h2>Final equity {signed(sc.equityUsd)}</h2>
         <p className="review-formula">
-          Equity = cash {signed(sc.cashUsd)} + owned aircraft {signed(sc.aircraftUsd)} - owed on aircraft not yet delivered {signed(sc.owedUsd)}.
+          Equity = cash {signed(sc.cashUsd)} + owned aircraft {signed(sc.aircraftUsd)} + purchased aircraft on order, at the price paid {signed(sc.orderedUsd)} - owed on them {signed(sc.owedUsd)}. Leased aircraft count for nothing.
           Grade: A at 3x the starting cash or more, B at 2x, C at 1x, D at 0x, F below zero.
         </p>
       </section>

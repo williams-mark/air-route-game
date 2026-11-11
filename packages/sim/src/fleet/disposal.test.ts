@@ -195,6 +195,33 @@ describe("lease return", () => {
     const broke: SimState = { ...state, world: { ...state.world, cash: -creditLimitUsd(state) } };
     expect(applyCommand(broke, { kind: "returnLease", aircraftId: id }).result).toMatchObject({ ok: false, error: "insufficient_cash" });
   });
+
+  it("folds the fee into an overdraft that stays within the credit line", () => {
+    const { state, id } = leasedIdle();
+    const q = disposalQuote(state, id, "return");
+    if (!q.ok) throw new Error(q.message);
+    const limit = creditLimitUsd(state);
+    const overdrawn: SimState = { ...state, world: { ...state.world, cash: -(limit - q.feeUsd) + 1 } };
+    const r = applyCommand(overdrawn, { kind: "returnLease", aircraftId: id });
+    expect(r.result.ok).toBe(true);
+    expect(r.state.world.cash).toBeCloseTo(overdrawn.world.cash - q.feeUsd, 2);
+    expect(r.state.world.cashLog!.at(-1)!.amountUsd).toBeCloseTo(-q.feeUsd, 2);
+  });
+
+  it("in distress (cash beyond the line) still allows the return when it pays back within a year, so the fleet can be cured", () => {
+    const { state, id } = leasedIdle();
+    const distressed: SimState = { ...state, world: { ...state.world, cash: -creditLimitUsd(state) - 5e6 } };
+    const q = disposalQuote(distressed, id, "return");
+    expect(q.ok).toBe(true);
+    if (!q.ok) return;
+    expect(q.feeUsd).toBeLessThanOrEqual(DISPOSAL_PARAMS.distressReturnPaybackMonths * q.monthlySavingUsd);
+    const r = applyCommand(distressed, { kind: "returnLease", aircraftId: id });
+    expect(r.result.ok).toBe(true);
+    expect(r.state.world.cash).toBeCloseTo(distressed.world.cash - q.feeUsd, 2);
+    // Cash identity: the next day's cash change equals that day's profit.
+    const next = stepDay(r.state);
+    expect(next.world.cash - r.state.world.cash).toBeCloseTo(next.snapshots.at(-1)!.profit, 0);
+  });
 });
 
 describe("fleet diversity cost", () => {

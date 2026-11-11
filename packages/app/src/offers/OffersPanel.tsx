@@ -6,7 +6,7 @@ import { useEffect } from "react";
 const ORDER = { launch: 0, endOfLife: 1, distressed: 2, used: 3 } as const;
 
 export function OffersPanel() {
-  const { offers, day, cash } = useSim();
+  const { offers, day, cash, credit } = useSim();
   const markSeen = useOffersUi((s) => s.markSeen);
   useEffect(() => { markSeen(offers.map((o) => o.id)); }, [offers, markSeen]);
   const sorted = [...offers].sort((a, b) => a.expiresDay - b.expiresDay || ORDER[a.kind] - ORDER[b.kind]);
@@ -20,7 +20,7 @@ export function OffersPanel() {
   }
   return (
     <div className="offer-list" role="list" aria-label="Open offers">
-      {sorted.map((o) => <div role="listitem" key={o.id}><OfferCard offer={o} day={day} cash={cash} /></div>)}
+      {sorted.map((o) => <div role="listitem" key={o.id}><OfferCard offer={o} day={day} cash={cash} creditLimit={credit?.limitUsd ?? 0} /></div>)}
     </div>
   );
 }

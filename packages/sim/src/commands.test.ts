@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
 import type { Route } from "@arg/contracts";
-import { applyCommand, defaultLayout, drainEvents, newSim, orderDiscount, runDays, startingScenario, stepDay } from "./index";
+import { applyCommand, creditLimitUsd, defaultLayout, drainEvents, newSim, orderDiscount, runDays, startingScenario, stepDay } from "./index";
 
 const spec = (o: string, d: string, typeId: string, freq = 7, y = 150): Omit<Route, "id"> => ({
   origin: o, destination: d, weeklyFrequency: freq, fares: { Y: y }, typeId,
@@ -95,8 +95,8 @@ describe("updateRoute / closeRoute", () => {
 });
 
 describe("orderAircraft", () => {
-  const order = (s = sc(), typeId = "B737-8", count = 4) =>
-    applyCommand(s, { kind: "orderAircraft", typeId, count, layout: aircraftTypes.some((t) => t.id === typeId) ? defaultLayout(type(typeId)) : { sections: [] } });
+  const order = (s = sc(), typeId = "B737-8", count = 4, financing?: "purchase" | "lease") =>
+    applyCommand(s, { kind: "orderAircraft", typeId, count, ...(financing ? { financing } : {}), layout: aircraftTypes.some((t) => t.id === typeId) ? defaultLayout(type(typeId)) : { sections: [] } });
 
   it("creates delivery-status aircraft, pays the deposit, and quotes a discount rising with size", () => {
     const s0 = sc();
@@ -155,6 +155,26 @@ describe("orderAircraft", () => {
     if (r.ok) expect(Math.min(...r.deliveryDays)).toBeGreaterThanOrEqual(730);
   });
 
+  it("lease and purchase deposits follow the same credit-line rule, and are logged as deposits", () => {
+    const s = sc();
+    const limit = creditLimitUsd(s);
+    const lease = (st: typeof s) => order(st, "A320", 1, "lease").result;
+    const buy = (st: typeof s) => order(st, "A320", 1, "purchase").result;
+    // Overdrawn but inside the line: both succeed and cash goes further negative.
+    const inLine = { ...s, world: { ...s.world, cash: -1e6 } };
+    expect(lease(inLine).ok).toBe(true);
+    const placed = order(inLine, "A320", 1, "lease");
+    expect(placed.state.world.cash).toBeLessThan(-1e6);
+    expect(placed.state.world.cashLog!.at(-1)!.text).toMatch(/down payment/i);
+    expect(placed.state.world.cashLog!.at(-1)!.amountUsd).toBeLessThan(0);
+    expect(order(s, "A320", 1, "purchase").state.world.cashLog!.at(-1)!.text).toMatch(/deposit/i);
+    // At the line: both refused with the same code.
+    const atLine = { ...s, world: { ...s.world, cash: -limit } };
+    const l = lease(atLine); const b = buy(atLine);
+    expect(l.ok || l.error).toBe("credit_limit");
+    expect(b.ok || b.error).toBe("credit_limit");
+  });
+
   it("rejects bad orders", () => {
     const s = sc();
     const code = (r: ReturnType<typeof order>["result"]) => (r.ok ? "ok" : r.error);
@@ -162,7 +182,7 @@ describe("orderAircraft", () => {
     expect(code(order(s, "B737-8", 0).result)).toBe("invalid_count");
     expect(code(order(s, "B737-8", 1.5).result)).toBe("invalid_count");
     expect(code(order(s, "B757-200", 1).result)).toBe("type_unavailable"); // production ended 2004
-    expect(code(order(s, "B787-9", 100).result)).toBe("insufficient_cash");
+    expect(code(order(s, "B787-9", 100).result)).toBe("credit_limit");
     const tooBig = applyCommand(s, {
       kind: "orderAircraft", typeId: "B737-8", count: 1,
       layout: { sections: [{ cls: "Y", rows: 60, seatsAcross: 6, pitchIn: 28 }] },

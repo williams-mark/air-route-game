@@ -6,12 +6,12 @@ import { useToasts } from "../routes/store";
 import { closesIn, daysLeft, KIND_BADGE, versusTypical, windowText } from "./format";
 import "./offers.css";
 
-export function OfferCard({ offer, day, cash }: { offer: OfferItem; day: number; cash: number }) {
+export function OfferCard({ offer, day, cash, creditLimit = 0 }: { offer: OfferItem; day: number; cash: number; creditLimit?: number }) {
   const push = useToasts((s) => s.push);
   const [qty, setQty] = useState(Math.min(offer.quantity, offer.kind === "launch" ? 2 : 1));
   const q = Math.max(1, Math.min(offer.quantity, Math.round(qty) || 1));
   const deposit = offer.unitPriceUsd * q * offer.depositFraction;
-  const short = deposit > cash;
+  const short = cash - deposit < -creditLimit; // the deposit may come out of the credit line
   const left = daysLeft(offer, day);
   const titleId = `offer-${offer.id}`;
   const typical = versusTypical(offer);
@@ -56,7 +56,7 @@ export function OfferCard({ offer, day, cash }: { offer: OfferItem; day: number;
         </div>
         <div className="offer-total" aria-live="polite">
           <span>{formatMoney(offer.unitPriceUsd * q)} total</span>
-          <span className={short ? "neg" : "dim"}>{formatMoney(deposit)} deposit now{short ? " (more than your cash)" : ""}</span>
+          <span className={short ? "neg" : "dim"}>{formatMoney(deposit)} deposit now{short ? " (beyond your credit line)" : ""}</span>
         </div>
         <button type="button" className="primary" onClick={accept} disabled={short}>Accept {q}</button>
         <button type="button" onClick={dismiss}>Dismiss</button>

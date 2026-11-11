@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
-import { applyCommand, drainEvents, runDays, startingScenario, stepDay, stepOffers, type Offer, type SimState } from "../index";
+import { applyCommand, creditLimitUsd, drainEvents, runDays, startingScenario, stepDay, stepOffers, type Offer, type SimState } from "../index";
 
 const fresh = (seed = 2015) => startingScenario(airports, aircraftTypes, seed);
 /** Run until at least `n` offers have been created (open or not), returning the state. */
@@ -151,8 +151,11 @@ describe("acceptance", () => {
   it("refuses when the deposit exceeds cash, or the quantity is out of range", () => {
     let s = until(3, "launch");
     const o = first(s, "launch")!;
-    const poor = { ...s, world: { ...s.world, cash: 1000 } };
-    expect(applyCommand(poor, { kind: "acceptOffer", offerId: o.id, quantity: 1 }).result).toMatchObject({ ok: false, error: "insufficient_cash" });
+    const poor = { ...s, world: { ...s.world, cash: -creditLimitUsd(s) } };
+    expect(applyCommand(poor, { kind: "acceptOffer", offerId: o.id, quantity: 1 }).result).toMatchObject({ ok: false, error: "credit_limit" });
+    // Within the credit line the deposit is allowed even with cash below zero.
+    const overdrawn = { ...s, world: { ...s.world, cash: -1 } };
+    expect(applyCommand(overdrawn, { kind: "acceptOffer", offerId: o.id, quantity: 1 }).result.ok).toBe(true);
     s = { ...s, world: { ...s.world, cash: 1e10 } };
     expect(applyCommand(s, { kind: "acceptOffer", offerId: o.id, quantity: 0 }).result).toMatchObject({ ok: false, error: "invalid_count" });
     expect(applyCommand(s, { kind: "acceptOffer", offerId: o.id, quantity: o.quantity + 1 }).result).toMatchObject({ ok: false, error: "invalid_count" });

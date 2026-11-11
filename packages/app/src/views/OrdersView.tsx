@@ -45,7 +45,8 @@ export default function OrdersView() {
   // Purchase: share of the net price now, the rest at delivery. Lease: down payment on list price now, payments from delivery.
   const deposit = financing === "purchase" ? unit * count * FINANCING_PARAMS.purchaseDownFraction : listEach * count * FINANCING_PARAMS.leaseDownFractionOfList;
   const balance = unit * count * (1 - FINANCING_PARAMS.purchaseDownFraction);
-  const short = deposit > cash;
+  // The deposit may come out of the credit line: it only has to leave cash within minus the limit (same rule as the sim, for leases and purchases).
+  const short = credit ? cash - deposit < -credit.limitUsd : deposit > cash;
   // Purchase balances fall due in full on delivery day and nothing checks cash then, so show what is already committed.
   const owedAtDelivery = pendingBalanceUsd(orders);
   const cashAfter = cash - deposit - owedAtDelivery - (financing === "purchase" ? balance : 0);
@@ -74,7 +75,7 @@ export default function OrdersView() {
   const done = orders.filter((o) => o.delivered >= o.count);
   return (
     <div className="page">
-      <header className="page-head"><h1>Orders / Offers</h1><p>Order new aircraft from the manufacturers. Delivery takes 6 to 30 months depending on size; buy outright (20% now, 80% at delivery) or lease (a 10% down payment on list price now, lease payments from delivery). An order is refused when the balances falling due at delivery would take cash past your credit line (see Finance). Check the Offers tab for launch deals, last production slots, flash sales and used aircraft.</p></header>
+      <header className="page-head"><h1>Orders / Offers</h1><p>Order new aircraft from the manufacturers. Delivery takes 6 to 30 months depending on size; buy outright (20% now, 80% at delivery) or lease (a 10% down payment on list price now, lease payments from delivery; the lease down payment is not refunded). Deposits and down payments may be paid from your credit line: cash can go negative, down to minus the limit, and the same rule applies to leases and purchases. An order is also refused when the balances falling due at delivery would take cash past your credit line (see Finance). Deposits show in Finance under Aircraft deposits. Check the Offers tab for launch deals, last production slots, flash sales and used aircraft.</p></header>
 
       <div className="orders-tabs" role="tablist" aria-label="Orders and offers">
         <button role="tab" id="tab-orders" aria-selected={tab === "orders"} aria-controls="panel-orders" onClick={() => setTab("orders")}>Orders</button>
@@ -131,7 +132,7 @@ export default function OrdersView() {
             <dt>List price</dt><dd>{type ? formatMoney(type.listPriceUsdM * 1e6) : "–"} each</dd>
             <dt>Volume discount</dt><dd>{(discount * 100).toFixed(0)}%</dd>
             <dt>Net price</dt><dd>{formatMoney(unit)} each, {formatMoney(unit * count)} total</dd>
-            <dt>{financing === "purchase" ? "Deposit due now" : "Down payment due now"}</dt><dd className={short ? "neg" : ""}>{formatMoney(deposit)}{short ? " (more than your cash)" : ""}</dd>
+            <dt>{financing === "purchase" ? "Deposit due now" : "Down payment due now"}</dt><dd className={short ? "neg" : ""}>{formatMoney(deposit)}{short ? " (beyond your credit line)" : ""}</dd>
             <dt>Already owed at delivery</dt><dd>{formatMoney(owedAtDelivery)} on open orders</dd>
             <dt>Cash after every balance is paid</dt><dd className={cashAfter < 0 ? "neg" : ""}>{formatMoney(cashAfter)}{cashAfter < 0 ? " (before the income you earn until then)" : ""}</dd>
             {credit && <><dt>Credit line</dt><dd>{formatMoney(credit.limitUsd)} (grows as aircraft are delivered)</dd></>}

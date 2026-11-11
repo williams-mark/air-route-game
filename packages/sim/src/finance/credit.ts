@@ -35,6 +35,20 @@ export function fleetCollateralUsd(state: Pick<SimState, "world" | "aircraftType
   return total;
 }
 
+/**
+ * Value of purchased aircraft ordered but not delivered, at the net price paid (what the player receives on delivery; the balance
+ * owed on them is `scheduledBalances`). Offer orders and leases are not counted: offers owe nothing at delivery, leases are not owned.
+ */
+export function orderedAircraftValueUsd(state: Pick<SimState, "orders" | "world">): number {
+  const waiting = new Set(state.world.fleet.filter((a) => a.status === "delivery").map((a) => a.id));
+  let total = 0;
+  for (const o of state.orders) {
+    if (o.financing !== "purchase") continue;
+    for (const id of o.aircraftIds) if (waiting.has(id)) total += o.unitPriceUsd;
+  }
+  return total;
+}
+
 /** Revenue per month (30.4375 days) averaged over the trailing window of daily snapshots; 0 before the first day. */
 export function monthlyRevenueUsd(snapshots: SimState["snapshots"]): number {
   const w = snapshots.slice(-CREDIT_PARAMS.revenueWindowDays);
@@ -147,6 +161,16 @@ export function orderFundingRefusal(state: SimState, deposit: number, newBalance
   return `Not fundable: ${usdM(total)} of balances fall due at delivery (${usdM(fromNew)} from this order). `
     + `By ${dayLabel(o.day)} cash would be ${usdM(o.cashUsd)}, ${usdM(-o.marginUsd)} beyond your credit line of ${usdM(o.limitUsd)} (which grows as aircraft are delivered). `
     + `Order fewer aircraft, lease instead, or wait until income builds.`;
+}
+
+/**
+ * Deposit rule shared by orders, lease down payments and offers: the deposit may come out of the credit line, so it is allowed when
+ * cash after paying it stays at or above minus the credit limit. Returns null when allowed, else a player-facing refusal.
+ */
+export function depositRefusal(state: SimState, deposit: number, what = "deposit"): string | null {
+  const limit = creditLimitUsd(state);
+  if (state.world.cash - deposit >= -limit) return null;
+  return `The ${what} is ${usdM(deposit)} but cash is ${usdM(state.world.cash)} and your credit line is ${usdM(limit)}: paying it would take cash ${usdM(-(state.world.cash - deposit) - limit)} beyond the line.`;
 }
 
 export interface CreditStep { credit: CreditState | undefined; notices: string[]; bankrupt: boolean }

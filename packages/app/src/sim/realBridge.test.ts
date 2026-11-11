@@ -128,7 +128,7 @@ describe("RealSimBridge", () => {
     expect(s.cash).toBeLessThan(cash);
     expect(b.dispatch({ kind: "orderAircraft", typeId: "NOPE", count: 1, layout: { sections: [] } })).toMatchObject({ ok: false, error: { code: "unknown_type" } });
     expect(b.dispatch({ kind: "orderAircraft", typeId: "B757-200", count: 1, layout: { sections: [] } })).toMatchObject({ ok: false, error: { code: "type_unavailable" } });
-    expect(b.dispatch({ kind: "orderAircraft", typeId: "B787-9", count: 200, layout: { sections: [] } })).toMatchObject({ ok: false, error: { code: "insufficient_cash" } });
+    expect(b.dispatch({ kind: "orderAircraft", typeId: "B787-9", count: 200, layout: { sections: [] } })).toMatchObject({ ok: false, error: { code: "credit_limit" } });
   });
 
   it("same seed gives identical state after 60 days; a different seed differs", () => {

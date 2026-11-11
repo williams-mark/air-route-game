@@ -1,12 +1,15 @@
 // End of campaign: the end date, the one-time review, the score. Pure and deterministic: the end day is fixed when the game starts,
 // so nothing here reads a clock.
 //
-//   equity = cash + depreciated value of the aircraft we own outright - purchase balances still owed on aircraft not yet delivered
+//   equity = cash + depreciated value of the aircraft we own outright + value of purchased aircraft not yet delivered
+//            - purchase balances still owed on those aircraft
+//   The undelivered aircraft count at the price paid (the value we will receive), so a pending order nets to the deposit already paid
+//   instead of looking like a pure debt. Leased aircraft count for nothing either way: no equity, and the down payment is sunk.
 //   grade  = equity as a multiple of the starting cash: A 3x or more, B 2x, C 1x, D 0x (not negative), F below zero
 //
 // Cash below zero is already debt (the credit line, finance/credit.ts), so it is not subtracted a second time.
 import type { Day, Id } from "@arg/contracts";
-import { fleetCollateralUsd, isBankrupt, scheduledBalances } from "../finance/credit";
+import { fleetCollateralUsd, isBankrupt, orderedAircraftValueUsd, scheduledBalances } from "../finance/credit";
 import { ownedHubsOf } from "../fleet/hubs";
 import { dayToDate, jan1Day } from "../time/calendar";
 import type { CampaignState, SimState } from "../state";
@@ -78,6 +81,8 @@ export interface CampaignScore {
   cashUsd: number;
   /** Depreciated value of owned aircraft (finance/credit.ts fleetCollateralUsd). */
   aircraftUsd: number;
+  /** Value of purchased aircraft not yet delivered, at the price paid (finance/credit.ts orderedAircraftValueUsd). */
+  orderedUsd: number;
   /** Purchase balances still owed on aircraft not yet delivered. */
   owedUsd: number;
   equityUsd: number;
@@ -93,10 +98,11 @@ export function gradeFor(equityUsd: number, startCashUsd: number): Grade {
 }
 
 /** Final equity and its grade. Pure: takes the three figures so the formula can be tested on its own. */
-export function scoreOf(input: { cashUsd: number; aircraftUsd: number; owedUsd: number; startCashUsd: number }): CampaignScore {
-  const equityUsd = input.cashUsd + input.aircraftUsd - input.owedUsd;
+export function scoreOf(input: { cashUsd: number; aircraftUsd: number; orderedUsd?: number; owedUsd: number; startCashUsd: number }): CampaignScore {
+  const orderedUsd = input.orderedUsd ?? 0;
+  const equityUsd = input.cashUsd + input.aircraftUsd + orderedUsd - input.owedUsd;
   const multiple = input.startCashUsd > 0 ? equityUsd / input.startCashUsd : 0;
-  return { cashUsd: input.cashUsd, aircraftUsd: input.aircraftUsd, owedUsd: input.owedUsd, equityUsd, multiple, grade: gradeFor(equityUsd, input.startCashUsd) };
+  return { cashUsd: input.cashUsd, aircraftUsd: input.aircraftUsd, orderedUsd, owedUsd: input.owedUsd, equityUsd, multiple, grade: gradeFor(equityUsd, input.startCashUsd) };
 }
 
 // ---------------------------------------------------------------------------
@@ -177,6 +183,7 @@ export function campaignReview(state: SimState): CampaignReview | null {
   const score = scoreOf({
     cashUsd: state.world.cash,
     aircraftUsd: fleetCollateralUsd(state),
+    orderedUsd: orderedAircraftValueUsd(state),
     owedUsd: owed,
     startCashUsd: c.startCashUsd,
   });

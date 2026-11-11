@@ -1,4 +1,5 @@
 import { usdM } from "../money";
+import { depositRefusal } from "../finance/credit";
 import type { Aircraft, Day, SimEvent } from "@arg/contracts";
 import { COMMAND_PARAMS, notice, pushEvents, type CommandError } from "../commands";
 import { defaultLayout } from "../fleet/layout";
@@ -8,7 +9,7 @@ import type { AircraftMeta, AircraftOrder, SimState } from "../state";
 import { generateOffer, KIND_LABEL, monthYear, OFFER_PARAMS } from "./generate";
 import type { Offer, OfferCommand } from "./types";
 
-export type OfferErrorCode = "unknown_offer" | "offer_expired" | "invalid_count" | "insufficient_cash";
+export type OfferErrorCode = "unknown_offer" | "offer_expired" | "invalid_count" | "insufficient_cash" | "credit_limit";
 
 export type OfferResult =
   | { ok: true; kind: "dismissOffer"; offerId: string }
@@ -107,9 +108,8 @@ function accept(state: SimState, offerId: string, quantity: number): { state: Si
   const type = state.aircraftTypes.find((t) => t.id === offer.typeId);
   if (!type) return { state, result: fail("unknown_type", `Unknown aircraft type "${offer.typeId}".`) };
   const depositUsd = offer.unitPriceUsd * quantity * offer.depositFraction;
-  if (state.world.cash < depositUsd) {
-    return { state, result: fail("insufficient_cash", `The deposit is ${M(depositUsd)} but cash is ${M(state.world.cash)}.`) };
-  }
+  const depositNo = depositRefusal(state, depositUsd);
+  if (depositNo) return { state, result: fail("credit_limit", depositNo) };
 
   const orderNum = state.counters.order + 1;
   const orderId = `order-${orderNum}`;
@@ -151,7 +151,10 @@ function accept(state: SimState, offerId: string, quantity: number): { state: Si
   const next = pushEvents(
     {
       ...state,
-      world: { ...state.world, cash: state.world.cash - depositUsd, fleet: [...state.world.fleet, ...aircraft] },
+      world: {
+        ...state.world, cash: state.world.cash - depositUsd, fleet: [...state.world.fleet, ...aircraft],
+        cashLog: [...(state.world.cashLog ?? []), { day, amountUsd: -depositUsd, text: `Aircraft deposit: ${quantity} x ${offer.typeId} (offer)` }],
+      },
       fleetMeta: meta,
       orders: [...state.orders, order],
       offers,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
 import {
-  applyCommand, campaignReview, campaignReviewDue, continueEndless, gradeFor, jan1Day, markCampaignReview, parseSave, makeSave,
+  applyCommand, defaultLayout, campaignReview, campaignReviewDue, continueEndless, gradeFor, jan1Day, markCampaignReview, parseSave, makeSave,
   recordCampaignDay, runDays, scoreOf, startCampaign, startingScenario, stepDay, type SimState,
 } from "../index";
 
@@ -159,9 +159,40 @@ describe("score and grade", () => {
     expect(gradeFor(-1, start)).toBe("F");
   });
 
+  it("an undelivered purchase order counts at the price paid against its balance, so it nets to the deposit", () => {
+    const sc = scoreOf({ cashUsd: 304e6, aircraftUsd: 100e6, orderedUsd: 500e6, owedUsd: 400e6, startCashUsd: 150e6 });
+    expect(sc.equityUsd).toBe(504e6);
+    expect(sc.grade).toBe("A");
+  });
+
+  it("two widebodies ordered shortly before the end do not collapse the grade", () => {
+    const base = fresh(1, { campaignYears: 15 });
+    const rich: SimState = { ...base, world: { ...base.world, cash: 304e6 } };
+    const before = campaignReview(rich)!.score;
+    const ordered = applyCommand(rich, { kind: "orderAircraft", typeId: "B787-9", count: 2, layout: defaultLayout(aircraftTypes.find((t) => t.id === "B787-9")!), financing: "purchase" });
+    expect(ordered.result.ok).toBe(true);
+    const after = campaignReview(ordered.state)!.score;
+    expect(after.owedUsd).toBeGreaterThan(100e6);
+    expect(after.orderedUsd).toBeGreaterThan(after.owedUsd);
+    // Equity moves only by the (small) difference between the deposit and the price-paid value: it is not reduced by the balance owed.
+    expect(after.equityUsd).toBeGreaterThanOrEqual(before.equityUsd - 1);
+    expect(after.grade).toBe(before.grade);
+  });
+
+  it("a lease order adds nothing to the score: the down payment is spent and there is no equity", () => {
+    const base = fresh(1, { campaignYears: 15 });
+    const before = campaignReview(base)!.score;
+    const r = applyCommand(base, { kind: "orderAircraft", typeId: "A320", count: 1, layout: defaultLayout(aircraftTypes.find((t) => t.id === "A320")!), financing: "lease" });
+    expect(r.result.ok).toBe(true);
+    const after = campaignReview(r.state)!.score;
+    expect(after.orderedUsd).toBe(0);
+    expect(after.owedUsd).toBe(0);
+    expect(after.equityUsd).toBeLessThan(before.equityUsd);
+  });
+
   it("the review reports the score and its parts for a game at its end", () => {
     const r = campaignReview(runDays(fresh(1, { campaignYears: 15 }), 2))!;
-    expect(r.score.equityUsd).toBe(r.score.cashUsd + r.score.aircraftUsd - r.score.owedUsd);
+    expect(r.score.equityUsd).toBe(r.score.cashUsd + r.score.aircraftUsd + r.score.orderedUsd - r.score.owedUsd);
     expect(r.yearsPlayed).toBe(15);
     expect(r.profitByYear).toHaveLength(15);
     expect(r.endYear - r.startYear).toBe(r.yearsPlayed);
