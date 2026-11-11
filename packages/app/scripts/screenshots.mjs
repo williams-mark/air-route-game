@@ -58,10 +58,8 @@ const shot = async (page, theme, name) => {
 async function pickType(scope, man, fam, variant) {
   const tg = scope.locator(".ap-toggle");
   if ((await tg.getAttribute("aria-expanded")) !== "true") await tg.click();
-  const all = scope.locator(".ap-nav button.ap-crumb", { hasText: "All" });
-  if (await all.count()) await all.click();
-  await scope.locator(".ap-tile", { hasText: man }).first().click();
-  await scope.locator(".ap-tile", { hasText: fam }).first().click();
+  await scope.locator(".ap-man", { hasText: man }).first().click();
+  await scope.locator(".ap-fam", { hasText: fam }).first().click();
   await scope.locator(".ap-var", { hasText: variant }).first().click();
 }
 const scrollPanel = (page, y) => page.locator(".rp-scroll").evaluate((el, top) => { el.scrollTop = top === "end" ? el.scrollHeight : top; }, y);
@@ -251,13 +249,12 @@ async function uifixShots(theme) {
   const box = page.locator(".order-form .ap");
   await snap(page, "picker-0-closed");
   await box.locator(".ap-toggle").click();
-  await box.locator(".ap-nav button.ap-crumb", { hasText: "All" }).click();
   await snap(page, "picker-1-manufacturers");
-  await box.locator(".ap-tile", { hasText: "Boeing" }).first().click();
+  await box.locator(".ap-man", { hasText: "Boeing" }).first().click();
   await snap(page, "picker-2-families");
-  await box.locator(".ap-tile", { hasText: "737 MAX" }).first().click();
+  await box.locator(".ap-fam", { hasText: "737" }).first().click();
   await snap(page, "picker-3-variants");
-  await box.locator(".ap-tile", { hasText: "787" }).first().click().catch(() => {});
+  await box.locator(".ap-var", { hasText: "787" }).first().click({ timeout: 2000 }).catch(() => {});
   // Route swap
   await page.getByRole("button", { name: "Routes" }).click();
   await snap(page, "routes-table");
@@ -265,10 +262,7 @@ async function uifixShots(theme) {
   await page.waitForTimeout(600);
   await snap(page, "swap-open");
   const rp = page.locator(".route-panel");
-  await rp.locator(".ap-nav button.ap-crumb", { hasText: "All" }).click();
-  await rp.locator(".ap-tile", { hasText: "Airbus" }).first().click();
-  await rp.locator(".ap-tile", { hasText: "A330" }).first().click();
-  await rp.locator(".ap-var", { hasText: "A330-300" }).first().click();
+  await pickType(rp, "Airbus", "A330", "A330-300");
   await page.waitForTimeout(700);
   await rp.locator("#rp-aircraft").scrollIntoViewIfNeeded();
   await snap(page, "swap-projection");

@@ -1,54 +1,58 @@
 import type { AircraftType } from "@arg/contracts";
+import { aircraftFamilyById } from "@arg/data";
 
-/** Family of every type id in @arg/data. Pure lookup; a test checks that every data id is listed here. */
-export const FAMILY_BY_ID: Readonly<Record<string, string>> = {
-  "B737-700": "737 NG", "B737-800": "737 NG", "B737-900ER": "737 NG",
-  "B737-8": "737 MAX", "B737-9": "737 MAX",
-  "B757-200": "757", "B767-300ER": "767",
-  "B777-200ER": "777", "B777-300ER": "777",
-  "B787-8": "787", "B787-9": "787", "B787-10": "787",
-  "B747-400": "747",
-  "DC10-30": "DC-10",
-  "A319": "A320 family", "A320": "A320 family", "A321": "A320 family", "A320N": "A320 family", "A321N": "A320 family",
-  "A220-100": "A220", "A220-300": "A220",
-  "A330-200": "A330", "A330-300": "A330", "A330-900": "A330",
-  "A350-900": "A350", "A350-1000": "A350",
-  "E175": "E-Jet",
-  "CRJ700": "CRJ family", "CRJ900": "CRJ family",
-  "ATR72-600": "ATR 72",
-};
-
-/** Display order of families inside a manufacturer (unlisted families sort after, alphabetically). */
-export const FAMILY_ORDER: readonly string[] = ["A220", "A320 family", "A330", "A350", "737 NG", "737 MAX", "757", "767", "777", "787", "747", "DC-10", "CRJ family", "E-Jet", "ATR 72"];
-
-/** The family tile an aircraft type belongs to. Falls back to the type's own name for ids not in the table. */
-export function familyOf(type: Pick<AircraftType, "id" | "name">): string {
-  return FAMILY_BY_ID[type.id] ?? type.name;
+/** The family tile a type belongs to, from @arg/data. Falls back to the type's own name for ids without one. */
+export function familyOf(type: Pick<AircraftType, "id" | "name">, table: Readonly<Record<string, string>> = aircraftFamilyById): string {
+  return table[type.id] ?? type.name;
 }
 
-export interface FamilyNode { family: string; types: AircraftType[] }
+export const OTHERS = "Others";
+export const DOUGLAS_GROUP = "Douglas / McDonnell Douglas";
+const MAJORS = new Set(["Boeing", "Airbus", DOUGLAS_GROUP]);
+
+/** Manufacturer tile a maker belongs to: Boeing, Airbus, the Douglas lineage merged, everything else under "Others". */
+export function manufacturerGroup(manufacturer: string): string {
+  if (/douglas/i.test(manufacturer)) return DOUGLAS_GROUP;
+  return MAJORS.has(manufacturer) ? manufacturer : OTHERS;
+}
+
+export interface FamilyNode { family: string; manufacturer: string; types: AircraftType[] }
 export interface ManufacturerNode { manufacturer: string; families: FamilyNode[] }
 
-const famRank = (f: string) => { const i = FAMILY_ORDER.indexOf(f); return i < 0 ? 999 : i; };
-
-/** manufacturer -> family -> variants (variants by seats, then name). */
-export function buildTree(types: readonly AircraftType[]): ManufacturerNode[] {
-  const byMan = new Map<string, Map<string, AircraftType[]>>();
-  for (const t of types) {
-    const fams = byMan.get(t.manufacturer) ?? new Map<string, AircraftType[]>();
-    const fam = familyOf(t);
-    fams.set(fam, [...(fams.get(fam) ?? []), t]);
-    byMan.set(t.manufacturer, fams);
-  }
-  return [...byMan]
-    .map(([manufacturer, fams]) => ({
-      manufacturer,
-      families: [...fams]
-        .map(([family, ts]) => ({ family, types: [...ts].sort((a, b) => a.maxSeats - b.maxSeats || a.name.localeCompare(b.name)) }))
-        .sort((a, b) => famRank(a.family) - famRank(b.family) || a.family.localeCompare(b.family)),
-    }))
-    .sort((a, b) => a.manufacturer.localeCompare(b.manufacturer));
+/** "DC-10" -> ["DC", 10]; "737" -> ["", 737]; "A320 family" -> ["A", 320]. Names without a number sort after, by name. */
+function familyKey(name: string): [string, number] {
+  const m = /^([A-Za-z]*)[\s-]*(\d+)/.exec(name);
+  return m ? [m[1]!.toUpperCase(), Number(m[2])] : [name.toUpperCase(), Number.POSITIVE_INFINITY];
+}
+/** Numeric/alphabetic order: 707 717 727 737 747; A220 A300 A320; DC-9 DC-10 MD-80. */
+export function compareFamilies(a: string, b: string): number {
+  const [pa, na] = familyKey(a), [pb, nb] = familyKey(b);
+  return pa.localeCompare(pb) || na - nb || a.localeCompare(b);
 }
 
-/** Where a type sits in the tree: [manufacturer, family]. */
-export const pathOf = (t: AircraftType): [string, string] => [t.manufacturer, familyOf(t)];
+/** manufacturer group -> family -> variants. Groups by type count (most first, Others last); families numerically; variants by seats. */
+export function buildTree(types: readonly AircraftType[], table: Readonly<Record<string, string>> = aircraftFamilyById): ManufacturerNode[] {
+  const groups = new Map<string, Map<string, FamilyNode>>();
+  for (const t of types) {
+    const g = manufacturerGroup(t.manufacturer);
+    const fams = groups.get(g) ?? new Map<string, FamilyNode>();
+    const family = familyOf(t, table);
+    const key = g === OTHERS ? `${t.manufacturer}|${family}` : family;
+    const node = fams.get(key) ?? { family, manufacturer: t.manufacturer, types: [] };
+    node.types.push(t);
+    fams.set(key, node);
+    groups.set(g, fams);
+  }
+  const count = (m: ManufacturerNode) => m.families.reduce((s, f) => s + f.types.length, 0);
+  return [...groups]
+    .map(([manufacturer, fams]) => ({
+      manufacturer,
+      families: [...fams.values()]
+        .map((f) => ({ ...f, types: [...f.types].sort((a, b) => a.maxSeats - b.maxSeats || a.name.localeCompare(b.name)) }))
+        .sort((a, b) => (manufacturer === OTHERS ? a.manufacturer.localeCompare(b.manufacturer) : 0) || compareFamilies(a.family, b.family)),
+    }))
+    .sort((a, b) => (a.manufacturer === OTHERS ? 1 : 0) - (b.manufacturer === OTHERS ? 1 : 0) || count(b) - count(a) || a.manufacturer.localeCompare(b.manufacturer));
+}
+
+/** Where a type sits in the tree: [manufacturer tile, family]. */
+export const pathOf = (t: AircraftType, table?: Readonly<Record<string, string>>): [string, string] => [manufacturerGroup(t.manufacturer), familyOf(t, table)];

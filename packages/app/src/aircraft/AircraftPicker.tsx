@@ -1,9 +1,10 @@
 import { typeShortName } from "./names";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { AircraftType } from "@arg/contracts";
-import { aircraftTypes } from "@arg/data";
+import { aircraftTypes, aircraftVisualById } from "@arg/data";
 import { AVAIL_LABEL, availabilityOf, rangeNote, typicalSeats, usableRangeKm } from "./availability";
-import { buildTree, pathOf } from "./families";
+import { buildTree, manufacturerGroup, pathOf } from "./families";
+import { SideView } from "./SideView";
 import { usePickerMemory } from "./memory";
 import { IconChevron } from "../shell/icons";
 import "./picker.css";
@@ -27,23 +28,33 @@ export interface AircraftPickerProps {
   /** Persist the last choice under this key (also read by the parent for its initial value). */
   memoryKey?: string;
   defaultOpen?: boolean;
-  /** Called on every pick, after onChange. */
   className?: string;
 }
 
 const usd = (m: number) => (m >= 100 ? `$${Math.round(m)}M` : `$${m.toFixed(m < 10 ? 2 : 1).replace(/\.0$/, "")}M`);
-type Path = [] | [string] | [string, string];
 
-/** Arrow keys move between tiles of a grid (rows are not needed: the grid wraps, so left/right/up/down all step). */
-function gridKeys(e: KeyboardEvent<HTMLElement>) {
+/** Arrow keys move focus between the sibling items of a list (roving tabindex; activation stays on Enter/Space/click). */
+function moveFocus(e: KeyboardEvent<HTMLElement>, item: string, onFocusIndex: (i: number) => void) {
   const keys = ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp", "Home", "End"];
   if (!keys.includes(e.key)) return;
-  const tiles = [...e.currentTarget.querySelectorAll<HTMLElement>("[data-tile]")];
-  const i = tiles.indexOf(document.activeElement as HTMLElement);
+  const items = [...e.currentTarget.querySelectorAll<HTMLElement>(item)];
+  const i = items.indexOf(document.activeElement as HTMLElement);
   if (i < 0) return;
   e.preventDefault();
-  const next = e.key === "Home" ? 0 : e.key === "End" ? tiles.length - 1 : e.key === "ArrowRight" || e.key === "ArrowDown" ? Math.min(tiles.length - 1, i + 1) : Math.max(0, i - 1);
-  tiles[next]?.focus();
+  let next = i;
+  if (e.key === "Home") next = 0;
+  else if (e.key === "End") next = items.length - 1;
+  else if (e.key === "ArrowRight" || e.key === "ArrowLeft") next = e.key === "ArrowRight" ? i + 1 : i - 1;
+  else {
+    // Up/down step a row in a wrapped grid (items sharing the same top), else one item.
+    const rowTop = items[0]!.offsetTop;
+    const cols = items.filter((it) => it.offsetTop === rowTop).length;
+    const step = e.currentTarget.getAttribute("role") === "list" && cols > 1 ? cols : 1;
+    next = e.key === "ArrowDown" ? i + step : i - step;
+  }
+  next = Math.max(0, Math.min(items.length - 1, next));
+  items[next]?.focus();
+  onFocusIndex(next);
 }
 
 export function AircraftPicker({ label, value, onChange, year, types = aircraftTypes, block, hideBlocked = false, owned, memoryKey, defaultOpen = false, className }: AircraftPickerProps) {
@@ -52,29 +63,37 @@ export function AircraftPicker({ label, value, onChange, year, types = aircraftT
   const shown = useMemo(() => (hideBlocked && block ? types.filter((t) => block(t) === null) : [...types]), [types, block, hideBlocked]);
   const tree = useMemo(() => buildTree(shown), [shown]);
   const selected = types.find((t) => t.id === value);
+  const selPath = selected && shown.some((t) => t.id === selected.id) ? pathOf(selected) : undefined;
   const [open, setOpen] = useState(defaultOpen);
-  const [path, setPath] = useState<Path>(() => (selected ? pathOf(selected) : []));
+  const [manName, setManName] = useState<string | undefined>(selPath?.[0]);
+  const [famName, setFamName] = useState<string | undefined>(selPath?.[1]);
   const rootRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
 
+  // The browsed manufacturer always exists in the (possibly filtered) tree; fall back to the first.
+  const man = tree.find((m) => m.manufacturer === manName) ?? tree[0];
+  const fam = man?.families.find((f) => f.family === famName);
+  const manIdx = Math.max(0, tree.findIndex((m) => m === man));
+  const famIdx = man && fam ? man.families.indexOf(fam) : -1;
+  const [rov, setRov] = useState({ man: -1, fam: -1, tile: -1 });
+  const selTileIdx = fam ? fam.types.findIndex((t) => t.id === value) : -1;
+
   // Open on the selected type's family so a returning player sees their last choice in context.
-  const openPicker = () => { setPath(selected && shown.some((t) => t.id === selected.id) ? pathOf(selected) : []); setOpen(true); };
-  useEffect(() => { if (open) rootRef.current?.querySelector<HTMLElement>("[data-tile]:not([aria-disabled=true])")?.focus({ preventScroll: true }); }, [open, path.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const man = path[0] ? tree.find((m) => m.manufacturer === path[0]) : undefined;
-  const fam = man && path[1] ? man.families.find((f) => f.family === path[1]) : undefined;
-  const level = fam ? 2 : man ? 1 : 0;
-  const up = () => { if (level === 2) setPath([path[0]!]); else if (level === 1) setPath([]); else { setOpen(false); toggleRef.current?.focus(); } };
-  const pick = (t: AircraftType) => { onChange(t.id); if (memoryKey) remember(memoryKey, t.id); setOpen(false); setTimeout(() => toggleRef.current?.focus(), 0); };
-
-  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
+  const openPicker = () => { setManName(selPath?.[0] ?? tree[0]?.manufacturer); setFamName(selPath?.[1]); setRov({ man: -1, fam: -1, tile: -1 }); setOpen(true); };
+  useEffect(() => {
     if (!open) return;
-    if (e.key === "Escape" || e.key === "Backspace") { if (e.key === "Backspace" && (e.target as HTMLElement).tagName === "INPUT") return; e.preventDefault(); e.stopPropagation(); up(); }
-  };
+    const q = rootRef.current;
+    (q?.querySelector<HTMLElement>("[data-tile][aria-pressed=true]") ?? q?.querySelector<HTMLElement>("[data-fam][aria-selected=true]") ?? q?.querySelector<HTMLElement>("[data-man][aria-selected=true]"))?.focus({ preventScroll: true });
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const crumbs: Array<{ text: string; to: Path }> = [{ text: "All", to: [] }];
-  if (man) crumbs.push({ text: man.manufacturer, to: [man.manufacturer] });
-  if (fam) crumbs.push({ text: fam.family, to: [man!.manufacturer, fam.family] });
+  const close = () => { setOpen(false); setTimeout(() => toggleRef.current?.focus(), 0); };
+  const pick = (t: AircraftType) => { onChange(t.id); if (memoryKey) remember(memoryKey, t.id); close(); };
+  const chooseMan = (name: string) => {
+    setManName(name);
+    setFamName(selPath && selPath[0] === name ? selPath[1] : undefined);
+    setRov((r) => ({ ...r, fam: -1, tile: -1 }));
+  };
+  const onKey = (e: KeyboardEvent<HTMLDivElement>) => { if (open && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } };
 
   const summary = selected ? (
     <>
@@ -82,6 +101,7 @@ export function AircraftPicker({ label, value, onChange, year, types = aircraftT
       <span className="ap-sum-meta">{typicalSeats(selected)} seats (max {selected.maxSeats}) {"·"} <abbr title={rangeNote(selected)}>{selected.rangeKm.toLocaleString()} km nominal, {usableRangeKm(selected).toLocaleString()} usable</abbr> {"·"} {usd(selected.listPriceUsdM)}</span>
     </>
   ) : <span className="ap-sum-name">No aircraft type available</span>;
+  const tabIdx = (cur: number, own: number, selectedIdx: number) => (cur >= 0 ? cur === own : selectedIdx >= 0 ? own === selectedIdx : own === 0) ? 0 : -1;
 
   return (
     <div className={`ap ${className ?? ""}`} ref={rootRef} onKeyDown={onKey}>
@@ -93,62 +113,68 @@ export function AircraftPicker({ label, value, onChange, year, types = aircraftT
       </button>
       {open && (
         <div className="ap-body" id={`${uid}-body`} role="group" aria-label={`${label} browser`}>
-          <div className="ap-nav">
-            <button type="button" className="ap-back" onClick={up} aria-label={level === 0 ? "Close the aircraft browser" : "Back one level"}>{"←"} Back</button>
-            <nav aria-label="Aircraft browser path">
-              <ol className="ap-crumbs">
-                {crumbs.map((c, i) => (
-                  <li key={c.text}>
-                    {i > 0 && <span className="ap-sep" aria-hidden="true">{">"}</span>}
-                    {i === crumbs.length - 1 ? <span aria-current="location" className="ap-crumb cur">{c.text}</span> : <button type="button" className="ap-crumb" onClick={() => setPath(c.to)}>{c.text}</button>}
-                  </li>
-                ))}
-              </ol>
-            </nav>
-          </div>
-          <div className="ap-grid" onKeyDown={gridKeys} role="list">
-            {level === 0 && tree.map((m) => {
-              const n = m.families.reduce((s, f) => s + f.types.length, 0);
-              return (
-                <button type="button" role="listitem" data-tile key={m.manufacturer} className="ap-tile ap-tile-big" onClick={() => setPath([m.manufacturer])}>
-                  <b>{m.manufacturer}</b>
-                  <span>{m.families.length} {m.families.length === 1 ? "family" : "families"}, {n} {n === 1 ? "type" : "types"}</span>
-                  {selected?.manufacturer === m.manufacturer && <span className="ap-cur">Current</span>}
-                </button>
-              );
-            })}
-            {level === 1 && man!.families.map((f) => {
-              const seats = f.types.map((t) => t.maxSeats);
-              const live = f.types.filter((t) => availabilityOf(t, year) === "current").length;
-              return (
-                <button type="button" role="listitem" data-tile key={f.family} className="ap-tile ap-tile-big" onClick={() => setPath([man!.manufacturer, f.family])}>
-                  <b>{f.family}</b>
-                  <span>{f.types.length} {f.types.length === 1 ? "variant" : "variants"}, {Math.min(...seats)}{Math.min(...seats) === Math.max(...seats) ? "" : `-${Math.max(...seats)}`} seats</span>
-                  <span className="ap-fam-avail">{live > 0 ? `${live} in production` : availabilityOf(f.types[0]!, year) === "future" ? "Not yet in production" : "Out of production"}</span>
-                  {selected && f.types.some((t) => t.id === selected.id) && <span className="ap-cur">Current</span>}
-                </button>
-              );
-            })}
-            {level === 2 && fam!.types.map((t) => {
-              const reason = block?.(t) ?? null;
-              const av = availabilityOf(t, year);
-              const o = owned?.get(t.id);
-              const isSel = t.id === value;
-              return (
-                <button type="button" role="listitem" data-tile key={t.id} className={`ap-tile ap-var ${isSel ? "sel" : ""} ${reason ? "off" : ""}`} aria-pressed={isSel} aria-disabled={reason ? true : undefined}
-                  title={reason ?? undefined} onClick={() => { if (!reason) pick(t); }}>
-                  <span className="ap-var-top"><b>{typeShortName(t)}</b><span className={`ap-badge ap-${av}`}>{AVAIL_LABEL[av]}</span></span>
-                  <span className="ap-var-spec">{typicalSeats(t)} seats typical, {t.maxSeats} max</span>
-                  <span className="ap-var-spec" title={rangeNote(t)}>Range {t.rangeKm.toLocaleString()} km nominal</span>
-                  <span className="ap-var-spec" title={rangeNote(t)}>Usable {usableRangeKm(t).toLocaleString()} km with reserves</span>
-                  <span className="ap-var-price">{usd(t.listPriceUsdM)} list</span>
-                  {o !== undefined && <span className={`ap-own ${o.total === 0 ? "none" : ""}`}>{o.total === 0 ? "None owned" : `${o.total} owned, ${o.free} free`}</span>}
-                  {reason && <span className="ap-why">{reason}</span>}
-                </button>
-              );
-            })}
-            {tree.length === 0 && <p className="ap-empty">No aircraft type fits.</p>}
-          </div>
+          {tree.length === 0 && <p className="ap-empty">No aircraft type fits.</p>}
+          {tree.length > 0 && (
+            <>
+              <div className="ap-mans" role="tablist" aria-label="Manufacturer" aria-orientation="vertical" onKeyDown={(e) => moveFocus(e, "[data-man]", (i) => setRov((r) => ({ ...r, man: i })))}>
+                {tree.map((m, i) => {
+                  const n = m.families.reduce((s, f) => s + f.types.length, 0);
+                  return (
+                    <button type="button" role="tab" data-man key={m.manufacturer} id={`${uid}-m${i}`} className="ap-tile ap-man" aria-selected={m === man} aria-controls={`${uid}-fams`}
+                      tabIndex={tabIdx(rov.man, i, manIdx)} onFocus={() => setRov((r) => (r.man === i ? r : { ...r, man: i }))} onClick={() => chooseMan(m.manufacturer)}>
+                      <b>{m.manufacturer}</b>
+                      <span>{n} {n === 1 ? "type" : "types"}</span>
+                      {selected && manufacturerGroup(selected.manufacturer) === m.manufacturer && <span className="ap-cur">Current</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="ap-main">
+                <div className="ap-fams" id={`${uid}-fams`} role="tablist" aria-label={`${man?.manufacturer ?? ""} families`} aria-labelledby={man ? `${uid}-m${manIdx}` : undefined}
+                  onKeyDown={(e) => moveFocus(e, "[data-fam]", (i) => setRov((r) => ({ ...r, fam: i })))}>
+                  {man?.families.map((f, i) => {
+                    const live = f.types.filter((t) => availabilityOf(t, year) === "current").length;
+                    return (
+                      <button type="button" role="tab" data-fam key={`${f.manufacturer}|${f.family}`} className="ap-tile ap-fam" aria-selected={i === famIdx} aria-controls={`${uid}-vars`}
+                        tabIndex={tabIdx(rov.fam, i, famIdx)} onFocus={() => setRov((r) => (r.fam === i ? r : { ...r, fam: i }))} onClick={() => { setFamName(f.family); setRov((r) => ({ ...r, tile: -1 })); }}
+                        title={`${f.types.length} ${f.types.length === 1 ? "variant" : "variants"}${live > 0 ? `, ${live} in production` : ""}`}>
+                        <b>{f.family}</b>
+                        <span>{man!.manufacturer === "Others" ? f.manufacturer : `${f.types.length} ${f.types.length === 1 ? "variant" : "variants"}`}</span>
+                        {selected && f.types.some((t) => t.id === selected.id) && <span className="ap-cur">Current</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="ap-vars" id={`${uid}-vars`} role="tabpanel" aria-label={fam ? `${fam.family} variants` : "Variants"}>
+                  {!fam && <p className="ap-empty">Choose a family to see its variants.</p>}
+                  {fam && (
+                    <div className="ap-grid" role="list" onKeyDown={(e) => moveFocus(e, "[data-tile]", (i) => setRov((r) => ({ ...r, tile: i })))}>
+                      {fam.types.map((t, i) => {
+                        const reason = block?.(t) ?? null;
+                        const av = availabilityOf(t, year);
+                        const o = owned?.get(t.id);
+                        const isSel = t.id === value;
+                        return (
+                          <button type="button" role="listitem" data-tile key={t.id} className={`ap-tile ap-var ${isSel ? "sel" : ""} ${reason ? "off" : ""}`} aria-pressed={isSel} aria-disabled={reason ? true : undefined}
+                            tabIndex={tabIdx(rov.tile, i, selTileIdx)} onFocus={() => setRov((r) => (r.tile === i ? r : { ...r, tile: i }))}
+                            title={reason ?? undefined} onClick={() => { if (!reason) pick(t); }}>
+                            <SideView visual={aircraftVisualById[t.id]} widebody={t.widebody} name={typeShortName(t)} />
+                            <span className="ap-var-top"><b>{typeShortName(t)}</b><span className={`ap-badge ap-${av}`}>{AVAIL_LABEL[av]}</span></span>
+                            <span className="ap-var-spec">{typicalSeats(t)} seats typical, {t.maxSeats} max</span>
+                            <span className="ap-var-spec" title={rangeNote(t)}>Range {t.rangeKm.toLocaleString()} km nominal</span>
+                            <span className="ap-var-spec" title={rangeNote(t)}>Usable {usableRangeKm(t).toLocaleString()} km with reserves</span>
+                            <span className="ap-var-price">{usd(t.listPriceUsdM)} list</span>
+                            {o !== undefined && <span className={`ap-own ${o.total === 0 ? "none" : ""}`}>{o.total === 0 ? "None owned" : `${o.total} owned, ${o.free} free`}</span>}
+                            {reason && <span className="ap-why">{reason}</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

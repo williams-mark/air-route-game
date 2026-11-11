@@ -8,23 +8,36 @@
 .ap-change { display: inline-flex; align-items: center; gap: .25rem; font-size: .78rem; color: var(--accent); flex: none; }
 .ap-chev { display: inline-flex; transition: transform .15s; } .ap-chev.up { transform: rotate(180deg); }
 .ap-toggle[aria-expanded="true"] { border-color: var(--accent); }
-.ap-body { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: .5rem; display: flex; flex-direction: column; gap: .5rem; }
-.ap-nav { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
-.ap-back { padding: .2rem .55rem; font-size: .78rem; }
-.ap-crumbs { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; flex-wrap: wrap; gap: .25rem; font-size: .8rem; }
-.ap-crumbs li { display: inline-flex; align-items: center; gap: .25rem; }
-.ap-sep { color: var(--text-dim); }
-.ap-crumb { background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: .15rem .65rem; color: var(--text); font-size: .78rem; text-decoration: none; }
-.ap-crumb:hover { border-color: var(--accent); color: var(--accent); }
-.ap-crumb:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.ap-crumb.cur { border-color: var(--accent); background: transparent; color: var(--text); font-weight: 650; }
-.ap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: .45rem; max-height: 17rem; overflow-y: auto; padding: 2px; }
+.ap-body { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: .5rem; container-type: inline-size; display: grid; grid-template-columns: 10.5rem minmax(0, 1fr); gap: .5rem; align-items: start; }
+.ap-body > .ap-empty { grid-column: 1 / -1; }
+.ap-mans { display: flex; flex-direction: column; gap: .35rem; }
+.ap-main { display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
+.ap-fams { display: flex; flex-wrap: wrap; gap: .35rem; }
+.ap-vars { min-width: 0; }
+.ap-man { min-height: 3.1rem; }
+.ap-fam { min-height: 2.6rem; padding: .35rem .65rem; min-width: 5rem; }
+.ap-man[aria-selected="true"], .ap-fam[aria-selected="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--panel); }
+.ap-man[aria-selected="true"] b, .ap-fam[aria-selected="true"] b { color: var(--accent); }
+.ap-tile:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@container (max-width: 34rem) {
+  .ap-body { grid-template-columns: minmax(0, 1fr); }
+  .ap-mans { flex-direction: row; flex-wrap: wrap; }
+  .ap-man { min-height: 0; padding: .35rem .65rem; flex: 1 1 6rem; }
+}
 .ap-tile { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: .12rem; padding: .5rem .6rem; border-radius: 9px; font-size: .78rem; background: var(--panel-2); position: relative; }
 .ap-tile b { font-size: .92rem; }
 .ap-tile span { color: var(--text-dim); }
-.ap-tile-big { min-height: 4rem; }
 .ap-var { min-height: 6.4rem; }
-.ap-grid:has(.ap-var) { grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr)); }
+.sv { display: block; width: 100%; height: auto; margin-bottom: .1rem; }
+.sv-body { fill: var(--sv-body); stroke: var(--sv-line); stroke-width: .7; stroke-linejoin: round; }
+.sv-body-fill { fill: var(--sv-body); }
+.sv-line { fill: none; stroke: var(--sv-line); stroke-width: .7; stroke-linecap: round; }
+.sv-tail { fill: var(--sv-tail); stroke: var(--sv-line); stroke-width: .7; stroke-linejoin: round; }
+.sv-wing { fill: var(--sv-wing); stroke: var(--sv-line); stroke-width: .6; stroke-linejoin: round; }
+.sv-engine { fill: var(--sv-engine); stroke: var(--sv-line); stroke-width: .6; } .sv-engine.far { fill: var(--sv-wing); }
+.sv-prop { fill: var(--sv-prop); opacity: .7; }
+.sv-windows { stroke: var(--sv-window); stroke-width: 1.1; stroke-dasharray: 1.1 1.5; stroke-linecap: round; opacity: .8; }
+.sv-window-cockpit { fill: var(--sv-window); opacity: .8; }
 .ap-var-top { display: flex; flex-direction: column; gap: .15rem; align-items: flex-start; }
 .ap-var-top b { color: var(--text); }
 .ap-var-price { color: var(--text) !important; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -36,7 +49,6 @@
 .ap-cur { position: absolute; top: .4rem; right: .5rem; font-size: .66rem; text-transform: uppercase; letter-spacing: .05em; color: var(--accent) !important; }
 .ap-badge { font-size: .66rem; padding: .02rem .4rem; border-radius: 999px; border: 1px solid currentColor; font-weight: 600; }
 .ap-current { color: var(--sev-good) !important; } .ap-ended { color: var(--text-dim) !important; } .ap-future { color: var(--sev-info) !important; }
-.ap-fam-avail { font-size: .72rem; }
 .ap-own { color: var(--sev-good) !important; font-weight: 600; font-size: .74rem; }
 .ap-own.none { color: var(--sev-warn) !important; }
 .ap-why { color: var(--neg) !important; font-size: .72rem; line-height: 1.25; }

@@ -72,10 +72,8 @@ async function newPage(theme, extra = "") {
 async function pickType(scope, man, fam, variant) {
   const tg = scope.locator(".ap-toggle");
   if ((await tg.getAttribute("aria-expanded")) !== "true") await tg.click();
-  const all = scope.locator(".ap-nav button.ap-crumb", { hasText: "All" });
-  if (await all.count()) await all.click();
-  await scope.locator(".ap-tile", { hasText: man }).first().click();
-  await scope.locator(".ap-tile", { hasText: fam }).first().click();
+  await scope.locator(".ap-man", { hasText: man }).first().click();
+  await scope.locator(".ap-fam", { hasText: fam }).first().click();
   await scope.locator(".ap-var", { hasText: variant }).first().click();
 }
 const shot = (page, theme, name) => page.screenshot({ path: path.join(outDir, `qa-${theme}-${name}.png`) });
@@ -360,6 +358,43 @@ for (const theme of themes) {
     await heading(page, "Fleet");
     await page.waitForTimeout(400);
     assert(/on order/i.test(await page.locator("main.view").innerText()), "Fleet does not show aircraft on order");
+  });
+
+  await check(theme, "aircraft picker: manufacturer column, family tabs, variant tiles with side view, keyboard, no page scroll", async () => {
+    await nav(page, "Orders / Offers");
+    const ap = page.locator(".order-form .ap");
+    await ap.locator(".ap-toggle").waitFor();
+    if ((await ap.locator(".ap-toggle").getAttribute("aria-expanded")) !== "true") await ap.locator(".ap-toggle").click();
+    const mans = ap.locator(".ap-mans [role=tab]");
+    assert((await mans.count()) >= 2, "expected manufacturer tabs");
+    assert((await ap.locator(".ap-mans [role=tab][tabindex='0']").count()) === 1, "manufacturer list must have exactly one tab stop");
+    await ap.locator(".ap-man", { hasText: "Boeing" }).click();
+    assert((await ap.locator(".ap-man[aria-selected=true]").innerText()).includes("Boeing"), "Boeing not highlighted");
+    await ap.locator(".ap-fam").first().click();
+    assert((await ap.locator(".ap-var").count()) >= 1, "no variant tiles after choosing a family");
+    assert((await ap.locator(".ap-var svg[role=img]").count()) === (await ap.locator(".ap-var").count()), "every variant tile needs a side view");
+    const label = await ap.locator(".ap-var svg").first().getAttribute("aria-label");
+    assert(label && label.length < 80, `side-view label: ${label}`);
+    // Arrow keys move focus along the family tabs; roving tabindex follows.
+    await ap.locator(".ap-fam").first().focus();
+    if ((await ap.locator(".ap-fam").count()) > 1) {
+      await page.keyboard.press("ArrowRight");
+      assert(await page.evaluate(() => document.activeElement?.matches(".ap-fam") && document.activeElement === document.querySelectorAll(".order-form .ap-fam")[1]), "ArrowRight did not move to the next family");
+      assert((await ap.locator(".ap-fam[tabindex='0']").count()) === 1, "family list must keep one tab stop");
+    }
+    await ap.locator(".ap-man").first().focus();
+    await page.keyboard.press("ArrowDown");
+    assert(await page.evaluate(() => document.activeElement === document.querySelectorAll(".order-form .ap-man")[1]), "ArrowDown did not move to the next manufacturer");
+    await shot(page, theme, "picker-open");
+    // Narrow width: manufacturers collapse to a row, page does not scroll sideways.
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page.waitForTimeout(300);
+    const m = await page.evaluate(() => { const t = [...document.querySelectorAll(".order-form .ap-man")].map((e) => e.getBoundingClientRect().top); return { sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, bodySw: document.body.scrollWidth, tops: t, panel: (document.querySelector(".order-form .ap-body")).scrollWidth - (document.querySelector(".order-form .ap-body")).clientWidth }; });
+    assert(m.sw <= m.cw + 1 && m.bodySw <= m.cw + 1, `page scrolls horizontally at 390px: ${JSON.stringify(m)}`);
+    assert(m.panel <= 1, `picker overflows horizontally at 390px: ${JSON.stringify(m)}`);
+    await shot(page, theme, "picker-narrow");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.keyboard.press("Escape");
   });
 
   await check(theme, "cabin designer is interactive", async () => {
