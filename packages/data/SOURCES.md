@@ -1195,3 +1195,39 @@ Each is left out until its missing fields are confirmed. Fetched Wikipedia summa
 - Economic curves are still the 2015-2025 calibration: the Jet-A series (finance/fuel.ts) and carbon anchors (world/regions.ts) clamp to their first value before 2015, so pre-2015 fuel is 1.8 USD/gal, not the historical price. No pre-2015 fuel series is sourced.
 - Demand growth (demand/market.ts, 2.5% a year from 2015) compounds backward before 2015 and forward after it.
 - Airport opening and closing dates are absolute (world/closures.ts), so a 1972 start has the 2015 airports open at their 1972 status (closed airports only close later).
+
+## Airbus catalogue (lane/aircraft-airbus, src/aircraft/airbus.ts)
+
+Fetched 2026-11-11 from Wikipedia: Airbus_A300, Airbus_A310, Airbus_A320_family, Airbus_A320neo_family, Airbus_A330, Airbus_A330neo, Airbus_A340, Airbus_A350, Airbus_A380, Airbus_A220 (https://en.wikipedia.org/wiki/<name>); Airbus A220 Facts and Figures April 2023 (https://www.airbus.com/sites/g/files/jlcbta136/files/2023-04/Airbus-A220-Facts-and-Figures-April-2023.pdf); aircraftworlddirectory (https://aircraftworlddirectory.com/civil/a/airbusa300b2b4.htm); avioradar (https://avioradar.net/en/the-end-of-the-baby-bus-airbus-a318-leaves-the-aviation-stage/). Airbus airport-planning PDFs were not fetched (search returned no readable copy), so dimensions are the Wikipedia specification-table values. fuelBurnKgPerKm is ESTIMATE for every new row (cruise fuel flow from general knowledge / cruise speed, not sourced; A318 scaled from the A319 by fuselage length). runwayNeededM is the Wikipedia takeoff field length at MTOW, sea level, ISA, where stated (APPROXIMATE). listPriceUsdM: Wikipedia 2018 list price where given; otherwise DERIVED = unit cost CPI-adjusted to 2018 USD (CPI-U annual averages recalled, not fetched: 1972 41.8, 1992 140.3, 2011 224.9, 2018 251.1).
+
+### Rows added
+
+| Type | Fields | Status / source |
+|---|---|---|
+| A318 | range 5700, seats 136 (exit limit), runway 1780, price 77.4, intro 2003 | Airbus_A320_family (range, exit limit, field length, $77.4M 2018 list, Frontier July 2003). cruiseKmh 840 = the value the existing A320-family rows use (page: Mach 0.78, 829 km/h). endYear 2013: avioradar ("deliveries spanning from 2003 to 2013"), secondary source |
+| A330-800 | range 15000, seats 406, price 259.9, intro 2020, length 58.36 | Airbus_A330neo (8,100 nmi with 257 pax; 406 max; $259.9M 2018; delivered Oct 2020, in service 20 Nov 2020). runway 2770 is the A330-family figure (no -800 field length found; same treatment as the existing A330-900). Wingspan 64 m is the A330-900 figure: the page states no -800 span; both neo variants share the wing (DERIVED). ETOPS 240 = A330-family assumption (neo page: 180 min plus beyond-180 approval, no number) |
+| A340-200 | range 13500, seats 420, runway 2900, price 187.9, intro 1993, end 1998 | Airbus_A340 table (range is the 3-class table figure; the text says 15,000 km; seats = the higher of the two listed exit limits "420/375"; March 1993 per table, text says Air France May 1993; last delivery 1998). Price DERIVED: $105M (1992) x 251.1/140.3 |
+| A340-300 | range 12408, seats 440, runway 3000, price 265.7, intro 1993, end 2008 | same page (6,700 nmi table figure, text says 13,500 km; exit limit "375/440", higher used; last delivery 2008). Price DERIVED: $238.0M (2011) x 251.1/224.9 (the page also gives $110M in 1992) |
+| A340-500 | range 16670, seats 375, runway 3350, price 292.3, intro 2002, end 2012 | same page (exit limit 375; 2002 and 2012 as listed in the table, which looks inconsistent with the -600 row; not cross-checked). Price DERIVED: $261.8M (2011) x 251.1/224.9 |
+| A340-600 | range 14450, seats 475, runway 3400, price 307.5, intro 2002, end 2010 | same page (exit limit "440/475", higher used; 1 Aug 2002; last delivery 2010 as listed). Price DERIVED: $275.4M (2011) x 251.1/224.9 |
+| A340 cruise | 872 km/h | same page (Mach 0.82, 872 km/h), whole family |
+| A380-800 | range 14800, cruise 903, seats 853, runway 3000, price 445.6, intro 2007, end 2021 | Airbus_A380 specification table (14,800 km; Mach 0.85 = 903 km/h; 853 max; 3,000 m; $445.6M 2018; Singapore Airlines 25 Oct 2007; last delivery 16 Dec 2021) |
+| A300B4-200 | range 5375, cruise 833, seats 345, runway 2300, intro 1979, end 1984, price 105.1 | Airbus_A300 B4-200 column (5,375 km; 2,300 m; max 345; Mach 0.78 = 833 km/h). introYear 1979 = certification 26 Apr 1979; the page gives no B4-200 service date (the B4 family entered service Dec 1975, which is why the earlier lane omitted the type), so treat 1979 as a recalled/derived approximation. endYear 1984: aircraftworlddirectory only (Wikipedia gives no B2/B4 end date). Price DERIVED, family-level: $17.5M (1972) x 251.1/41.8 = 105.1. ETOPS 120 is an ESTIMATE (page says only that the A300B4 was ETOPS-certified in 1977, no minutes) |
+| A300-600R | range 7500, cruise 833, seats 345, runway 2400, intro 1988, end 2007, price 105.1 | Airbus_A300 (-600R: 7,500 km; 2,400 m; max 345; first delivery 1988 to American; production ceased July 2007, family-wide). Price DERIVED, family-level as above. ETOPS 180: page says the 1984 -600 entry "enabled certification for 180-minute ETOPS" |
+
+### Visual dimensions (aircraft/airbus.ts `visual`)
+Lengths and spans from the same specification tables: A318 31.44 / 34.1; A319 33.84; A320 37.57; A321 44.51 (A320_family). A319, A320 and A321 ceo span 34.1 m is the A318 table value: the family shares one wing and the page's 35.8 m for the A319 is the sharklet span (DERIVED). A320N/A321N 35.8 m with sharklets (A320neo_family). A220-100/300 35.0 / 38.7 / 35.1 (Airbus facts and figures). A330-200/300 58.82 / 63.66 / 60.3; A330-900 63.69 / 64 (sharklets); A340-200 59.4 / 60.3, A340-300 63.69, A340-500 67.93 / 63.45, A340-600 75.36. The A340-300 span (60.3) is the -200 value and the A340-600 span (63.45) is the -500 value, since the page leaves them blank (DERIVED, same wing). A350-900/1000 66.8 / 73.79 / 64.75 (winglets). A380-800 72.72 / 79.75. A300B4-200 53.61, A300-600R 54.08, span 44.84. Winglets true only where the source names sharklets or winglets (neo family, A330-800/900, A350); A340-500/600 and A380 drawn without.
+
+### Overwater (src/overwater.ts)
+A340 and A380: null (four engines). A318 180 (A320-family assumption, as above). A330-800 240. A300-600R 180, A300B4-200 120 (see table).
+
+### Cabin geometry (src/cabin/geometry.ts)
+ESTIMATE rows, same method as the existing table (see its header comment). No cabin dimension was sourced for the new types.
+
+### Considered and skipped (no sourced figure for a required field)
+- A300B1: only two built, never in airline service; no range, seats, runway, price.
+- A300B2-100/-200: no range, runway or seats on any page read; price is family-level only.
+- A300-600 (original, JT9D): range found only for the -600R; end of -600 production not stated.
+- A300-600F: no range, cruise or field length found (Airbus history page blocked by bot protection).
+- A310-200 and A310-300: Wikipedia gives range (6,500 / 9,540 km), intro and end years, but no price and no takeoff field length; aerospaceweb also lists cost "unknown". Seats only typical (243; 280 one-class from aerospaceweb), not an exit limit. Rows would need invented price and runway.
+- A319neo (not requested): not added. A220 and A321ceo/neo already exist.
