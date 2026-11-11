@@ -1222,7 +1222,7 @@ Lengths and spans from the same specification tables: A318 31.44 / 34.1; A319 33
 A340 and A380: null (four engines). A318 180 (A320-family assumption, as above). A330-800 240. A300-600R 180, A300B4-200 120 (see table).
 
 ### Cabin geometry (src/cabin/geometry.ts)
-ESTIMATE rows, same method as the existing table (see its header comment). No cabin dimension was sourced for the new types.
+ESTIMATE rows, same method as the existing table (see its header comment); A330-800 (44.5 m) and A340-200 (46.0 m) were lengthened beyond the overall-length rule so their certified maxSeats default layout fits. No cabin dimension was sourced for the new types.
 
 ### Considered and skipped (no sourced figure for a required field)
 - A300B1: only two built, never in airline service; no range, seats, runway, price.

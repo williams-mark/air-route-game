@@ -71,8 +71,8 @@ const TABLE: Record<string, Row> = {
   "B747-400": [70.0, 6.1, [10]],
   // ESTIMATE (lane/aircraft-airbus): cabin length = overall length (SOURCES.md) less about 10 m (narrow) or 15 m (wide-body), the margin the existing rows use; width from the A330/A350 cross-section class (A300 and A340 share the 5.28 m figure used for the A330; A380 main deck 6.5 m is an ESTIMATE). A380 length counts the upper deck as extra equivalent length, as for the 747.
   A318: [21.5, 3.7, [6]],
-  "A330-800": [43.5, 5.28, [8, 9]],
-  "A340-200": [44.5, 5.28, [8, 9]],
+  "A330-800": [44.5, 5.28, [8, 9]],
+  "A340-200": [46.0, 5.28, [8, 9]],
   "A340-300": [48.5, 5.28, [8, 9]],
   "A340-500": [52.5, 5.28, [8, 9]],
   "A340-600": [60.0, 5.28, [8, 9]],
