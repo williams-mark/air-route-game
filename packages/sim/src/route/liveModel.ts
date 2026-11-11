@@ -2,11 +2,12 @@ import type { Aircraft, AircraftType, Airport, CabinClass, Day, FarePolicy, Fare
 import { effectiveConnectionMarkdown, effectiveTargetLoadFactor, playerHubs } from "./farePolicy";
 import { assign, type AssignPrefs, type ScheduleResult } from "../fleet/scheduler";
 import { plannerPrefs } from "../planner/forecast";
-import { homeHubOf } from "../fleet/hubs";
+import { homeHubOf, routeHourSummary } from "../fleet/hubs";
 import { rivalItinerariesFor } from "../rivals";
 import type { RivalsState } from "../rivals/types";
 import type { RouteReport, SimState } from "../state";
 import { dayToDate, daysInMonth } from "../time/calendar";
+import { benchmarkFareFor } from "../demand/fares";
 import { evaluateNetwork } from "./network";
 import { controlledFareScale, FARE_SOLVER_PARAMS, fareScaleForTargetLoadFactor, scaleFares, simulateRouteWeek, type RouteWeek, type RouteWeekOptions } from "./routeModel";
 import type { RouteEvaluation } from "../finance/ledger";
@@ -43,6 +44,8 @@ export interface LiveModelResult {
   weeks: Record<Id, RouteWeek>;
   /** Fares written by the target-load-factor solve this step (route id to fares); empty when nothing was solved. */
   solvedFares: Record<Id, Fares>;
+  /** Routes whose fare cut was stopped by the fare floor this solve (see FARE_SOLVER_PARAMS.floor...): the floor fare and the target. */
+  floorBinding: Record<Id, { floorFare: number; target: number }>;
   /** Daily totals over the routes (weekly / 7), before fleet-level costs. */
   revenue: number;
   routeCosts: number;
@@ -64,6 +67,7 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
   const routeFlights: Record<Id, Record<Id, number>> = {};
   const routeFraction: Record<Id, number> = {};
   const solvedFares: Record<Id, Fares> = {};
+  const floorBinding: Record<Id, { floorFare: number; target: number }> = {};
   const pricedRoutes: Route[] = [];
   let revenue = 0;
   let routeCosts = 0;
@@ -105,7 +109,20 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
         const w = simulateRouteWeek({ ...route, fares: f }, airports, types, probeDay, solveOpts);
         return w && w.evaluation.feasible ? w.evaluation.loadFactor : null;
       }, iterations);
-      priced = { ...route, fares: scaleFares(route.fares, controlledFareScale(solution)) };
+      let scale = controlledFareScale(solution);
+      if (scale < 1) {
+        // Fare floor: never chase the load factor below it. The floor only stops cuts; it never raises a fare that is already under it.
+        // Cost-covering fare at the volume the target implies: the solved fares, then costs over revenue there (revenue is then proportional to fare).
+        const probe = simulateRouteWeek({ ...route, fares: scaleFares(route.fares, solution) }, airports, types, probeDay, solveOpts);
+        const breakEven = probe && probe.evaluation.revenue > 0 ? solution * probe.evaluation.costs / probe.evaluation.revenue : 0;
+        const bench = benchmarkFareFor(a, b) * FARE_SOLVER_PARAMS.floorBenchmarkFraction / route.fares.Y;
+        const floorScale = Math.min(1, Math.max(breakEven * FARE_SOLVER_PARAMS.floorBreakEvenFraction, bench));
+        if (scale < floorScale) {
+          scale = floorScale;
+          floorBinding[route.id] = { floorFare: route.fares.Y * floorScale, target };
+        }
+      }
+      priced = { ...route, fares: scaleFares(route.fares, scale) };
       solvedFares[route.id] = priced.fares;
     }
     pricedRoutes.push(priced);
@@ -142,7 +159,7 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
     const rep = reports[id];
     if (rep) reports[id] = { ...rep, evaluation, connecting: net.connecting[id] };
   }
-  return { schedule, reports, weeks, solvedFares, revenue, routeCosts };
+  return { schedule, reports, weeks, solvedFares, floorBinding, revenue, routeCosts };
 }
 
 // ---------------------------------------------------------------------------
@@ -283,6 +300,15 @@ export function previewNewRoute(state: SimState, draft: Omit<Route, "id">, day: 
   scheduling: RouteReport["scheduling"];
   /** Share of the planned round trips the fleet can fly. */
   operatedFraction: number;
+  /** The frequency asked for, before any cap. */
+  requestedFrequency: number;
+  /** Most weekly round trips the origin hub's free block hours allow for this type (the requested figure when hours are not limiting, or with a notional fleet). */
+  achievableFrequency: number;
+  /** Block hours a week the requested frequency needs, and the hours free at the origin hub for this type. */
+  hoursNeeded: number;
+  hoursFree: number;
+  /** True when the request exceeds what the hub can fly: `figures` are then for `achievableFrequency`, not the request. */
+  capped: boolean;
 } | null {
   const id = "__preview__";
   const noiseOf = (rid: Id) => state.routeReports[rid]?.demandScale ?? 1;
@@ -290,6 +316,10 @@ export function previewNewRoute(state: SimState, draft: Omit<Route, "id">, day: 
   const next = evaluateLiveRoutes(liveInput(state, day, [...state.world.routes, { ...draft, id }], (r) => noiseOf(r.id)));
   const rep = next.reports[id];
   if (!rep) return null;
+  const hrs = routeHourSummary(state, draft.origin, draft.destination, draft.typeId, draft.weeklyFrequency);
+  const perFlight = draft.weeklyFrequency > 0 ? hrs.needed / draft.weeklyFrequency : 0;
+  const hoursLimited = !state.params.notionalFleet && perFlight > 0 && hrs.needed > hrs.free + 1e-9;
+  const achievable = hoursLimited ? Math.max(0, Math.floor((hrs.free + 1e-9) / perFlight)) : draft.weeklyFrequency;
   const others = Object.keys(base.reports)
     .filter((rid) => next.reports[rid])
     .map((rid) => ({ routeId: rid, delta: next.reports[rid]!.evaluation.profit - base.reports[rid]!.evaluation.profit }))
@@ -297,6 +327,7 @@ export function previewNewRoute(state: SimState, draft: Omit<Route, "id">, day: 
     .sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
   return {
     figures: figures(rep.evaluation), ownershipIncluded: rep.notionalFleet, scheduling: rep.scheduling, operatedFraction: rep.operatedFraction,
+    requestedFrequency: draft.weeklyFrequency, achievableFrequency: achievable, hoursNeeded: hrs.needed, hoursFree: Math.max(0, hrs.free), capped: hoursLimited,
     otherRoutesDelta: others.reduce((s, x) => s + x.delta, 0), otherRoutes: others.slice(0, 5),
   };
 }

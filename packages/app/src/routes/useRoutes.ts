@@ -18,6 +18,8 @@ export interface RouteSummary {
   scheduled?: number;
   /** True when the figures are the sim's own report rather than a UI-side projection. */
   fromSim: boolean;
+  /** True when the profit includes aircraft ownership (notional lease or standalone projection); false = before ownership. */
+  afterOwnership: boolean;
 }
 
 /** Summary from the sim's own report for the route (the real bridge). */
@@ -26,7 +28,7 @@ export function summarizeReport(route: Route, rep: RouteReport): RouteSummary {
   return {
     route, name: routeName(route), tier: profitTier(ev.margin, ev.feasible),
     weeklyProfit: ev.profit, revenue: ev.revenue, loadFactor: ev.loadFactor, margin: ev.margin, feasible: ev.feasible,
-    scheduled: rep.scheduling?.scheduledFrequency, fromSim: true,
+    scheduled: rep.scheduling?.scheduledFrequency, fromSim: true, afterOwnership: rep.notionalFleet,
   };
 }
 
@@ -37,7 +39,7 @@ export function summarizeRoute(route: Route, day: Day, world: World = dataWorld)
     route, name: routeName(route),
     tier: ev ? profitTier(ev.margin, ev.feasible) : "loss",
     weeklyProfit: ev?.profit ?? 0, revenue: ev?.revenue ?? 0, loadFactor: ev?.loadFactor ?? 0, margin: ev?.margin ?? 0, feasible: ev?.feasible ?? false,
-    fromSim: false,
+    fromSim: false, afterOwnership: true,
   };
 }
 

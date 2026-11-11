@@ -9,7 +9,7 @@ import { bridge, useSim } from "../sim/useSim";
 import { IconAlert } from "../shell/icons";
 import { MonthBars } from "./charts";
 import { FareFields, FrequencyField, Stat, useDebounced } from "./editor";
-import { CABINS, CABIN_NAME, FREQ_MAX, describeEffectiveTarget, describeTargetLf, faresToText, formatTargetLf, liveSeasonal, livePreview, operatingMix, parseFares, parseTargetLf, ownershipReason, profitTier, projectRoute, routeName, seasonalProfit, substitutionText, typeOwnership } from "./helpers";
+import { CABINS, CABIN_NAME, FREQ_MAX, describeEffectiveTarget, describeTargetLf, fareFloorText, fullRouteWarning, profitBasis, faresToText, formatTargetLf, liveSeasonal, livePreview, operatingMix, parseFares, parseTargetLf, ownershipReason, profitTier, projectRoute, routeName, seasonalProfit, substitutionText, typeOwnership } from "./helpers";
 import { pct, usd, usdSigned } from "./fmt";
 import { useToasts } from "./store";
 import { RouteAircraft } from "./RouteAircraft";
@@ -141,8 +141,8 @@ export function RouteInspector({ route }: { route: Route }) {
           <div className="rp-alert" role="alert"><IconAlert size={16} /><div><b>This aircraft cannot operate the route</b><ul>{ev.infeasibleReasons.map((r) => <li key={r}>{r}</li>)}</ul></div></div>
         )}
         <section aria-label="Key figures" className="rp-stats">
-          <Stat label="Route profit / week" value={usdSigned(ev.profit)} tone={ev.profit >= 0 ? "pos" : "neg"}
-            sub={`${pct(ev.margin)} margin, ${report && !report.notionalFleet ? "before aircraft ownership and overhead" : "incl. notional aircraft cost"}`} />
+          <Stat label={`Route profit / week, ${profitBasis(!(report && !report.notionalFleet)).short}`} value={usdSigned(ev.profit)} tone={ev.profit >= 0 ? "pos" : "neg"}
+            sub={`${pct(ev.margin)} margin, ${report && !report.notionalFleet ? "before aircraft ownership and overhead" : "incl. notional aircraft cost"}`} title={profitBasis(!(report && !report.notionalFleet)).tip} />
           <Stat label="Load factor" value={pct(ev.loadFactor)} sub={`${Math.round(ev.passengersPerWeek).toLocaleString()} of ${Math.round(ev.seatsPerWeek).toLocaleString()} seats`} />
           <Stat label="Break-even load" value={ev.breakEvenLoadFactor === null ? "n/a" : pct(ev.breakEvenLoadFactor)} sub={ev.breakEvenLoadFactor !== null && ev.loadFactor > ev.breakEvenLoadFactor ? "Above break-even" : "Below break-even"} />
           <Stat label="Market share" value={pct(week.snapshot.playerShare)} sub={`of ${Math.round(week.snapshot.weeklyDemand).toLocaleString()} potential pax/wk`} />
@@ -156,6 +156,8 @@ export function RouteInspector({ route }: { route: Route }) {
                 : `The scheduler will substitute ${stand ? `another aircraft such as your ${stand.typeId}` : "whatever it can find"} until you have one.`}
             </li></ul></div></div>
         )}
+        {fareFloorText(report) && <div className="rp-warn" role="status"><b>Fare floor.</b> {fareFloorText(report)}</div>}
+        {fullRouteWarning(report, effTarget.text !== "off") && <div className="rp-warn" role="status"><b>{fullRouteWarning(report, effTarget.text !== "off")}</b></div>}
         {sched && sched.underSupplied > 0 && (
           <div className="rp-alert" role="status"><IconAlert size={16} /><div><b>Under-supplied: {sched.scheduledFrequency} of {route.weeklyFrequency} round trips a week can be flown</b>
             <ul><li>Not enough free aircraft of this type. Order more, or lower the frequency.</li></ul></div></div>
@@ -272,7 +274,7 @@ export function RouteInspector({ route }: { route: Route }) {
             </div>
           )}
         </section>
-        <p className="rp-foot">{report ? `Latest sim week, ${MONTHS_LONG[dayToDate(report.day).month]} ${dayToDate(report.day).year}. Route profit is before aircraft lease and corporate overhead, which the airline pays whether or not the aircraft fly.` : `Figures use the sim's route model for ${MONTHS_LONG[year.month]} ${year.year}; actual results vary with fleet and events.`}</p>
+        <p className="rp-foot">{report ? `Latest sim week, ${MONTHS_LONG[dayToDate(report.day).month]} ${dayToDate(report.day).year}. ${report.notionalFleet ? "Route profit includes a notional lease charge (you own no aircraft of this type), so it is after ownership; corporate overhead is not included." : "Route profit is before aircraft ownership and corporate overhead, which the airline pays whether or not the aircraft fly."}` : `Figures use the sim's route model for ${MONTHS_LONG[year.month]} ${year.year}; actual results vary with fleet and events.`}</p>
       </div>
     </>
   );

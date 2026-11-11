@@ -4,6 +4,7 @@ import { newSim, stepDay, type SimState } from "../index";
 import { AIRCRAFT_TYPES, AIRPORTS, makeAircraft } from "../testing/fixtures";
 import { controlledFareScale, FARE_SOLVER_PARAMS } from "./routeModel";
 import { evaluateLiveRoutes } from "./liveModel";
+import { benchmarkFareFor } from "../demand/fares";
 
 const airports = new Map(AIRPORTS.map((a) => [a.id, a]));
 const types = new Map(AIRCRAFT_TYPES.map((t) => [t.id, t]));
@@ -105,5 +106,56 @@ describe("weekly fare controller", () => {
     const c = run(8, route("HNL", "B787-9", 14), fleetOf("B787-9", 10), 200);
     expect(c.fares).toEqual(a.fares); // fares are solved for expected demand, so day-to-day demand noise (seed) does not move them
     expect(c.lfs).not.toEqual(a.lfs); // while the reported load factor does carry the noise
+  });
+});
+
+describe("fare floor", () => {
+  const fleet = fleetOf("B737-800", 6);
+  // A demand shock: a short hop flown with far more seats than the market has passengers (the weekly solve wants a deep cut to reach 84%).
+  const big = fleetOf("B737-800", 24);
+  const shocked = (r: Route) => evaluateLiveRoutes({
+    routes: [{ ...r, weeklyFrequency: 150 }], fleet: big, airports, types, day: SETTLE_DAY, notionalFleet: false, rivals: null, prefs: undefined, homeHub: "LAX",
+    noise: () => 1, solveFares: true,
+  });
+
+  it("a demand shock does not drive fares below the floor, and the floor says so", () => {
+    let r: Route = { ...route("SAN", "B737-800", 150, 0.84), fares: { Y: 100 } };
+    let floorSeen = false;
+    for (let w = 0; w < 60; w++) {
+      const live = shocked(r);
+      floorSeen ||= !!live.floorBinding[r.id];
+      r = { ...r, fares: live.solvedFares[r.id] ?? r.fares };
+    }
+    expect(floorSeen).toBe(true);
+    const a = airports.get("LAX")!, b = airports.get("SAN")!;
+    // Never below half the benchmark fare, whatever the cost estimate says.
+    expect(r.fares.Y).toBeGreaterThanOrEqual(benchmarkFareFor(a, b) * FARE_SOLVER_PARAMS.floorBenchmarkFraction - 1e-6);
+    // And it settles: the floor holds the fare instead of the controller chasing the target.
+    const again = shocked(r);
+    expect(Math.abs((again.solvedFares[r.id]?.Y ?? r.fares.Y) / r.fares.Y - 1)).toBeLessThan(0.01);
+  });
+
+  it("does not bind in normal conditions, and never raises a fare", () => {
+    const r = route("SFO", "B737-800", 28, 0.85);
+    const live = evaluateLiveRoutes({ routes: [r], fleet, airports, types, day: SETTLE_DAY, notionalFleet: false, rivals: null, prefs: undefined, homeHub: "LAX", noise: () => 1, solveFares: true });
+    expect(live.floorBinding[r.id]).toBeUndefined();
+    const start = { ...r, fares: { Y: 20 } }; // already under the floor, wants to rise: not blocked
+    const up = evaluateLiveRoutes({ routes: [start], fleet, airports, types, day: SETTLE_DAY, notionalFleet: false, rivals: null, prefs: undefined, homeHub: "LAX", noise: () => 1, solveFares: true });
+    expect(up.solvedFares[r.id]!.Y).toBeGreaterThan(20);
+  });
+
+  it("raises one notice per route per quarter at most, and stamps the report", () => {
+    const r: Route = { ...route("SFO", "B737-800", 28, 0.84), fares: { Y: 60 } };
+    let s: SimState = newSim(3, AIRPORTS, AIRCRAFT_TYPES, { notionalFleet: false, demandNoise: 0 }, { fleet, routes: [r], cash: 1e10 });
+    const texts: number[] = [];
+    let flagged = false;
+    for (let d = 0; d < 200; d++) {
+      s = stepDay(s);
+      for (const e of s.events) if (e.kind === "notice" && e.text.includes("fare floor")) texts.push(d);
+      flagged ||= !!s.routeReports["r1"]?.fareFloor;
+    }
+    for (let i = 1; i < texts.length; i++) expect(texts[i]! - texts[i - 1]!).toBeGreaterThanOrEqual(91);
+    expect(texts.length).toBeLessThanOrEqual(3);
+    if (flagged) expect(texts.length).toBeGreaterThan(0);
   });
 });

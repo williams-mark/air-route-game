@@ -11,9 +11,9 @@ export function useDebounced<T>(value: T, ms = 220): T {
   return v;
 }
 
-export function Stat({ label, value, tone, sub }: { label: string; value: string; tone?: "pos" | "neg"; sub?: string }) {
+export function Stat({ label, value, tone, sub, title }: { label: string; value: string; tone?: "pos" | "neg"; sub?: string; title?: string }) {
   return (
-    <div className="rp-stat">
+    <div className="rp-stat" title={title}>
       <span className="k">{label}</span>
       <span className={`v ${tone ?? ""}`}>{value}</span>
       {sub && <span className="sub">{sub}</span>}

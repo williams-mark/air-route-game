@@ -14,7 +14,7 @@ import { FrequencyBars } from "./charts";
 import { FareFields, FrequencyField, Stat, useDebounced } from "./editor";
 import {
   bestFrequency, bestType, eligibleTypes, faresToText, frequencySweep, marketFares, marketInfo, parseFares, projectRoute, rivalPresence, routeName,
-  operatingMix, parseTargetLf, previewNewRoute, substitutionText, TARGET_LF_MESSAGE, validateRouteDraft, type RouteDraft,
+  openingFares, OPENING_FARE_LOAD_FACTOR, operatingMix, parseTargetLf, previewNewRoute, substitutionText, TARGET_LF_MESSAGE, validateRouteDraft, type RouteDraft,
 } from "./helpers";
 import { pct, usd, usdSigned } from "./fmt";
 import { useCreation, useToasts } from "./store";
@@ -88,7 +88,6 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
     // Default to the most profitable type the airline already owns that can fly the pair, else the first owned type that can.
     return lastOk?.type.id ?? ownedBest(a, b, wkDay)?.id ?? types.find((t) => t.available && ownedIds.has(t.type.id))?.type.id ?? "";
   });
-  const [fareText, setFareText] = useState<Record<CabinClass, string>>(() => faresToText({ Y: mf.Y }));
   const [freq, setFreq] = useState<number>(() => {
     const t = typeId;
     if (!t) return 7;
@@ -115,6 +114,10 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
     }
     return bestFrequency(frequencySweep({ origin: originId, destination: destinationId, weeklyFrequency: 7, fares: { Y: mf.Y }, typeId: t }, wkDay))?.frequency ?? 7;
   });
+  const [fareText, setFareTextRaw] = useState<Record<CabinClass, string>>(() => faresToText({ Y: mf.Y }));
+  // The suggested opening fare follows type and frequency until the player types a fare of their own.
+  const [fareTouched, setFareTouched] = useState(false);
+  const setFareText = (t: Record<CabinClass, string>) => { setFareTouched(true); setFareTextRaw(t); };
   const parsed = parseFares(fareText);
   const fares: Fares = parsed ?? { Y: mf.Y };
   const draft: RouteDraft = useMemo(
@@ -126,6 +129,13 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const week = useMemo(() => (typeId ? projectRoute({ ...dDraft, id: "draft" }, wkDay) : null), [dDraft, wkDay, typeId]);
   // With a live sim the headline figures use the player's own fleet (substitutes included), rivals and hub network; otherwise the standalone model.
   const sim = bridge.getSim?.() ?? null;
+  // Suggested opening fare: the fare that clears about 85% load on the live model at this type and frequency (the benchmark fare filled routes to 100%).
+  const sugKey = useDebounced({ typeId, freq }, 300);
+  const suggested = useMemo(
+    () => (sim && sugKey.typeId ? openingFares(sim, { origin: originId, destination: destinationId, weeklyFrequency: sugKey.freq, fares: { Y: mf.Y }, typeId: sugKey.typeId }) : null),
+    [sugKey.typeId, sugKey.freq, originId, destinationId, mf.Y, sim?.world.day, sim?.world.fleet], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  useEffect(() => { if (!fareTouched && suggested) setFareTextRaw(faresToText(suggested)); }, [suggested, fareTouched]);
   const livePrevAll = useMemo(() => (sim && typeId ? previewNewRoute(sim, dDraft) : null), [dDraft, typeId, sim?.world.day, sim?.world.fleet]); // eslint-disable-line react-hooks/exhaustive-deps
   // No aircraft could fly it today: keep the standalone "planned, not yet operating" projection (what it would earn once you have the aircraft) instead of an idle-route loss.
   const planned = !!livePrevAll && !livePrevAll.ownershipIncluded && livePrevAll.operatedFraction === 0;
@@ -152,6 +162,9 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   // Block-hour pool of the origin hub for the chosen type and frequency (live figures).
   const hours = sim && typeId ? routeHourSummary(sim, originId, destinationId, typeId, freq) : null;
   const hoursShort = !!hours && hours.needed > hours.free + 1e-9;
+  // What the projection below really shows: the preview flies at most what the hub's free block hours allow, whatever is asked.
+  const achievable = hoursShort && hours && perFlight && perFlight.needed > 0 ? Math.max(0, Math.floor((hours.free + 1e-9) / perFlight.needed)) : freq;
+  const capLine = hoursShort && hours ? `Needs ${hours.needed.toFixed(1)} block h/wk, ${Math.max(0, hours.free).toFixed(1)} free: flies ${achievable}/wk at most. The figures below are for ${achievable}/wk, not the ${freq}/wk requested, and Open route is disabled.` : null;
   const [lfText, setLfText] = useState("");
   const lf = parseTargetLf(lfText);
   const [openError, setOpenError] = useState<string | null>(null);
@@ -219,6 +232,13 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
               {hoursShort && <span className="rp-err" role="alert">Short at {originId}: fewer flights or another aircraft.</span>}
             </div>
           )}
+          {capLine && <p className="rc-capline" role="status">{capLine}</p>}
+          {suggested && (
+            <div className="rc-hint" aria-live="polite">
+              Suggested economy fare {usd(suggested.Y)}: clears about {Math.round(OPENING_FARE_LOAD_FACTOR * 100)}% load at {sugKey.freq}/wk on your fleet.
+              {fareTouched && parsed?.Y !== suggested.Y && <> <button type="button" className="link-btn" onClick={() => { setFareTouched(false); setFareTextRaw(faresToText(suggested)); }}>Use suggestion</button></>}
+            </div>
+          )}
           {sim && <HubMoveCallout originId={originId} typeId={typeId} available={hours?.available ?? 0} needed={hours?.needed ?? 0} free={hours?.free ?? 0} />}
           <FareFields text={fareText} onChange={setFareText} km={market.distanceKm} from={a} to={b} compact />
           {footMsgs.length > 0 && <div className="rc-msgs">{footMsgs.map((m) => <p key={m} className="rp-err" role="alert">{m}</p>)}</div>}
@@ -242,17 +262,18 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
         </section>
 
         <section className="rc-sec rc-proj" aria-labelledby="rp-proj">
-          <h3 id="rp-proj">Projection <span className="hint">{MONTHS[year.month]} {year.year}{livePrev ? ", your fleet" : ""}</span></h3>
+          <h3 id="rp-proj">Projection <span className="hint">{MONTHS[year.month]} {year.year}{livePrev ? ", your fleet" : ""}{hoursShort ? `, at ${achievable}/wk (capped from ${freq})` : ""}</span></h3>
+          {capLine && <p className="rc-note" role="status"><b>Capped to {achievable}/wk.</b> {hours!.needed.toFixed(1)} block h/wk needed for {freq}/wk, {Math.max(0, hours!.free).toFixed(1)} free.</p>}
           {substituted && <p className="rc-note" role="status"><b>{substituted}.</b></p>}
           {planned && <p className="rc-note" role="status"><b>Planned, not operating.</b> No free aircraft; standalone model.</p>}
           {livePrev && !livePrev.ownershipIncluded && livePrev.operatedFraction > 0 && livePrev.operatedFraction < 1 && <p className="rc-note" role="status">Fleet can fly {Math.round(livePrev.operatedFraction * 100)}% of round trips.</p>}
           <div className="rp-proj rc-proj-kpis" aria-live="polite" aria-busy={settling}>
-            <div><span className="k">{settling ? "Updating" : livePrev && !livePrev.ownershipIncluded ? "Route profit/wk" : "Profit/wk"}</span><span className={`big ${!ev ? "" : ev.profit >= 0 ? "pos" : "neg"}`}>{ev ? usdSigned(ev.profit) : "–"}</span></div>
+            <div><span className="k">{settling ? "Updating" : `${livePrev && !livePrev.ownershipIncluded ? "Route profit/wk" : "Profit/wk"}${hoursShort ? ` at ${achievable}/wk` : ""}`}</span><span className={`big ${!ev ? "" : ev.profit >= 0 ? "pos" : "neg"}`}>{ev ? usdSigned(ev.profit) : "–"}</span></div>
             <div><span className="k">Load factor</span><span className="big">{ev ? pct(ev.loadFactor) : "–"}</span></div>
             <div><span className="k">Share</span><span className="big">{week ? pct(week.snapshot.playerShare) : "–"}</span></div>
           </div>
           {ev && !ev.feasible && <p className="rp-err" role="alert">{ev.infeasibleReasons.join("; ")}</p>}
-          {sweep.length > 0 && <FrequencyBars points={sweep} bestFreq={best?.frequency ?? null} current={freq} onPick={setFreq} />}
+          {sweep.length > 0 && <FrequencyBars points={sweep} bestFreq={best?.frequency ?? null} current={hoursShort ? achievable : freq} onPick={setFreq} />}
           {sweep.length > 0 && livePrev && <p className="rc-note">The chart shows the shape of profit by frequency on a standalone model; the headline and the button use your fleet and rivals.</p>}
           <div className="rp-actions">
             <button type="button" disabled={!useBest || useBest.frequency === freq} onClick={() => useBest && setFreq(useBest.frequency)}>

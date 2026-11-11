@@ -21,7 +21,7 @@ import { airportOpen, closureOf, dayLabel } from "./world/closures";
 import { pandemicFactor, pandemicNewsOn } from "./demand/pandemic";
 import { isBankrupt, overdraftInterestUsd, stepCredit } from "./finance/credit";
 import { rivalItinerariesFor, stepRivals } from "./rivals";
-import { DEFAULT_SIM_PARAMS, type AircraftMeta, type CheckKind, type RouteReport, type SimParams, type SimState } from "./state";
+import { DEFAULT_SIM_PARAMS, FARE_FLOOR_NOTICE_DAYS, FULL_ROUTE_LOAD_FACTOR, type AircraftMeta, type CheckKind, type RouteReport, type SimParams, type SimState } from "./state";
 
 export { makeRng };
 export * from "./demand/market";
@@ -252,6 +252,22 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     hubs: playerHubs(state),
   });
   const { schedule, reports } = live;
+  // Fare floor and "full route" bookkeeping on the reports (weekly values carried through the other days of the week).
+  for (const route of world.routes) {
+    const rep = reports[route.id];
+    if (!rep) continue;
+    const prev = state.routeReports[route.id];
+    let { fareFloor, fareFloorNoticeDay, fullWeeks } = prev ?? {};
+    if (day % 7 === 0) {
+      fullWeeks = rep.evaluation.loadFactor >= FULL_ROUTE_LOAD_FACTOR ? (fullWeeks ?? 0) + 1 : 0;
+      fareFloor = live.floorBinding[route.id];
+      if (fareFloor && (fareFloorNoticeDay === undefined || day - fareFloorNoticeDay >= FARE_FLOOR_NOTICE_DAYS)) {
+        fareFloorNoticeDay = day;
+        say(`${route.origin}-${route.destination}: fare floor reached at $${Math.round(fareFloor.floorFare)}. Load factor is ${Math.round(rep.evaluation.loadFactor * 100)}%, below the ${Math.round(fareFloor.target * 100)}% target; fares will not go lower.`);
+      }
+    }
+    reports[route.id] = { ...rep, ...(fareFloor ? { fareFloor } : {}), ...(fareFloorNoticeDay !== undefined ? { fareFloorNoticeDay } : {}), ...(fullWeeks !== undefined ? { fullWeeks } : {}) };
+  }
   if (Object.keys(live.solvedFares).length > 0) {
     world = { ...world, routes: world.routes.map((r) => (live.solvedFares[r.id] ? { ...r, fares: live.solvedFares[r.id]! } : r)) };
   }

@@ -3,7 +3,7 @@
 import type { AircraftType, Airport, CabinClass, Day, FarePolicy, Fares, Id, Route, ServiceLevel } from "@arg/contracts";
 import { aircraftTypes, airports, canFlyRoute, distanceKm } from "@arg/data";
 import {
-  benchmarkFare, benchmarkFareFor, matchingPolicy, routeFeasibilityError, daysInMonth, dayToDate, pairMarket, previewNewRoute, previewRoutePatch, seasonalRouteProfit, simulateRouteWeek,
+  benchmarkFare, benchmarkFareFor, fareScaleForTargetLoadFactor, scaleFares, matchingPolicy, routeFeasibilityError, daysInMonth, dayToDate, pairMarket, previewNewRoute, previewRoutePatch, seasonalRouteProfit, simulateRouteWeek,
   type RoutePatch, type RoutePreview, type RouteReport, type RouteWeek, type SimState,
 } from "@arg/sim";
 import type { ProfitTier } from "../map/types";
@@ -90,6 +90,51 @@ export function typeOwnership(fleet: ReadonlyArray<{ typeId: string; status: str
 }
 
 /** Why the scheduler substitutes for `typeId`. "No X" only when none is owned; busy or not-free aircraft are counted, never called missing. */
+/**
+ * What a route's weekly profit does and does not include. Routes flown by aircraft the airline owns show profit BEFORE ownership
+ * (lease or purchase cost is charged to the company, whether or not the aircraft fly); routes with no aircraft of the type, and
+ * standalone projections, include a notional lease charge, so they read AFTER ownership. The two are not comparable one for one.
+ */
+export function profitBasis(afterOwnership: boolean): { short: string; tip: string } {
+  return afterOwnership
+    ? { short: "after ownership", tip: "After aircraft ownership: includes a notional lease charge for aircraft you do not own (or a standalone projection). Corporate overhead is not included." }
+    : { short: "before ownership", tip: "Before aircraft ownership: revenue less the costs of flying (fuel, crew, fees, maintenance). The lease or purchase cost of your own aircraft and corporate overhead are charged to the company, whether or not the aircraft fly." };
+}
+
+/** Text for a fare floor that is holding fares up ("floor binding: load factor 61% below target 84%"); null when not binding. */
+export function fareFloorText(rep: { evaluation: { loadFactor: number }; fareFloor?: { floorFare: number; target: number } } | undefined): string | null {
+  const f = rep?.fareFloor;
+  if (!f) return null;
+  return `Floor binding: load factor ${Math.round(rep!.evaluation.loadFactor * 100)}% below target ${Math.round(f.target * 100)}%. Fares are held at the floor ($${Math.round(f.floorFare)} economy), the fare that covers costs at the target load.`;
+}
+
+/** Weekly checks at full load needed before the "Route is full" warning shows. */
+export const FULL_ROUTE_WEEKS = 4;
+export const FULL_ROUTE_WARNING = "Route is full: raise fares or add frequency; set a target in Fare policy.";
+/** The warning text when the route has held >=98% load for 4+ weeks and has no fare target (own or from a policy); else null. */
+export function fullRouteWarning(rep: { fullWeeks?: number } | undefined, hasTarget: boolean): string | null {
+  return !hasTarget && (rep?.fullWeeks ?? 0) >= FULL_ROUTE_WEEKS ? FULL_ROUTE_WARNING : null;
+}
+
+/** Load factor an opening fare is priced to clear at (the benchmark fare filled routes to 100% for weeks). */
+export const OPENING_FARE_LOAD_FACTOR = 0.85;
+
+/**
+ * Suggested opening fares: the benchmark fares scaled so the live model (your fleet, rivals, hub traffic, at the frequency asked,
+ * capped to what the hub can fly) fills about 85% of the seats. Uses the sim's own fare solver. Null when the route cannot be
+ * flown today (no aircraft, infeasible), when the caller should keep the benchmark. Rounded to whole dollars.
+ */
+export function openingFares(sim: SimState, draft: RouteDraft, target: number = OPENING_FARE_LOAD_FACTOR, iterations = 9): Fares | null {
+  const probe = (fares: Fares) => {
+    const pv = previewNewRoute(sim, { ...draft, fares });
+    return pv && pv.figures.feasible && pv.operatedFraction > 0 ? pv.figures.loadFactor : null;
+  };
+  if (probe(draft.fares) === null) return null;
+  const scale = fareScaleForTargetLoadFactor(draft.fares, target, probe, iterations);
+  const out = scaleFares(draft.fares, scale);
+  return Object.fromEntries(Object.entries(out).map(([k, v]) => [k, Math.round(v as number)])) as unknown as Fares;
+}
+
 export function ownershipReason(typeId: string, o: TypeOwnership): string {
   if (o.owned === 0) return `You own no ${typeId}`;
   if (o.free === 0) {
