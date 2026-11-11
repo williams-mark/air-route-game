@@ -1,3 +1,4 @@
+import { shortTypeLabel } from "../aircraft/names";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Airport, CabinClass, Fares, Route } from "@arg/contracts";
 import { aircraftTypes, airportById } from "@arg/data";
@@ -38,7 +39,7 @@ export function RouteCreator() {
           <h2 id="rp-title" tabIndex={-1} ref={titleRef}>New route</h2>
           <p>Pick two airports on the map or type codes.</p>
         </div>
-        <button className="icon-btn" aria-label="Cancel new route" title="Cancel (Esc)" onClick={() => c.end()}>{"✕"}</button>
+        <button type="button" className="sandbox-close" aria-label="Close sandbox and resume the clock" title="Close the sandbox (Esc) and restore the game speed" onClick={() => c.end()}>Close sandbox</button>
       </header>
       <div className="rp-scroll">
         <div className="rp-pair">
@@ -130,7 +131,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const livePrev = planned ? null : livePrevAll;
   const ev = livePrev ? { ...(week?.evaluation ?? livePrev.figures), ...livePrev.figures } : week?.evaluation;
   const operating = livePrev ? operatingMix(livePrev.scheduling, sim!.world.fleet) : [];
-  const substituted = substitutionText(typeId, operating);
+  const substituted = substitutionText(typeId, operating, shortTypeLabel);
   const sweep = useMemo(() => (typeId ? frequencySweep(dDraft, wkDay) : []), [dDraft.origin, dDraft.destination, dDraft.typeId, dDraft.fares, wkDay, typeId]); // eslint-disable-line react-hooks/exhaustive-deps
   // The suggestion must be something the origin hub can actually fly: the open command refuses more block hours than are free there.
   const perFlight = sim && typeId ? routeHourSummary(sim, originId, destinationId, typeId, 1) : null;

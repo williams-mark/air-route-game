@@ -1,3 +1,4 @@
+import { shortTypeLabel, typeShortName } from "../aircraft/names";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as RKeyboardEvent } from "react";
 import { aircraftTypes } from "@arg/data";
 import type { Aircraft, Id, Route } from "@arg/contracts";
@@ -20,7 +21,7 @@ import { bridge, useSim } from "../sim/useSim";
 interface Item { ac: Aircraft; baseRoute: Id | null }
 interface Data { fc: FleetForecast; gaps: CoverageGap[]; items: Item[]; groups: Array<{ key: string; items: Item[] }>; causeKeys: Set<string> }
 
-const typeName = (id: Id) => aircraftTypes.find((t) => t.id === id)?.name ?? id;
+const typeName = (id: Id) => shortTypeLabel(id);
 const rname = (r: Route) => `${r.origin}-${r.destination}`;
 const dateOf = (d: number) => dayToDate(d);
 const WIN_LABEL = { B: "B check", C: "C check", D: "D check", refit: "Cabin refit" } as const;
@@ -418,7 +419,7 @@ function RoutesPanel({ state, data }: { state: SimState; data: Data }) {
   const move = (i: number, d: number) => { const n = [...list]; const j = i + d; if (j < 0 || j >= n.length) return; [n[i], n[j]] = [n[j]!, n[i]!]; save(n); };
   const changeType = (typeId: Id) => {
     const res = bridge.dispatch({ kind: "updateRoute", id: route.id, patch: { typeId } });
-    if (res && !res.ok) push("alert", res.error.message); else push("good", `${rname(route)} now plans with the ${typeId}.`);
+    if (res && !res.ok) push("alert", res.error.message); else push("good", `${rname(route)} now plans with the ${shortTypeLabel(typeId)}.`);
   };
   const addable = owned.filter((t) => t !== route.typeId && !list.includes(t));
   return (
@@ -434,7 +435,7 @@ function RoutesPanel({ state, data }: { state: SimState; data: Data }) {
       </dl>
       <label className="pl-field">Planned with (primary type)
         <select value={route.typeId} onChange={(e) => changeType(e.target.value)}>
-          {state.aircraftTypes.filter((t) => t.id === route.typeId || owned.includes(t.id)).map((t) => <option key={t.id} value={t.id} disabled={!feasible(t.id)}>{t.id}{feasible(t.id) ? "" : ` (${infeasibleReason(a, b, t)})`}</option>)}
+          {state.aircraftTypes.filter((t) => t.id === route.typeId || owned.includes(t.id)).map((t) => <option key={t.id} value={t.id} disabled={!feasible(t.id)}>{typeShortName(t)}{feasible(t.id) ? "" : ` (${infeasibleReason(a, b, t)})`}</option>)}
         </select>
       </label>
       <h3 className="pl-sub">Fallback types, in order</h3>
@@ -453,7 +454,7 @@ function RoutesPanel({ state, data }: { state: SimState; data: Data }) {
         <label className="pl-field">Add fallback type
           <select value="" onChange={(e) => e.target.value && save([...list, e.target.value])}>
             <option value="">Choose a type from your fleet…</option>
-            {addable.map((t) => <option key={t} value={t} disabled={!feasible(t)}>{t}{feasible(t) ? "" : ` (${infeasibleReason(a, b, state.aircraftTypes.find((x) => x.id === t)!)})`}</option>)}
+            {addable.map((t) => <option key={t} value={t} disabled={!feasible(t)}>{shortTypeLabel(t)}{feasible(t) ? "" : ` (${infeasibleReason(a, b, state.aircraftTypes.find((x) => x.id === t)!)})`}</option>)}
           </select>
         </label>
       )}

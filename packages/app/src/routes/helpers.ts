@@ -69,10 +69,10 @@ export function operatingMix(sched: RouteReport["scheduling"], fleet: ReadonlyAr
 }
 
 /** "Planned A321, flown by 2 x 737-800" when anything other than the requested type flies the route; null when it is as planned. */
-export function substitutionText(requested: string, mix: readonly OperatingType[]): string | null {
+export function substitutionText(requested: string, mix: readonly OperatingType[], label: (id: string) => string = (id) => id): string | null {
   if (mix.length === 0 || mix.every((m) => m.typeId === requested)) return null;
-  const parts = mix.map((m) => `${m.aircraft} x ${m.typeId}`);
-  return `Planned ${requested}, flown by ${parts.join(" and ")}`;
+  const parts = mix.map((m) => `${m.aircraft} x ${label(m.typeId)}`);
+  return `Planned ${label(requested)}, flown by ${parts.join(" and ")}`;
 }
 
 /** Fleet counts for one type: owned = in the fleet (not on order, not stored); free = owned and flying no route; onRoute = owned and flying the given route. */

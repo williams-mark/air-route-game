@@ -1,3 +1,4 @@
+import { shortTypeLabel } from "../aircraft/names";
 import { useMemo, useState } from "react";
 import type { ProfitTier } from "../map/types";
 import { useUi } from "../store";
@@ -88,7 +89,7 @@ export default function RoutesView() {
                     <span className={`dot tier-${r.tier}`} aria-hidden="true" />{r.name}
                   </button>
                 </th>
-                <td>{r.route.typeId}</td>
+                <td>{shortTypeLabel(r.route.typeId)}</td>
                 <td className="num">{r.scheduled !== undefined && r.scheduled < r.route.weeklyFrequency ? <span className="neg" title="Round trips actually flown with the aircraft you have">{r.scheduled} of {r.route.weeklyFrequency}</span> : r.route.weeklyFrequency}</td>
                 <td className="num">{r.feasible ? `${Math.round(r.loadFactor * 100)}%` : "–"}</td>
                 <td className={`num ${r.margin < 0 ? "neg" : "pos"}`}>{r.feasible ? `${(r.margin * 100).toFixed(0)}%` : "–"}</td>

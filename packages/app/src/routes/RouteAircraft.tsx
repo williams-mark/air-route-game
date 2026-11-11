@@ -1,3 +1,4 @@
+import { shortTypeLabel, typeShortName } from "../aircraft/names";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Route } from "@arg/contracts";
 import { aircraftTypes, airportById } from "@arg/data";
@@ -44,7 +45,7 @@ export function RouteAircraft({ route }: { route: Route }) {
   const flying = fleet.filter((f) => f.routes.includes(name));
   const sched = reports[route.id]?.scheduling ?? null;
   const operating = useMemo(() => operatingMix(sched, fleet), [sched, fleet]);
-  const substituted = substitutionText(route.typeId, operating);
+  const substituted = substitutionText(route.typeId, operating, shortTypeLabel);
   const { owned, onOrder } = useMemo(() => ownedByType(fleet), [fleet]);
 
   useEffect(() => {
@@ -69,7 +70,7 @@ export function RouteAircraft({ route }: { route: Route }) {
   const apply = () => {
     const res = bridge.dispatch({ kind: "updateRoute", id: route.id, patch: { typeId: newId } });
     if (res && !res.ok) { push("alert", res.error.message); return; }
-    push("good", `${name} now uses ${nextType?.name ?? newId}.`);
+    push("good", `${name} now uses ${nextType ? typeShortName(nextType) : newId}.`);
     setChanging(false);
   };
   const orderIt = () => { usePickerMemory.getState().remember("order", newId); setView("orders"); };
@@ -78,10 +79,10 @@ export function RouteAircraft({ route }: { route: Route }) {
     <section aria-labelledby="rp-ac" className="rp-sec" ref={secRef} id="rp-aircraft">
       <h3 id="rp-ac">Aircraft</h3>
       <dl className="mini rp-dl">
-        <dt>Planned type</dt><dd>{type?.name ?? route.typeId}{type ? `, ${typicalSeats(type)} seats` : ""}</dd>
+        <dt>Planned type</dt><dd>{type ? typeShortName(type) : route.typeId}{type ? `, ${typicalSeats(type)} seats` : ""}</dd>
         {operating.length > 0 && <><dt>Operating</dt><dd>{substituted ? substituted.replace(`Planned ${route.typeId}, flown by `, "") : operating.map((m) => `${m.aircraft} x ${m.typeId}`).join(", ")}{substituted ? " (substituted)" : " (as planned)"}</dd></>}
         <dt>Flown by</dt><dd>{flying.length === 0 ? "No aircraft assigned right now" : flying.slice(0, 6).map((f) => f.tail).join(", ") + (flying.length > 6 ? ` and ${flying.length - 6} more` : "")}</dd>
-        <dt>You own ({route.typeId})</dt><dd>{owned.get(route.typeId) ? `${owned.get(route.typeId)!.total} ${route.typeId} (${owned.get(route.typeId)!.free} free)` : `None${onOrder.get(route.typeId) ? `, ${onOrder.get(route.typeId)} on order` : ""}`}{substituted ? "; the route is flown by substitutes" : ""}</dd>
+        <dt>You own ({shortTypeLabel(route.typeId)})</dt><dd>{owned.get(route.typeId) ? `${owned.get(route.typeId)!.total} ${shortTypeLabel(route.typeId)} (${owned.get(route.typeId)!.free} free)` : `None${onOrder.get(route.typeId) ? `, ${onOrder.get(route.typeId)} on order` : ""}`}{substituted ? "; the route is flown by substitutes" : ""}</dd>
       </dl>
       {!changing ? (
         <div className="rp-actions">
@@ -108,7 +109,7 @@ export function RouteAircraft({ route }: { route: Route }) {
                 <div className="rp-alert" role="alert"><IconAlert size={16} /><div>
                   <b>No {nextType.id} in your fleet</b>
                   <div>{ordered > 0 ? `${ordered} on order, but none delivered yet. ` : ""}The scheduler will substitute {sub ? `another aircraft such as your ${sub.typeId}` : "whatever it can find"} until you have one: order some or choose a type you own.</div>
-                  <button type="button" className="link-btn" onClick={orderIt}>Order {nextType.name}{"…"}</button>
+                  <button type="button" className="link-btn" onClick={orderIt}>Order {typeShortName(nextType)}{"…"}</button>
                 </div></div>
               )}
               {proj && !proj.feasible && <p className="rp-err" role="alert">{proj.infeasibleReasons.join("; ")}</p>}

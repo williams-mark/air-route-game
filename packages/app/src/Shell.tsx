@@ -53,6 +53,7 @@ function useGlobalKeys() {
       if (e.key === "Escape") {
         if (st.saveDialog) st.setSaveDialog(null);
         else if (st.paletteOpen) st.setPalette(false); else if (st.helpOpen) st.setHelp(false);
+        else if (useCreation.getState().open) useCreation.getState().end();
         else if (!dockCollapsed()) minimizeDock();
         return;
       }

@@ -1,5 +1,5 @@
+import { shortTypeLabel } from "../aircraft/names";
 import { useState } from "react";
-import { aircraftTypes } from "@arg/data";
 import { uiAirports } from "../dev/airportSource";
 import { fold } from "../routes/airportSearch";
 import { useUi } from "../store";
@@ -22,7 +22,7 @@ export default function RivalsView() {
   const showCompetitors = useUi((s) => s.setShowCompetitors);
   const sel = rivals.list.find((r) => r.id === selected) ?? null;
   const mine = new Set(playerRoutes.map((r) => (r.origin < r.destination ? `${r.origin}-${r.destination}` : `${r.destination}-${r.origin}`)));
-  const typeName = (id: string) => aircraftTypes.find((t) => t.id === id)?.name ?? id;
+  const typeName = (id: string) => shortTypeLabel(id);
   const allOfRival = sel ? marketsOf(rivals, sel.id) : [];
   const q = fold(mq.trim());
   const filtered = q ? allOfRival.filter(({ market: m }) => [m.origin, m.destination].some((c) => fold(c).includes(q) || (cityOf.get(c) ?? "").includes(q))) : allOfRival;

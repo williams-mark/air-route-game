@@ -19,7 +19,7 @@ export function OfferCard({ offer, day, cash }: { offer: OfferItem; day: number;
   const accept = () => {
     const res = bridge.dispatch({ kind: "acceptOffer", offerId: offer.id, quantity: q });
     if (res && !res.ok) push("alert", res.error.message);
-    else push("good", `Accepted ${q} x ${offer.typeId}. Deposit ${formatMoney(deposit)} paid.`);
+    else push("good", `Accepted ${q} x ${offer.typeName}. Deposit ${formatMoney(deposit)} paid.`);
   };
   const dismiss = () => { bridge.dispatch({ kind: "dismissOffer", offerId: offer.id }); };
 

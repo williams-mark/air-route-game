@@ -1,3 +1,4 @@
+import { typeShortName } from "./names";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { AircraftType } from "@arg/contracts";
 import { aircraftTypes } from "@arg/data";
@@ -77,7 +78,7 @@ export function AircraftPicker({ label, value, onChange, year, types = aircraftT
 
   const summary = selected ? (
     <>
-      <span className="ap-sum-name">{selected.name}</span>
+      <span className="ap-sum-name">{typeShortName(selected)}</span>
       <span className="ap-sum-meta">{typicalSeats(selected)} seats (max {selected.maxSeats}) {"·"} <abbr title={rangeNote(selected)}>{selected.rangeKm.toLocaleString()} km nominal, {usableRangeKm(selected).toLocaleString()} usable</abbr> {"·"} {usd(selected.listPriceUsdM)}</span>
     </>
   ) : <span className="ap-sum-name">No aircraft type available</span>;
@@ -136,7 +137,7 @@ export function AircraftPicker({ label, value, onChange, year, types = aircraftT
               return (
                 <button type="button" role="listitem" data-tile key={t.id} className={`ap-tile ap-var ${isSel ? "sel" : ""} ${reason ? "off" : ""}`} aria-pressed={isSel} aria-disabled={reason ? true : undefined}
                   title={reason ?? undefined} onClick={() => { if (!reason) pick(t); }}>
-                  <span className="ap-var-top"><b>{t.name.replace(t.manufacturer, "").trim() || t.name}</b><span className={`ap-badge ap-${av}`}>{AVAIL_LABEL[av]}</span></span>
+                  <span className="ap-var-top"><b>{typeShortName(t)}</b><span className={`ap-badge ap-${av}`}>{AVAIL_LABEL[av]}</span></span>
                   <span className="ap-var-spec">{typicalSeats(t)} seats typical, {t.maxSeats} max</span>
                   <span className="ap-var-spec" title={rangeNote(t)}>Range {t.rangeKm.toLocaleString()} km nominal</span>
                   <span className="ap-var-spec" title={rangeNote(t)}>Usable {usableRangeKm(t).toLocaleString()} km with reserves</span>

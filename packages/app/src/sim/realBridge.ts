@@ -1,3 +1,4 @@
+import { shortTypeLabel } from "../aircraft/names";
 // RealSimBridge: drives the real @arg/sim through the SimBridge interface.
 // The clock accumulates real time (rAF dt, clamped) into whole simulated days; days are stepped in a batch and the UI gets
 // exactly one snapshot per batch.
@@ -397,7 +398,7 @@ export function buildFleet(sim: SimState): FleetItem[] {
   return sim.world.fleet.map((ac): FleetItem => {
     const meta = sim.fleetMeta[ac.id];
     const item: FleetItem = {
-      id: ac.id, tail: ac.tailNumber, typeId: ac.typeId, typeName: types.get(ac.typeId)?.name ?? ac.typeId,
+      id: ac.id, tail: ac.tailNumber, typeId: ac.typeId, typeName: shortTypeLabel(ac.typeId),
       status: ac.status, ageYears: ac.ageDays / 365.25, seats: layoutSeats(ac.layout), layout: ac.layout, routes: flies.get(ac.id) ?? [],
       hub: ac.hubId ?? homeHubOf(sim),
     };
@@ -423,7 +424,7 @@ export function buildOrders(sim: SimState): OrderItem[] {
   const types = new Map(sim.aircraftTypes.map((t) => [t.id, t]));
   const status = new Map(sim.world.fleet.map((a) => [a.id, a.status]));
   return sim.orders.map((o) => ({
-    id: o.id, typeId: o.typeId, typeName: types.get(o.typeId)?.name ?? o.typeId, count: o.count,
+    id: o.id, typeId: o.typeId, typeName: shortTypeLabel(o.typeId), count: o.count,
     delivered: o.aircraftIds.filter((id) => status.get(id) !== "delivery").length,
     orderDay: o.orderDay, deliveryDays: o.deliveryDays,
     firstDelivery: Math.min(...o.deliveryDays), lastDelivery: Math.max(...o.deliveryDays),
@@ -438,7 +439,7 @@ export function buildOffers(sim: SimState): OfferItem[] {
     const t = types.get(o.typeId);
     return {
       ...o,
-      typeName: t?.name ?? o.typeId,
+      typeName: shortTypeLabel(o.typeId),
       seats: layoutSeats(o.layout ?? (t ? defaultLayout(t) : { sections: [] })),
     };
   });

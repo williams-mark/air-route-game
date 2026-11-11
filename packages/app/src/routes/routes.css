@@ -228,3 +228,8 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 }
 .rp-lf-row { display: flex; gap: .4rem; align-items: center; }
 .rp-lf-row input { width: 6.5rem; }
+
+/* Sandbox close control in the header: a labelled button so the way back to the clock is visible. Colours from theme.css variables only. */
+.route-panel .sandbox-close { flex: none; font: inherit; font-size: .8rem; padding: .3rem .65rem; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); color: var(--text); cursor: pointer; white-space: nowrap; }
+.route-panel .sandbox-close:hover { border-color: var(--accent); }
+.route-panel .sandbox-close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

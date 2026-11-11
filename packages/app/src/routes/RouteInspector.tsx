@@ -1,3 +1,4 @@
+import { shortTypeLabel, typeShortName } from "../aircraft/names";
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { CabinClass, Route } from "@arg/contracts";
 import { airportById, aircraftTypes } from "@arg/data";
@@ -74,7 +75,7 @@ export function RouteInspector({ route }: { route: Route }) {
   const live = sim !== null;
   const months = useMemo(() => liveSeasonal(sim, route.id, wkDay) ?? seasonalProfit(route, wkDay), [route, wkDay, live]); // eslint-disable-line react-hooks/exhaustive-deps
   const mix = useMemo(() => operatingMix(sched, fleet), [sched, fleet]);
-  const substituted = substitutionText(route.typeId, mix);
+  const substituted = substitutionText(route.typeId, mix, shortTypeLabel);
   const ownership = typeOwnership(fleet, route.typeId, route.id);
   const stand = fleet.find((f) => f.status === "active" && f.typeId !== route.typeId);
 
@@ -131,7 +132,7 @@ export function RouteInspector({ route }: { route: Route }) {
       <header className="rp-head">
         <div>
           <h2 id="rp-title"><span className={`dot tier-${tier}`} aria-hidden="true" />{routeName(route)}</h2>
-          <p>{a?.city} to {b?.city} {"·"} {Math.round(ev.distanceKm).toLocaleString()} km {"·"} {substituted ?? (type?.name ?? route.typeId)} {"·"} {tierWord}</p>
+          <p>{a?.city} to {b?.city} {"·"} {Math.round(ev.distanceKm).toLocaleString()} km {"·"} {substituted ?? (type ? typeShortName(type) : route.typeId)} {"·"} {tierWord}</p>
         </div>
         <button ref={headRef} className="icon-btn" aria-label="Close route inspector" title="Close (Esc)" onClick={() => select(null)}>{"✕"}</button>
       </header>
@@ -148,10 +149,10 @@ export function RouteInspector({ route }: { route: Route }) {
         </section>
         {(substituted || (!report && ownership.owned === 0 && route.typeId)) && (
           <div className="rp-alert" role="status"><IconAlert size={16} /><div>
-            <b>{substituted ?? `Planned ${route.typeId}, no ${route.typeId} in your fleet yet`}</b>
+            <b>{substituted ?? `Planned ${shortTypeLabel(route.typeId)}, no ${shortTypeLabel(route.typeId)} in your fleet yet`}</b>
             <ul><li>
               {substituted
-                ? `${ownershipReason(route.typeId, ownership)}, so the scheduler is substituting. Seats, fuel, crew and fees below use the aircraft actually flying.`
+                ? `${ownershipReason(shortTypeLabel(route.typeId), ownership)}, so the scheduler is substituting. Seats, fuel, crew and fees below use the aircraft actually flying.`
                 : `The scheduler will substitute ${stand ? `another aircraft such as your ${stand.typeId}` : "whatever it can find"} until you have one.`}
             </li></ul></div></div>
         )}
@@ -165,7 +166,7 @@ export function RouteInspector({ route }: { route: Route }) {
           <dl className="mini rp-dl">
             <dt>Frequency</dt><dd>{route.weeklyFrequency} per week each way ({ev.flightsPerWeek} flights)</dd>
             <dt>Target load factor</dt><dd>{effTarget.text}</dd>
-            <dt>Aircraft</dt><dd>{substituted ?? route.typeId}, {Math.round(ev.seatsPerFlight)} seats per flight, {sched ? `${sched.aircraftIds.length} assigned` : `${ev.aircraftEquivalent.toFixed(1)} needed`}</dd>
+            <dt>Aircraft</dt><dd>{substituted ?? shortTypeLabel(route.typeId)}, {Math.round(ev.seatsPerFlight)} seats per flight, {sched ? `${sched.aircraftIds.length} assigned` : `${ev.aircraftEquivalent.toFixed(1)} needed`}</dd>
             {CABINS.slice().reverse().map((c) => cabinFare(c) !== undefined && (<Fragment key={c}><dt>{CABIN_NAME[c]}</dt><dd>{usd(cabinFare(c)!)}</dd></Fragment>))}
           </dl>
         </section>

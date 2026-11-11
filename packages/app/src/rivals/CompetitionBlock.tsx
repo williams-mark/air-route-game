@@ -1,5 +1,5 @@
+import { shortTypeLabel } from "../aircraft/names";
 import type { Route } from "@arg/contracts";
-import { aircraftTypes } from "@arg/data";
 import { useSimSelector } from "../sim/useSim";
 import { ARCHETYPE_LABEL, competitionFor, fareBandText, fareVsBand } from "./helpers";
 
@@ -9,7 +9,7 @@ const FLAG = { below: "Your fare is below", within: "Your fare is within", above
 export function CompetitionBlock({ route, yourWeeklySeats }: { route: Route; yourWeeklySeats: number }) {
   const rivals = useSimSelector((s) => s.rivals);
   const comp = competitionFor(rivals, route, yourWeeklySeats);
-  const typeName = (id: string) => aircraftTypes.find((t) => t.id === id)?.name ?? id;
+  const typeName = (id: string) => shortTypeLabel(id);
   return (
     <section aria-labelledby="rp-comp" className="rp-sec">
       <h3 id="rp-comp">Competition in this market <span className="hint">(estimates)</span></h3>
