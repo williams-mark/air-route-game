@@ -386,6 +386,36 @@ export const TARGET_LOAD_FACTOR_RANGE = { min: 0.5, max: 0.95 } as const;
 export const FARE_SCALE_BOUNDS = { min: 0.4, max: 2.5 } as const;
 export const FARE_SCALE_ITERATIONS = 30;
 
+/**
+ * Weekly fare controller (lane/fare-swing). Playtests showed fares swinging 25-50% a quarter under a target load factor.
+ * Causes found by reproduction (LAX-MEX A330, LAX-HNL 777, LAX-SFO 737; 3 years each): (1) the solve
+ * priced against the day's random demand noise (3% demand is several % of fare, new every week); (2) it matched the
+ * seasonal curve of the solve day exactly, so the fare followed the whole seasonal wave (+-20-30%); (3) it set the fare to
+ * the first day's load factor although the fare holds for a week, so weeks ended 3-5 points off while demand moved.
+ * The fix: solve for expected demand (no noise) at mid-week, follow only part of the seasonal swing, and move the live fare
+ * a damped, rate-limited step toward the solution.
+ * Chosen values: seasonalFollow 0.7 cut the MEX quarterly swing from about +-25% to +-15% while keeping seasonal load factor
+ * within ~8 points of target (0.5 halves the swing but lets load factor float 15 points; 1 is the old behaviour); gain 0.85
+ * (0.6 left a ramp lag of about 4 points of load factor); 8% a week is the rate limit asked for, so a step in demand converges
+ * in a few weeks (the cap bounds the largest steps); the 0.5% deadband stops jitter once on target.
+ */
+export const FARE_SOLVER_PARAMS = {
+  /** Fraction (0..1, geometric) of today's seasonal demand swing the solve follows; 0 solves for the annual mean demand. */
+  seasonalFollow: 0.7,
+  /** Evenly spaced days over a year at which demand is sampled for the annual mean. */
+  yearSamples: 4,
+  /** Days added to the solve day so the probe sits mid-week (the fare stays for 7 days). */
+  midWeekDays: 3,
+  /** Largest weekly fare change, as a fraction of the current fare (applied in both directions, on log scale). */
+  maxWeeklyChange: 0.08,
+  /** Fraction of the log gap between the current fare and the solution closed each week. */
+  gain: 0.85,
+  /** Gaps below this (log scale, about 0.5%) are left alone, so the fare does not jitter at the target. */
+  deadband: 0.005,
+  /** Bisection steps on the log of the fare multiplier (range ln 2.5 - ln 0.4 = 1.83; 16 steps = 3e-5). */
+  iterations: 16,
+} as const;
+
 /** Every fare class multiplied by `scale` (premium fares keep their ratio to economy). */
 export function scaleFares(fares: Fares, scale: number): Fares {
   const out: Fares = { Y: fares.Y * scale };
@@ -403,6 +433,7 @@ export function fareScaleForTargetLoadFactor(
   fares: Fares,
   target: number,
   loadFactorAt: (fares: Fares) => number | null,
+  iterations: number = FARE_SCALE_ITERATIONS,
 ): number {
   let best = { scale: 1, err: Infinity };
   const probe = (scale: number): number | null => {
@@ -419,14 +450,26 @@ export function fareScaleForTargetLoadFactor(
   if (lfLo === null || lfHi === null) return 1;
   if (lfLo <= target) return lo;
   if (lfHi >= target) return hi;
-  for (let i = 0; i < FARE_SCALE_ITERATIONS; i++) {
-    const mid = (lo + hi) / 2;
+  for (let i = 0; i < iterations; i++) {
+    const mid = Math.sqrt(lo * hi); // geometric: bisect the log of the multiplier
     const lf = probe(mid);
     if (lf === null) return 1;
     if (lf > target) lo = mid;
     else hi = mid;
   }
   return best.scale;
+}
+
+/**
+ * Next economy fare multiplier of the weekly controller: `solution` is the multiplier the solver found for the target
+ * (relative to the current fares). Closes `gain` of the log gap, at most `maxWeeklyChange` a week, and holds inside the deadband.
+ */
+export function controlledFareScale(solution: number): number {
+  const { gain, maxWeeklyChange, deadband } = FARE_SOLVER_PARAMS;
+  const gap = Math.log(solution);
+  if (!(Math.abs(gap) > deadband)) return 1;
+  const cap = Math.log1p(maxWeeklyChange);
+  return Math.exp(Math.max(-cap, Math.min(cap, gap * gain)));
 }
 
 /** Fractional aircraft the route needs at full schedule. */

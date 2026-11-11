@@ -1,3 +1,5 @@
+## lane/fare-swing (weekly target-load-factor fare controller)
+- Cause: the weekly solve priced for the day's random demand noise and matched one day's seasonal demand exactly, ignoring that the fare holds a week. Now: expected demand at mid-week, seasonal swing followed 70%, fare moved 85% of the log gap per week, at most 8% a week (FARE_SOLVER_PARAMS in route/routeModel.ts, rationale in its comment). Tests: route/fareController.test.ts. Annual mean load factor within 1.5 points of target; seasonal load factor floats up to ~8 points (seasonalFollow 1 restores tracking at the cost of the old swings).
 ## lane/qa-playtest-fixes (two scripted 15-year playthroughs, 8-10 Nov 2026; app plus small sim message changes)
 Two agents played 2015-2029 from LAX with no context beyond "build a semi-realistic airline" (one drove `RealSimBridge` from a script, one drove the UI with Playwright). Fixed here:
 - Route creator: Enter in an untouched airport field kept the airport but used to take the list's first row (LAX became ATL); `resolveEnter` (routes/airportSearch.ts, tested). Open route is disabled, with the reason as its tooltip, when the pair is already flown, the draft is invalid or the origin hub lacks block hours (the preview said feasible, the command refused). "Use best" is capped to what the hub can fly and priced on the same live model as the headline, and is hidden when it is not better. The chart note says it is the standalone model.
@@ -14,7 +16,7 @@ Open (found by the playthroughs, not fixed; most need an owner decision):
 - No sale, return or early lease exit of aircraft; no commonality cost for a mixed fleet.
 - Balance: margins 26-37% (real airlines 5-15%), no 2020 shock, fuel series flat after 2026, used offers up to 80% off appear often.
 - No end of campaign (no review or score at 15 years or 2025).
-- Target load factor re-solves weekly and swings fares 25-50% a quarter; the solver ended 4 points under an 85% target in one run.
+- Target load factor fare swings: fixed in lane/fare-swing (see its section); seasonal load factor still floats a few points by design.
 - Sandbox pauses the clock with no obvious way back; aircraft names differ between cards, toasts and tables (A321ceo vs A321, B737-800 vs Boeing 737-800); the route creator needs aircraft already based at the origin hub and offers no move flow.
 
 ## lane/start-year (optional start year, prior-generation aircraft)

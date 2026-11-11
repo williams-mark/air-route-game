@@ -8,7 +8,7 @@ import type { RivalsState } from "../rivals/types";
 import type { RouteReport, SimState } from "../state";
 import { dayToDate, daysInMonth } from "../time/calendar";
 import { evaluateNetwork } from "./network";
-import { fareScaleForTargetLoadFactor, scaleFares, simulateRouteWeek, type RouteWeek, type RouteWeekOptions } from "./routeModel";
+import { controlledFareScale, FARE_SOLVER_PARAMS, fareScaleForTargetLoadFactor, scaleFares, simulateRouteWeek, type RouteWeek, type RouteWeekOptions } from "./routeModel";
 import type { RouteEvaluation } from "../finance/ledger";
 
 export interface LiveModelInput {
@@ -90,11 +90,22 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
     let priced = route;
     const target = inp.solveFares && a && b ? effectiveTargetLoadFactor(route, inp.farePolicies, airports, inp.hubs) : undefined;
     if (target !== undefined && a && b) {
-      const scale = fareScaleForTargetLoadFactor(route.fares, target, (f) => {
-        const w = weekAt({ ...route, fares: f });
+      // Solve against expected demand (no noise), with the seasonal part of it only partly followed, then move a capped step.
+      const { midWeekDays, iterations, seasonalFollow, yearSamples } = FARE_SOLVER_PARAMS;
+      const probeOpts: RouteWeekOptions = { ...weekOpts, demandScale: 1 };
+      const probeDay = day + midWeekDays;
+      const demandOn = (d: number) => simulateRouteWeek(route, airports, types, d, probeOpts)?.snapshot.weeklyDemand ?? 0;
+      let yearSum = 0;
+      for (let k = 0; k < yearSamples; k++) yearSum += demandOn(probeDay + Math.round((k * 364) / yearSamples));
+      const now = demandOn(probeDay);
+      // Demand the fare is solved for: the annual mean plus `seasonalFollow` of the way to today's seasonal demand (geometric).
+      const level = now > 0 && yearSum > 0 ? Math.pow(now / (yearSum / yearSamples), seasonalFollow) * (yearSum / yearSamples) / now : 1;
+      const solveOpts: RouteWeekOptions = { ...weekOpts, demandScale: level };
+      const solution = fareScaleForTargetLoadFactor(route.fares, target, (f) => {
+        const w = simulateRouteWeek({ ...route, fares: f }, airports, types, probeDay, solveOpts);
         return w && w.evaluation.feasible ? w.evaluation.loadFactor : null;
-      });
-      priced = { ...route, fares: scaleFares(route.fares, scale) };
+      }, iterations);
+      priced = { ...route, fares: scaleFares(route.fares, controlledFareScale(solution)) };
       solvedFares[route.id] = priced.fares;
     }
     pricedRoutes.push(priced);
