@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { aircraftTypes, airportById, airports, canFlyDistance, canFlyRoute, distanceKm, isLandPair, isOverwaterRoute, maxOverwaterKm, metros } from "./index.js";
+import { aircraftFamilyById, aircraftTypes, airportById, airports, canFlyDistance, canFlyRoute, distanceKm, isLandPair, isOverwaterRoute, maxOverwaterKm, metros } from "./index.js";
 
 const ap = (id: string) => {
   const a = airportById.get(id);
@@ -359,5 +359,13 @@ describe("metros", () => {
     expect(sh("LA")).toEqual({ LAX: 0.78, SNA: 0.1, ONT: 0.044, BUR: 0.042, LGB: 0.034 });
     expect(sh("SF")).toEqual({ SFO: 0.7, OAK: 0.16, SJC: 0.14 });
     expect(sh("SEA")).toEqual({ SEA: 0.88, PAE: 0.08, BFI: 0.04 });
+  });
+});
+
+describe("aircraft families", () => {
+  it("every type has a family tile and every family entry names a real type", () => {
+    for (const t of aircraftTypes) expect(aircraftFamilyById[t.id], t.id).toBeTruthy();
+    const ids = new Set(aircraftTypes.map((t) => t.id));
+    for (const id of Object.keys(aircraftFamilyById)) expect(ids.has(id), id).toBe(true);
   });
 });
