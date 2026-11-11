@@ -1,3 +1,17 @@
+## lane/fleet-sales (sell aircraft, return leases, fleet-diversity cost)
+Answers the QA open items "no aircraft sale or early return" and "no cost for a mixed fleet". Details: MODEL.md.
+- Sim: `sellAircraft` (owned outright, paid immediately; value = min(book, price paid rolled forward) x 0.88 x 0.92 widebody x 0.8 obsolete; refused on a route, leased, on order or in the hangar, or if it would shrink the credit line while cash is below zero) and `returnLease` (3 months of lease as a fee, `DISPOSAL_PARAMS.leaseTerminationMonths`; no lease end dates exist, so no fee-free return). Diversity overhead: types beyond 4 cost $250k + $14k per aircraft per extra type per month (about 1% of revenue at 5 types, 5% at 12); `SimState.diversity`.
+- App: Sell / Return in Fleet rows and bulk bar with a confirm dialog, "Fleet types" panel and P&L column in Finance; distress banner mentions selling.
+- Not done: settlement delay, fee-free return at lease end.
+
+## lane/campaign-end (campaign length and end-of-campaign review)
+Answers the QA open item "no end of campaign".
+- Start screen "Campaign length" (10 / 15 / 25 / Endless, default 15). `SimState.campaign` (absent = endless, so old saves load endless). The sim pauses on 1 Jan of the end year and shows a once-only review: score (equity = cash + depreciated owned aircraft - purchase balances owed; grade A 3x start cash, B 2x, C 1x, D 0x, F below zero), profit by year, fleet, routes, rival rank. Keep playing (endless) / Load / New game. Not shown for a bankrupt game.
+- Not done: 25-year games end in 2040, past the 2025 data range (untested); `validateSimState` does not check the campaign field.
+
+## lane/ui-polish (names and sandbox)
+- One short aircraft name everywhere (`typeShortName`: A321ceo, A320neo, B737-800). The route sandbox has a visible "Close sandbox" button that restores the prior speed; Escape closes it (an open airport dropdown takes Escape first).
+
 ## lane/credit-bankruptcy (credit line, order guard, distress, bankruptcy)
 Answers the QA open item "no credit limit or bankruptcy" (cash had reached -$567M to -$727M with no consequence). Details and parameters: MODEL.md "Credit line, distress and bankruptcy".
 - Sim: credit limit (base $25M + 50% of owned-aircraft value + 1.5 months of revenue), 8% daily-charged overdraft interest, order funding guard (`credit_limit`), distress (cash below minus the limit) with monthly reminders, bankruptcy after 90 days of distress (sim freezes, commands refused with `bankrupt`), `cancelOrder` command (forfeits deposit). No contracts change (state lives in `SimState.credit`, commands in sim's `FinanceCommand`).
@@ -77,7 +91,7 @@ Open (found by the playthroughs, not fixed; most need an owner decision):
 
 # Build status (update at the end of every work session)
 
-Last updated: Tue 10 Nov 2026 (lane/qa-playtest-fixes). Gate green on the lane: typecheck, test (data 82, sim 382, app 202), build, e2e 48/48. Not yet merged to main.
+Last updated: Tue 10 Nov 2026 (lane/qa-playtest-fixes). Gate green on the lane: typecheck, test (data 82, sim 382, app 202), build, e2e 48/48. Credit/bankruptcy, fare-swing, UI polish, aircraft sales and campaign end are merged on this lane; balance calibration in progress. Not yet merged to main.
 
 Last updated: Fri 6 Nov 2026: globe (1,006 airports, tiers, presets), terminals, slots, fare policy, Hubs and Fare policy panels merged on lane/integration-globe; gate green (data 82, sim 330, app ~176). e2e full suite not re-run.
 
