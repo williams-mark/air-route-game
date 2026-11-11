@@ -245,3 +245,7 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 .rc-move-list li.off label { cursor: not-allowed; color: var(--text-dim); }
 .rc-move-meta { color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .rc-move-why { flex-basis: 100%; padding-left: 1.4rem; color: var(--text-dim); font-size: .72rem; }
+
+/* Profit basis note (before / after aircraft ownership) and fare/frequency warnings */
+.profit-basis { display: block; font-size: 0.72em; font-weight: 400; color: var(--text-dim); white-space: nowrap; }
+.rc-capline, .rp-warn { margin: 6px 0; padding: 6px 8px; border-radius: 6px; font-size: 0.9em; border: 1px solid var(--sev-warn); color: var(--text); }

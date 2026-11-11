@@ -5,6 +5,7 @@ import { useUi } from "../store";
 import { formatMoney } from "../sim/format";
 import { useCreation, useSwapRequest } from "../routes/store";
 import { useRouteSummaries, type RouteSummary } from "../routes/useRoutes";
+import { profitBasis } from "../routes/helpers";
 
 const TIER_LABEL: Record<ProfitTier, string> = { profit: "Profitable", marginal: "Marginal", loss: "Losing", planned: "Planned" };
 const TIERS: ProfitTier[] = ["profit", "marginal", "loss"];
@@ -52,7 +53,7 @@ export default function RoutesView() {
       <header className="page-head routes-head">
         <div>
           <h1>Routes</h1>
-          <p>{rows.length} routes{tiers.size ? `, ${shown.length} shown` : ""}. Weekly profit {formatMoney(total, { sign: true })}{rows.some((r) => r.fromSim) ? " before aircraft lease and overhead" : ""}. Select a route to inspect and adjust it.</p>
+          <p>{rows.length} routes{tiers.size ? `, ${shown.length} shown` : ""}. Weekly profit {formatMoney(total, { sign: true })}{shown.some((r) => r.afterOwnership) && shown.some((r) => !r.afterOwnership) ? " (a mix: owned-fleet routes before ownership, others after a notional lease; see the note on each row)" : shown.some((r) => r.afterOwnership) ? " after aircraft ownership" : " before aircraft ownership and overhead"}. Select a route to inspect and adjust it.</p>
         </div>
         <button className="primary" onClick={() => begin()} aria-keyshortcuts="N" title="New route (N)">+ New route <kbd>N</kbd></button>
       </header>
@@ -93,7 +94,9 @@ export default function RoutesView() {
                 <td className="num">{r.scheduled !== undefined && r.scheduled < r.route.weeklyFrequency ? <span className="neg" title="Round trips actually flown with the aircraft you have">{r.scheduled} of {r.route.weeklyFrequency}</span> : r.route.weeklyFrequency}</td>
                 <td className="num">{r.feasible ? `${Math.round(r.loadFactor * 100)}%` : "–"}</td>
                 <td className={`num ${r.margin < 0 ? "neg" : "pos"}`}>{r.feasible ? `${(r.margin * 100).toFixed(0)}%` : "–"}</td>
-                <td className={`num ${r.weeklyProfit < 0 ? "neg" : r.weeklyProfit > 0 ? "pos" : ""}`}>{formatMoney(r.weeklyProfit, { sign: true })}</td>
+                <td className={`num ${r.weeklyProfit < 0 ? "neg" : r.weeklyProfit > 0 ? "pos" : ""}`} title={profitBasis(r.afterOwnership).tip}>
+                  {formatMoney(r.weeklyProfit, { sign: true })}<span className="profit-basis"> {profitBasis(r.afterOwnership).short}</span>
+                </td>
                 <td><button className="row-act" aria-label={`Change aircraft on ${r.name}`} onClick={(e) => { e.stopPropagation(); swapAc(r.route.id); }}>Change aircraft</button></td>
               </tr>
             ))}

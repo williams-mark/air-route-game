@@ -5,6 +5,7 @@ import { Modal } from "../shell/Modal";
 import { uiAirports } from "../dev/airportSource";
 import { bridge, useSim } from "../sim/useSim";
 import { useToasts } from "../routes/store";
+import { fareFloorText } from "../routes/helpers";
 import {
   CATEGORY_GROUPS, MARKDOWN_MAX_PCT, TARGET_MAX_PCT, TARGET_MIN_PCT, blankDraft, categoryLabel, clampMarkdownPct, clampTargetPct, coverage, draftFromPolicy, draftToPolicy,
   filterRoutes, moveBy, reorderPlan, scopeText, targetText, withPolicy, type PolicyDraft,
@@ -38,6 +39,11 @@ export default function FarePolicyView() {
   const rows = useMemo(() => coverage(previewPolicies, routes, airports, hubs), [previewPolicies, routes, airports, hubs.join()]); // eslint-disable-line react-hooks/exhaustive-deps
   const coverCount = (id: Id) => rows.filter((r) => r.covering.includes(id)).length;
   const nameOf = (id: Id) => previewPolicies.find((p) => p.id === id)?.name ?? id;
+  const floorCell = (id: Id) => {
+    const rep = sim?.routeReports[id];
+    const t = fareFloorText(rep);
+    return t ? <span className="neg" title={t}>Floor binding: load factor {Math.round(rep!.evaluation.loadFactor * 100)}% below target {Math.round(rep!.fareFloor!.target * 100)}%</span> : <span className="dim">no</span>;
+  };
   const shown = onlyCovered && focusId ? rows.filter((r) => r.covering.includes(focusId)) : rows;
 
   const toast = (kind: "good" | "alert", text: string) => useToasts.getState().push(kind, text);
@@ -163,7 +169,7 @@ export default function FarePolicyView() {
           {rows.length === 0 ? <p className="fp-empty">You have no routes yet.</p> : (
             <div className="fp-scroll">
               <table className="fp-table">
-                <thead><tr><th scope="col">Route</th><th scope="col">Covered by</th><th scope="col" className="num">Effective target</th><th scope="col">From</th></tr></thead>
+                <thead><tr><th scope="col">Route</th><th scope="col">Covered by</th><th scope="col" className="num">Effective target</th><th scope="col">From</th><th scope="col">Fare floor</th></tr></thead>
                 <tbody>
                   {shown.map((r) => (
                     <tr key={r.routeId} className={focusId && r.covering.includes(focusId) ? "hit" : undefined}>
@@ -171,6 +177,7 @@ export default function FarePolicyView() {
                       <td>{r.covering.length === 0 ? <span className="dim">no policy</span> : r.covering.map((id, k) => <span key={id} className={`fp-chip ${k === r.covering.length - 1 && r.source.kind === "policy" ? "win" : "lost"}`}>{nameOf(id)}</span>)}</td>
                       <td className="num">{targetText(r.target)}</td>
                       <td className="src">{r.source.kind === "route" ? "Route target" : r.source.kind === "policy" ? r.source.name : <span className="dim">none</span>}</td>
+                      <td className="src">{floorCell(r.routeId)}</td>
                     </tr>
                   ))}
                 </tbody>

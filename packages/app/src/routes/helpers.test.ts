@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { aircraftTypes, airportById } from "@arg/data";
-import { benchmarkFareFor, dayToDate, runDays, startingScenario } from "@arg/sim";
+import { benchmarkFareFor, dayToDate, previewNewRoute, runDays, startingScenario } from "@arg/sim";
 import {
   bestFrequency, bestType, eligibleTypes, fareHint, FREQ_SWEEP_MAX, frequencySweep, marketFares, midMonthDay, parseFares,
   livePreview, liveSeasonal, operatingMix, ownershipReason, profitTier, rivalPresence, seasonalProfit, substitutionText, typeOwnership, suggestAirports, validateRouteDraft, type RouteDraft, type SweepPoint,
-  describeEffectiveTarget, describeTargetLf, formatTargetLf, parseTargetLf, TARGET_LF_MESSAGE,
+  describeEffectiveTarget, describeTargetLf, openingFares, fullRouteWarning, fareFloorText, profitBasis, OPENING_FARE_LOAD_FACTOR, formatTargetLf, parseTargetLf, TARGET_LF_MESSAGE,
 } from "./helpers";
 import { rangeNote, routeBlock, usableRangeKm } from "../aircraft/availability";
 import { airports } from "@arg/data";
@@ -271,5 +271,35 @@ describe("describeEffectiveTarget", () => {
     expect(describeEffectiveTarget({ ...route, targetLoadFactor: undefined }, [])).toEqual({ text: "off", policyName: null });
     expect(describeEffectiveTarget({ ...route, targetLoadFactor: undefined }, [policy(null)])).toEqual({ text: "off", policyName: null });
     expect(describeEffectiveTarget({ ...route, targetLoadFactor: undefined }, undefined)).toEqual({ text: "off", policyName: null });
+  });
+});
+
+
+describe("opening fare, full-route warning, floor text, profit basis", () => {
+  it("the suggested opening fare clears about 85% load on the live model and is above the benchmark when that fills the route", () => {
+    const sim = runDays(startingScenario(airports, aircraftTypes, 2015), 2);
+    const type = sim.world.fleet.find((a) => a.status === "active")!.typeId;
+    const origin = sim.world.homeHub ?? "LAX";
+    const dest = origin === "SFO" ? "LAX" : "SFO";
+    const draft: RouteDraft = { origin, destination: dest, weeklyFrequency: 7, fares: { Y: marketFares(500, airportById.get(origin)!, airportById.get(dest)!).Y }, typeId: type };
+    const f = openingFares(sim, draft);
+    if (f) {
+      const lf = previewNewRoute(sim, { ...draft, fares: f })!.figures.loadFactor;
+      expect(Math.abs(lf - OPENING_FARE_LOAD_FACTOR)).toBeLessThan(0.04);
+    }
+  });
+  it("warns only after 4 full weeks and only without a target", () => {
+    expect(fullRouteWarning({ fullWeeks: 4 }, false)).toMatch(/Route is full/);
+    expect(fullRouteWarning({ fullWeeks: 3 }, false)).toBeNull();
+    expect(fullRouteWarning({ fullWeeks: 9 }, true)).toBeNull();
+    expect(fullRouteWarning(undefined, false)).toBeNull();
+  });
+  it("words the fare floor", () => {
+    expect(fareFloorText({ evaluation: { loadFactor: 0.61 }, fareFloor: { floorFare: 88, target: 0.84 } })).toMatch(/load factor 61% below target 84%/);
+    expect(fareFloorText({ evaluation: { loadFactor: 0.61 } })).toBeNull();
+  });
+  it("labels profit before and after ownership", () => {
+    expect(profitBasis(false).short).toBe("before ownership");
+    expect(profitBasis(true).short).toBe("after ownership");
   });
 });
