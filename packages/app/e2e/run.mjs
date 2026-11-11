@@ -346,6 +346,12 @@ for (const theme of themes) {
     await page.locator(".order-form .ap-toggle").waitFor();
     await page.locator("#ord-qty").fill("2");
     await page.getByRole("button", { name: "Place order" }).click();
+    // A purchase (or any deposit over $10M) now asks for confirmation before it is placed; nothing may be ordered until Confirm.
+    const confirmGroup = page.getByRole("group", { name: "Confirm order" });
+    await confirmGroup.waitFor({ timeout: 5000 });
+    assert(/not refundable/i.test(await confirmGroup.innerText()), "confirm step does not say the deposit is not refundable");
+    assert(!/0 of 2/.test(await page.locator("#panel-orders").innerText()), "order was placed before Confirm");
+    await confirmGroup.getByRole("button", { name: "Confirm" }).click();
     await page.waitForTimeout(600);
     const txt = await page.locator("#panel-orders").innerText();
     assert(/0 of 2/.test(txt), `pending order row not shown: ${txt.slice(txt.indexOf("Pending orders"), txt.indexOf("Pending orders") + 200)}`);
