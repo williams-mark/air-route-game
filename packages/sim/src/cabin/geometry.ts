@@ -102,6 +102,21 @@ const TABLE: Record<string, Row> = {
   "B777-200LR": [49.5, 5.87, [9, 10]],
   "B777-300": [57.0, 5.87, [9, 10]],
   "B737-600": [24.5, 3.54, [6]],
+  // ESTIMATE (lane/aircraft-airbus): cabin length = overall length (SOURCES.md) less about 10 m (narrow) or 15 m (wide-body), the margin the existing rows use; width from the A330/A350 cross-section class (A300 and A340 share the 5.28 m figure used for the A330; A380 main deck 6.5 m is an ESTIMATE). A380 length counts the upper deck as extra equivalent length, as for the 747.
+  A318: [21.5, 3.7, [6]],
+  "A330-800": [44.5, 5.28, [8, 9]],
+  "A340-200": [46.0, 5.28, [8, 9]],
+  "A340-300": [48.5, 5.28, [8, 9]],
+  "A340-500": [52.5, 5.28, [8, 9]],
+  "A340-600": [60.0, 5.28, [8, 9]],
+  "A380-800": [72.0, 6.5, [10, 11]],
+  "A300B4-200": [38.5, 5.28, [8, 9]],
+  "A300-600R": [39.0, 5.28, [8, 9]],
+  A300B2: [38.5, 5.28, [8, 9]],
+  "A300B4-100": [38.5, 5.28, [8, 9]],
+  "A300-600": [39.0, 5.28, [8, 9]],
+  "A310-200": [35.5, 5.28, [8, 9]],
+  "A310-300": [35.5, 5.28, [8, 9]],
   // ESTIMATE (lane/start-year): DC-10 cabin length about 42 m (overall length ~55 m less nose and tail cone), width typical of the wide-body fallback.
   "DC10-30": [42.0, 5.5, [8, 9]],
   // ESTIMATE (lane/aircraft-classics): cabin length = overall length less ~10 m (narrowbody) or ~13 m (widebody), raised if maxSeats would not fit; widths are typical fuselage interior figures. Not sourced; see SOURCES.md.
