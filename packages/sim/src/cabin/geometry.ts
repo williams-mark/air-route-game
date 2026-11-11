@@ -101,6 +101,7 @@ const TABLE: Record<string, Row> = {
   "B777-200": [49.5, 5.87, [9, 10]],
   "B777-200LR": [49.5, 5.87, [9, 10]],
   "B777-300": [57.0, 5.87, [9, 10]],
+  "B737-600": [24.5, 3.54, [6]],
   // ESTIMATE (lane/start-year): DC-10 cabin length about 42 m (overall length ~55 m less nose and tail cone), width typical of the wide-body fallback.
   "DC10-30": [42.0, 5.5, [8, 9]],
 };

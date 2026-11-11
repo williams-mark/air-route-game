@@ -48,6 +48,7 @@ const entry: Entry = {
     ["B777-200", "Boeing", "Boeing 777-200", 9700, 905, 440, 6.9, 3200, 306.6, 1995, 2009, true],
     ["B777-200LR", "Boeing", "Boeing 777-200LR", 15844, 905, 440, 7.8, 3200, 346.9, 2006, 2013, true],
     ["B777-300", "Boeing", "Boeing 777-300", 11121, 905, 550, 7.9, 3050, 355.5, 1998, 2006, true],
+    ["B737-600", "Boeing", "Boeing 737-600", 5991, 840, 130, 2.5, 1878, 83, 1998, 2006, false],
   ],
   family: {
       "B737-700": "737 NG",
@@ -94,7 +95,8 @@ const entry: Entry = {
       "B767-400ER": "767",
       "B777-200": "777",
       "B777-200LR": "777",
-      "B777-300": "777"
+      "B777-300": "777",
+      "B737-600": "737 NG"
   },
   visual: {
       "B707-120": { lengthM: 44.22, wingspanM: 39.88, layout: "wing4", tail: "conventional" },
@@ -129,6 +131,7 @@ const entry: Entry = {
       "B777-200": { lengthM: 63.73, wingspanM: 60.93, layout: "wing2", tail: "conventional" },
       "B777-200LR": { lengthM: 63.73, wingspanM: 64.8, layout: "wing2", tail: "conventional" },
       "B777-300": { lengthM: 73.9, wingspanM: 60.93, layout: "wing2", tail: "conventional" },
+      "B737-600": { lengthM: 31.24, wingspanM: 34.32, layout: "wing2", tail: "conventional" },
   },
 };
 

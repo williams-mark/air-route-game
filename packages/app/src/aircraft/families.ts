@@ -40,6 +40,7 @@ export const FAMILY_BY_ID: Readonly<Record<string, string>> = {
   "B777-200": "777",
   "B777-200LR": "777",
   "B777-300": "777",
+  "B737-600": "737 NG",
   "DC10-30": "DC-10",
   "A319": "A320 family", "A320": "A320 family", "A321": "A320 family", "A320N": "A320 family", "A321N": "A320 family",
   "A220-100": "A220", "A220-300": "A220",

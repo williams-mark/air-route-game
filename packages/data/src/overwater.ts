@@ -60,6 +60,7 @@ const diversionMinutes: Record<string, number | null> = {
   "B777-200": 180,
   "B777-200LR": 330,
   "B777-300": 180,
+  "B737-600": 180,
   "DC10-30": null,
   E175: 60, CRJ700: 60, CRJ900: 60, "ATR72-600": 60,
 };
