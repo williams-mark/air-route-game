@@ -351,3 +351,10 @@ Playtested the expanded world through the UI (Playwright, `packages/app/scripts/
 - Obsolescence: 15 years after `endYear` the maintenance cost (route ledger and check costs) and the lease basis of that type rise 40%. Ordering is blocked after production end, so the price rise cannot reach new orders; it applies to existing leased aircraft. Types with `endYear` null are unaffected.
 - Passenger penalty: `ageServicePenalty(aircraft, day, asOfDay)` exported from `fleet/lifecycle.ts`; not wired into fares.
 - Not modelled: depreciation or resale of purchased aircraft, offer orders keep the old 15% deposit, cash may go negative on a delivery balance.
+
+## Aircraft catalogue expansion (lane/aircraft-*, merged)
+- Catalogue grown from 30 to about 120 types, 1958 onward: Boeing 707/720/717/727/737-100..-600/747/757/767/777 variants, Douglas DC-8/DC-9/DC-10/MD-80/MD-90/MD-11, L-1011, Convair, BAC One-Eleven, Trident, Caravelle, F28/F100, BAe 146, Concorde, Airbus A300 (B2, B4, -600, -600R), A310, A318, A330-800, A340, A380. Each has a source note in packages/data/SOURCES.md; fuel burn, runway, cabin geometry, many prices and end years are flagged ESTIMATE/DERIVED.
+- Data now carries `aircraftFamilyById` and `aircraftVisualById`; the ordering picker derives manufacturers and families from data (manufacturer tiles at left, family tabs on top, variant tiles with white-tail side views).
+- Not added (no usable source or no model support): VC10/Super VC10 (no four-rear-engine layout), Comet 4, A300B1, freighters (no cargo model), 707-138/-220, DC-9-20, some One-Eleven and Caravelle variants.
+- Earliest start year is the 1965 policy floor (first fleet year is now 1958). Pre-2015 fuel and demand are still not historically calibrated; rival fleet type lists and 1960s airports are unchanged and need a review.
+- Gate: typecheck, test (data 83, sim 462, app 257), build, e2e 52/52.
