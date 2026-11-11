@@ -14,8 +14,8 @@ export function GameOver() {
   const aircraft = sim.fleet.filter((f) => f.status !== "delivery").length;
   const onOrder = sim.fleet.filter((f) => f.status === "delivery").length;
   return (
-    <Modal label="Bankruptcy" scrimClassName="scrim" className="gameover-card" initialFocus="button.primary" closeOnEscape={false} closeOnBackdrop={false} onClose={() => undefined}>
-      <h1>{sim.airline.name} is bankrupt</h1>
+    <Modal label="Bankruptcy" scrimClassName="scrim" className="gameover-card" initialFocus="h1" closeOnEscape={false} closeOnBackdrop={false} onClose={() => undefined}>
+      <h1 tabIndex={-1}>{sim.airline.name} is bankrupt</h1>
       <p>
         Cash stayed beyond the {formatMoney(credit.limitUsd)} credit line for 90 days. The lenders have called in the loans and the airline has ceased operations.
       </p>

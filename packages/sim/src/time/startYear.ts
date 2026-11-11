@@ -10,6 +10,11 @@ export function earliestFleetYear(types: readonly Pick<AircraftType, "introYear"
   return Math.min(...types.map((t) => t.introYear));
 }
 
+/** The earliest start the game accepts: the policy floor, or the first year an aircraft type is in production if that is later. The start screen and `startYearError` both read this. */
+export function earliestStartYear(types: readonly Pick<AircraftType, "introYear" | "endYear">[]): number {
+  return Math.max(MIN_START_YEAR, earliestFleetYear(types) ?? MIN_START_YEAR);
+}
+
 /**
  * Why `year` cannot start a game, or null if it can. A start year needs a whole year, no earlier than `MIN_START_YEAR`, no later
  * than `presentYear` (the caller's notion of today; the sim never reads a clock), and at least one aircraft type in production that
@@ -17,7 +22,8 @@ export function earliestFleetYear(types: readonly Pick<AircraftType, "introYear"
  */
 export function startYearError(year: number, presentYear: number, types: readonly Pick<AircraftType, "introYear" | "endYear">[]): string | null {
   if (!Number.isInteger(year)) return "Start year must be a whole number.";
-  if (year < MIN_START_YEAR) return `Start year must be ${MIN_START_YEAR} or later.`;
+  const floor = earliestStartYear(types);
+  if (year < floor) return `Start year must be ${floor} or later.`;
   if (year > presentYear) return `Start year cannot be after ${presentYear}.`;
   if (!types.some((t) => inProduction(t, year))) {
     const first = earliestFleetYear(types);

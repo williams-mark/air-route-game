@@ -394,9 +394,9 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
   };
   const firstDate = dayToDate(Math.min(...deliveryDays));
   const terms = financing === "purchase"
-    ? `Deposit $${(depositUsd / 1e6).toFixed(1)}M paid; $${((unitPriceUsd * (1 - FINANCING_PARAMS.purchaseDownFraction) * cmd.count) / 1e6).toFixed(1)}M due at delivery.`
-    : `Lease down payment $${(depositUsd / 1e6).toFixed(1)}M paid; lease payments start at delivery.`;
-  const text = `Ordered ${cmd.count} x ${type.id} on ${financing} at ${(discount * 100).toFixed(0)}% off list ($${(unitPriceUsd / 1e6).toFixed(1)}M each). ${terms} First delivery ${firstDate.year}-${String(firstDate.month + 1).padStart(2, "0")}.`;
+    ? `Deposit ${usdM(depositUsd)} paid; ${usdM(unitPriceUsd * (1 - FINANCING_PARAMS.purchaseDownFraction) * cmd.count)} due at delivery.`
+    : `Lease down payment ${usdM(depositUsd)} paid; lease payments start at delivery.`;
+  const text = `Ordered ${cmd.count} x ${type.id} on ${financing} at ${(discount * 100).toFixed(0)}% off list (${usdM(unitPriceUsd)} each). ${terms} First delivery ${firstDate.year}-${String(firstDate.month + 1).padStart(2, "0")}.`;
   const next: SimState = pushEvents(
     {
       ...state,
@@ -604,7 +604,7 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
       if (!ac) return { state, result: fail("unknown_aircraft", `No aircraft "${cmd.aircraftId}".`) };
       if (ac.status !== "active") return { state, result: fail("aircraft_unavailable", `${ac.tailNumber} is ${ac.status}; only active aircraft can be based at a hub.`) };
       if (!state.airports.some((x) => x.id === cmd.hubId)) return { state, result: fail("unknown_airport", `Unknown hub airport "${cmd.hubId}".`) };
-      if (!isOwnedHub(state, cmd.hubId)) return { state, result: fail("not_a_hub", `${cmd.hubId} is not one of your hubs. Unlock it first ($${(COMMAND_PARAMS.hubUnlockUsd / 1e6).toFixed(1)}M).`) };
+      if (!isOwnedHub(state, cmd.hubId)) return { state, result: fail("not_a_hub", `${cmd.hubId} is not one of your hubs. Unlock it first (${usdM(COMMAND_PARAMS.hubUnlockUsd)}).`) };
       const fleet = state.world.fleet.map((x) => (x.id === ac.id ? { ...x, hubId: cmd.hubId } : x));
       return {
         state: pushEvents({ ...state, world: { ...state.world, fleet } }, [notice(state, `${ac.tailNumber} now based at ${cmd.hubId}.`)]),
@@ -627,7 +627,7 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
       if (state.world.cash < cost) {
         return { state, result: fail("insufficient_cash", `Unlocking ${ap.id} costs ${usdM(cost)} but cash is ${usdM(state.world.cash)}.`) };
       }
-      const text = `Unlocked ${ap.id} (${ap.name}) as a hub for $${(cost / 1e6).toFixed(1)}M.`;
+      const text = `Unlocked ${ap.id} (${ap.name}) as a hub for ${usdM(cost)}.`;
       const next = pushEvents(
         {
           ...state,

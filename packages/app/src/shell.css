@@ -227,8 +227,8 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .distress-banner .db-text { flex: 1 1 24rem; min-width: 0; line-height: 1.35; }
 .distress-banner .db-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
 .distress-banner button { font-size: .8rem; padding: .25rem .65rem; }
-.gameover-card { width: min(34rem, 100%); background: var(--panel); border: 1px solid var(--distress-line); border-top-width: 4px; border-radius: 14px; box-shadow: var(--shadow); padding: 1.5rem 1.6rem 1.3rem; display: flex; flex-direction: column; gap: .8rem; }
-.gameover-card:focus { outline: none; }
+.gameover-card { width: min(34rem, 100%); max-height: calc(100vh - 2rem); overflow-y: auto; background: var(--panel); border: 1px solid var(--distress-line); border-top-width: 4px; border-radius: 14px; box-shadow: var(--shadow); padding: 1.5rem 1.6rem 1.3rem; display: flex; flex-direction: column; gap: .8rem; }
+.gameover-card:focus, .gameover-card h1:focus { outline: none; }
 .gameover-card h1 { margin: 0; font-size: 1.6rem; }
 .gameover-card p { margin: 0; color: var(--text-dim); font-size: .9rem; line-height: 1.4; }
 .gameover-card dl.mini { font-size: .9rem; row-gap: .35rem; }
@@ -259,3 +259,5 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .dispose-dialog .dialog-foot { display: flex; gap: .6rem; justify-content: space-between; align-items: center; padding: .8rem 1rem; border-top: 1px solid var(--line); flex-wrap: wrap; }
 .dispose-totals { margin: 0; }
 .fleet-dispose { display: flex; gap: .4rem; }
+.order-confirm { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; padding: .6rem .8rem; border: 1px solid var(--sev-warn); border-radius: 10px; background: var(--panel-2); }
+.order-confirm p { margin: 0; flex: 1 1 18rem; font-size: .9rem; }

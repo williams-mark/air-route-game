@@ -1,8 +1,10 @@
 /* Campaign review card. Colours come from theme.css variables (light and dark). */
-.campaign-review { width: min(44rem, 100%); max-height: calc(100vh - 2rem); overflow-y: auto; border-top-color: var(--accent); }
+/* The dialog scrolls inside the viewport; the grade and score header stays pinned at the top while the rest scrolls. */
+.campaign-review { width: min(44rem, 100%); max-height: calc(100vh - 2rem); overflow-y: auto; padding-top: 0; border-top-color: var(--accent); }
+.campaign-review h1:focus { outline: none; }
 .campaign-review section { display: flex; flex-direction: column; gap: .35rem; }
 .campaign-review h2 { margin: .3rem 0 0; font-size: 1rem; }
-.review-head { display: flex; gap: 1rem; justify-content: space-between; align-items: flex-start; }
+.review-head { display: flex; gap: 1rem; justify-content: space-between; align-items: flex-start; position: sticky; top: 0; z-index: 1; background: var(--panel); padding-top: 1.5rem; }
 .review-head h1 { margin: 0 0 .25rem; font-size: 1.5rem; }
 .review-head p { margin: 0; color: var(--text-dim); font-size: .9rem; }
 .review-grade { min-width: 5.5rem; display: flex; flex-direction: column; align-items: center; padding: .4rem .6rem; border: 2px solid var(--line); border-radius: 12px; background: var(--panel-2); }

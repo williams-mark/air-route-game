@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { FarePolicy, Id, RouteCategory } from "@arg/contracts";
 import { homeHubOf, playerHubs } from "@arg/sim";
 import { Modal } from "../shell/Modal";
+import { fitWhole, type FittedWhole } from "../shell/inputNotes";
 import { uiAirports } from "../dev/airportSource";
 import { bridge, useSim } from "../sim/useSim";
 import { useToasts } from "../routes/store";
@@ -29,6 +30,8 @@ export default function FarePolicyView() {
   const [onlyCovered, setOnlyCovered] = useState(false);
   const [del, setDel] = useState<FarePolicy | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Notes for typed percentages that were changed on leaving the field (clamped to range); typing clears them.
+  const [blurNote, setBlurNote] = useState<{ target: string | null; markdown: string | null }>({ target: null, markdown: null });
 
   const validRoutes = useMemo(() => new Set(routes.map((r) => r.id)), [routes]);
   const parsed = draft ? draftToPolicy(draft, validRoutes) : null;
@@ -68,6 +71,12 @@ export default function FarePolicyView() {
   const edit = (p: FarePolicy) => { setDraft(draftFromPolicy(p)); setIsNew(false); setPicked(p.id); setError(null); };
   const create = () => { setDraft(blankDraft(policies)); setIsNew(true); setError(null); };
   const set = (patch: Partial<PolicyDraft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
+  // Live notes while typing (out of range, not whole) and the same ranges the save step clamps to.
+  const targetNotes = { high: `Target must be ${TARGET_MIN_PCT}-${TARGET_MAX_PCT}%.`, low: `Target must be ${TARGET_MIN_PCT}-${TARGET_MAX_PCT}%.` };
+  const markdownNotes = { high: `Markdown must be 0-${MARKDOWN_MAX_PCT}%.`, low: `Markdown must be 0-${MARKDOWN_MAX_PCT}%.` };
+  const none: FittedWhole = { value: 0, note: null };
+  const targetLive = draft && draft.targetOn ? fitWhole(draft.targetPct, TARGET_MIN_PCT, TARGET_MAX_PCT, targetNotes) : none;
+  const markdownLive = draft ? fitWhole(draft.markdownPct, 0, MARKDOWN_MAX_PCT, markdownNotes) : none;
 
   return (
     <div className="fp">
@@ -113,18 +122,20 @@ export default function FarePolicyView() {
                 <div className="fp-row">
                   <label className="fp-check"><input type="checkbox" checked={!draft.targetOn} onChange={(e) => set({ targetOn: !e.target.checked })} />Off</label>
                   <input type="range" aria-label="Target load factor" min={TARGET_MIN_PCT} max={TARGET_MAX_PCT} value={draft.targetPct} disabled={!draft.targetOn} onChange={(e) => set({ targetPct: clampTargetPct(Number(e.target.value)) })} />
-                  <input type="number" className="fp-num" aria-label="Target load factor percent" min={TARGET_MIN_PCT} max={TARGET_MAX_PCT} value={draft.targetPct} disabled={!draft.targetOn} onChange={(e) => set({ targetPct: Number(e.target.value) })} onBlur={() => set({ targetPct: clampTargetPct(draft.targetPct) })} />
+                  <input type="number" className="fp-num" aria-label="Target load factor percent" min={TARGET_MIN_PCT} max={TARGET_MAX_PCT} value={draft.targetPct} disabled={!draft.targetOn} aria-describedby="fp-target-note" onChange={(e) => { setBlurNote((b) => ({ ...b, target: null })); set({ targetPct: Number(e.target.value) }); }} onBlur={() => { const f = fitWhole(draft.targetPct, TARGET_MIN_PCT, TARGET_MAX_PCT, targetNotes); set({ targetPct: f.value }); setBlurNote((b) => ({ ...b, target: f.note })); }} />
                   <span>%</span>
                 </div>
+                {(targetLive.note ?? blurNote.target) && <span id="fp-target-note" className="rp-input-note" role="status">{targetLive.note ?? blurNote.target}</span>}
                 <span className="hint">{draft.targetOn ? `Fares on covered routes are adjusted each week to fill about ${draft.targetPct}% of seats (${TARGET_MIN_PCT}-${TARGET_MAX_PCT}%).` : "Off: covered routes get no target from this policy, and it switches off an earlier policy's target on them."}</span>
               </div>
               <div className="fp-field">
                 <span className="fp-label">Connection markdown</span>
                 <div className="fp-row">
                   <input type="range" aria-label="Connection markdown" min={0} max={MARKDOWN_MAX_PCT} value={draft.markdownPct} onChange={(e) => set({ markdownPct: clampMarkdownPct(Number(e.target.value)) })} />
-                  <input type="number" className="fp-num" aria-label="Connection markdown percent" min={0} max={MARKDOWN_MAX_PCT} value={draft.markdownPct} onChange={(e) => set({ markdownPct: Number(e.target.value) })} onBlur={() => set({ markdownPct: clampMarkdownPct(draft.markdownPct) })} />
+                  <input type="number" className="fp-num" aria-label="Connection markdown percent" min={0} max={MARKDOWN_MAX_PCT} value={draft.markdownPct} aria-describedby="fp-markdown-note" onChange={(e) => { setBlurNote((b) => ({ ...b, markdown: null })); set({ markdownPct: Number(e.target.value) }); }} onBlur={() => { const f = fitWhole(draft.markdownPct, 0, MARKDOWN_MAX_PCT, markdownNotes); set({ markdownPct: f.value }); setBlurNote((b) => ({ ...b, markdown: f.note })); }} />
                   <span>%</span>
                 </div>
+                {(markdownLive.note ?? blurNote.markdown) && <span id="fp-markdown-note" className="rp-input-note" role="status">{markdownLive.note ?? blurNote.markdown}</span>}
                 <span className="hint">Average markdown in price for connecting fares: a through ticket costs this much less than the two direct fares added together (0-{MARKDOWN_MAX_PCT}%). Cheaper connections win more passengers but earn less on each. Local fares are not changed.</span>
               </div>
               <fieldset className="fp-field fp-scope">
