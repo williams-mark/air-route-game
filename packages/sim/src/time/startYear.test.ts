@@ -24,14 +24,14 @@ describe("start year validation", () => {
   it("rejects non-integers, years before the floor and years after the present", () => {
     expect(startYearError(2015.5, PRESENT, types)).toMatch(/whole number/);
     expect(startYearError(earliestStartYear(types) - 1, PRESENT, types)).toMatch(/1965 or later/);
-    expect(earliestStartYear(types)).toBe(1965); // the policy floor; the classic jets (lane/aircraft-classics) put the first fleet year at 1959
+    expect(earliestStartYear(types)).toBe(1965); // the policy floor; the classic jets (lane/aircraft-classics) put the first fleet year at 1958 (707-120)
     expect(startYearError(PRESENT + 1, PRESENT, types)).toMatch(/cannot be after 2026/);
     expect(startYearError(Number.NaN, PRESENT, types)).toMatch(/whole number/);
   });
 
   it("rejects a year before the first fleet year, and names that year as the earliest start", () => {
     const first = earliestFleetYear(types)!;
-    expect(first).toBe(ty("DC8-10").introYear);
+    expect(first).toBe(ty("B707-120").introYear);
     // The policy floor (1965) is later than the first fleet year (1959), so it is the floor that names the earliest start.
     const floor = earliestStartYear(types);
     expect(floor).toBe(Math.max(1965, first));
