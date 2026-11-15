@@ -4,7 +4,7 @@ import type { AircraftType, Airport, CabinClass, Day, FarePolicy, Fares, Id, Rou
 import { aircraftTypes, airports, canFlyRoute, distanceKm } from "@arg/data";
 import {
   benchmarkFare, benchmarkFareFor, fareScaleForTargetLoadFactor, scaleFares, matchingPolicy, routeFeasibilityError, daysInMonth, dayToDate, pairMarket, previewNewRoute, previewRoutePatch, seasonalRouteProfit, simulateRouteWeek,
-  type RoutePatch, type RoutePreview, type RouteReport, type RouteWeek, type SimState,
+  type OnwardStatus, type RoutePatch, type RoutePreview, type RouteReport, type RouteWeek, type SimState,
 } from "@arg/sim";
 import type { ProfitTier } from "../map/types";
 
@@ -384,4 +384,20 @@ export function describeEffectiveTarget(
     return { text: `${formatTargetLf(policy.targetLoadFactor)}% from fare policy "${name}"`, policyName: name };
   }
   return { text: "off", policyName: null };
+}
+
+/**
+ * The route inspector's "Connecting" line. With passengers it gives the share and the weekly figure; with none it says why, and
+ * only claims there is nothing to connect to when that is true (`status` from sim's `onwardConnectionStatus`).
+ */
+export function connectingText(connOneWay: number, share: number, hasReport: boolean, status: OnwardStatus): string {
+  if (connOneWay > 0) {
+    const digits = share < 0.01 ? 1 : 0;
+    return `${(share * 100).toFixed(digits)}% of passengers, ${Math.max(1, Math.round(connOneWay)).toLocaleString()} a week each way`;
+  }
+  if (status === "none") return "none: no other route of yours meets this one at either end";
+  if (status === "all_nonstop") return "none: you already fly nonstop to every city this route could connect to";
+  if (status === "backtrack_only") return "none: the only connections through this route double back on themselves";
+  if (!hasReport) return "shown after the next daily report";
+  return "none this week: this route or its onward routes are not flying";
 }

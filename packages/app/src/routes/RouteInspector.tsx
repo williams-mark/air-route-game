@@ -2,14 +2,14 @@ import { shortTypeLabel, typeShortName } from "../aircraft/names";
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { CabinClass, Route } from "@arg/contracts";
 import { airportById, aircraftTypes } from "@arg/data";
-import { SERVICE_LEVEL_NAME, connectingShare, dayToDate, playerHubs } from "@arg/sim";
+import { SERVICE_LEVEL_NAME, connectingShare, dayToDate, onwardConnectionStatus, playerHubs } from "@arg/sim";
 import { cabinLoadsOf } from "../hubboard/hubBoard";
 import { useUi } from "../store";
 import { bridge, useSim } from "../sim/useSim";
 import { IconAlert } from "../shell/icons";
 import { MonthBars } from "./charts";
 import { FareFields, FrequencyField, Stat, useDebounced } from "./editor";
-import { CABINS, CABIN_NAME, FREQ_MAX, describeEffectiveTarget, describeTargetLf, fareFloorText, fullRouteWarning, profitBasis, faresToText, formatTargetLf, liveSeasonal, livePreview, operatingMix, parseFares, parseTargetLf, ownershipReason, profitTier, projectRoute, routeName, seasonalProfit, substitutionText, typeOwnership } from "./helpers";
+import { CABINS, CABIN_NAME, FREQ_MAX, connectingText, describeEffectiveTarget, describeTargetLf, fareFloorText, fullRouteWarning, profitBasis, faresToText, formatTargetLf, liveSeasonal, livePreview, operatingMix, parseFares, parseTargetLf, ownershipReason, profitTier, projectRoute, routeName, seasonalProfit, substitutionText, typeOwnership } from "./helpers";
 import { pct, usd, usdSigned } from "./fmt";
 import { useToasts } from "./store";
 import { RouteAircraft } from "./RouteAircraft";
@@ -185,7 +185,7 @@ export function RouteInspector({ route }: { route: Route }) {
                 </Fragment>
               ))}
               <dt>Connecting</dt>
-              <dd>{pct(connShare)} of passengers{connPax > 0 ? `, ${Math.round(connPax).toLocaleString()} a week each way` : " (no hub connections on this route)"}</dd>
+              <dd>{connectingText(connPax, connShare, !!report, simNow ? onwardConnectionStatus(route, simNow.world.routes, airportById) : "available")}</dd>
               <dt>Passenger experience</dt>
               <dd>{exp ? `${Math.round(exp.score)} / 100` : "shown after the next daily report"}</dd>
             </dl>
