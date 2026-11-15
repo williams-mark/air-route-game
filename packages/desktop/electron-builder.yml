@@ -6,10 +6,16 @@ files:
   - dist/main.cjs
   - dist/preload.cjs
   - package.json
+  # Windows-only for now: leave the Linux and macOS Steam binaries out. Remove these two lines when adding those targets.
+  # (Do not move them under win.files: a platform files list replaces this one and packs the whole folder.)
+  - "!node_modules/steamworks.js/dist/linux64${/*}"
+  - "!node_modules/steamworks.js/dist/osx${/*}"
 extraResources:
   - from: ../app/dist
     to: game
 asar: true
+asarUnpack:
+  - node_modules/steamworks.js/dist/**
 forceCodeSigning: false
 win:
   target:

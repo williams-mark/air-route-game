@@ -33,4 +33,8 @@ Plain text files `<key>.json` in `<userData>/saves` (on Windows `%APPDATA%\Air R
 - `version: string`
 - `saves.list() / read(key) / write(key, text) / remove(key)`
 - `window.isFullscreen() / setFullscreen(on) / quit()`
-- `steam.available()` (false for now) / `steam.unlockAchievement(id)` (no-op, false). Steamworks arrives in a later lane.
+- `steam.available()` (true only when Steam initialised) / `steam.unlockAchievement(id)` (id must match `/^[A-Z0-9_]{1,64}$/`; true when unlocked or already unlocked, false otherwise).
+
+## Steam
+
+`src/steam.ts` wraps `steamworks.js` (native, kept external in the bundle and unpacked from the asar). Steam is **off unless an app id is configured**: env `ARG_STEAM_APP_ID`, else a `steam_appid.txt` next to the exe (packaged) or in `packages/desktop` (dev, gitignored). There is no default id (not 480) so the owner never appears to play someone else's game. With no id the native module is not loaded and one `[steam] disabled: ...` line is logged. When enabled, init runs before app ready, enables the overlay switches, and (packaged only) relaunches through Steam if started outside it. Smoke (`ARG_SMOKE=1`) also logs `[smoke] steamworks module: found|missing` without initialising Steam. Release and upload steps, Auto-Cloud and achievements: `steam/README.md`; `pnpm --filter @arg/desktop steam:upload` renders steamcmd scripts (env `STEAM_APP_ID`, `STEAM_DEPOT_ID`, `STEAM_USERNAME`; `--run` to execute).

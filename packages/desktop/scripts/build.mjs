@@ -5,7 +5,8 @@ const common = {
   platform: "node",
   format: "cjs",
   target: "node20",
-  external: ["electron"],
+  // steamworks.js is a native module: shipped as a real dependency, never bundled.
+  external: ["electron", "steamworks.js"],
   sourcemap: true,
   logLevel: "info",
 };

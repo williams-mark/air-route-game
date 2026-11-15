@@ -5,18 +5,26 @@ import { pathToFileURL } from "node:url";
 import { IPC } from "./bridge";
 import { resolveInside } from "./paths";
 import { listSaves, readSave, removeSave, writeSave } from "./saves";
-import { steamAvailable, unlockAchievement } from "./steam";
+import { initSteam, shutdownSteam, steamAvailable, unlockAchievement } from "./steam";
 
 const SCHEME = "app";
 const HOST = "game";
 const ORIGIN = `${SCHEME}://${HOST}`;
 const DEV_URL = process.env.ARG_DEV_URL;
 const SMOKE = process.env.ARG_SMOKE === "1";
+const smokeStatus = { steamworksMissing: false };
 /** With ARG_SMOKE=1: skip the start screen and write a PNG of the window to this path. */
 const SMOKE_SHOT = process.env.ARG_SMOKE_SHOT;
 
 // Fixes the user-data folder (and so the saves folder) to %APPDATA%/Air Route Game in dev and packaged builds alike.
 app.setName("Air Route Game");
+
+// Steam must start before app "ready" (the overlay helper appends Chromium switches). Disabled unless an app id is configured.
+const steamState = initSteam({
+  env: process.env,
+  packaged: app.isPackaged,
+  appidDir: app.isPackaged ? path.dirname(process.execPath) : path.resolve(__dirname, ".."),
+});
 
 protocol.registerSchemesAsPrivileged([
   { scheme: SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
@@ -130,6 +138,7 @@ function attachSmoke(win: BrowserWindow): void {
         errors.push(`smoke script failed: ${String(e)}`);
       }
       for (const err of errors) console.log(`[smoke] console error: ${err}`);
+      if (smokeStatus.steamworksMissing) errors.push("steamworks.js module missing");
       const ok = !failed && errors.length === 0;
       console.log(`[smoke] ${ok ? "OK" : "FAILED"}`);
       app.exit(ok ? 0 : 1);
@@ -157,7 +166,24 @@ function registerIpc(): void {
   ipcMain.handle(IPC.steamUnlock, (_e, id: string) => unlockAchievement(String(id)));
 }
 
-if (!app.requestSingleInstanceLock()) {
+/** ARG_SMOKE=1: prove the native module is shipped (resolvable, binary present) without initialising Steam. */
+function checkSteamworksModule(): boolean {
+  let found = false;
+  try {
+    const entry = require.resolve("steamworks.js");
+    const bin = path.join(path.dirname(entry), "dist", "win64", "steamworksjs.win32-x64-msvc.node");
+    // Inside app.asar the binaries live in app.asar.unpacked; require() redirects, existsSync does too.
+    found = existsSync(entry) && (process.platform !== "win32" || existsSync(bin.replace("app.asar", "app.asar.unpacked")));
+  } catch {
+    found = false;
+  }
+  console.log(`[smoke] steamworks module: ${found ? "found" : "missing"}`);
+  return found;
+}
+
+if (steamState === "restarting") {
+  app.quit();
+} else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on("second-instance", () => {
@@ -173,6 +199,8 @@ if (!app.requestSingleInstanceLock()) {
     registerGameProtocol();
     registerIpc();
     createWindow();
+    if (SMOKE && !checkSteamworksModule()) smokeStatus.steamworksMissing = true;
   });
   app.on("window-all-closed", () => app.quit());
+  app.on("will-quit", () => shutdownSteam());
 }

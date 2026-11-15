@@ -14,12 +14,16 @@
     "start": "node scripts/start.mjs",
     "dev": "node scripts/start.mjs --dev",
     "smoke": "node scripts/start.mjs --smoke",
-    "dist": "pnpm run build:app && pnpm run build && electron-builder --win dir --config electron-builder.yml"
+    "dist": "pnpm run build:app && pnpm run build && electron-builder --win dir --config electron-builder.yml",
+    "steam:upload": "node scripts/steam-upload.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "electron": "^45.3.2",
     "electron-builder": "^26.18.0",
     "esbuild": "^0.24.0"
+  },
+  "dependencies": {
+    "steamworks.js": "^0.4.0"
   }
 }

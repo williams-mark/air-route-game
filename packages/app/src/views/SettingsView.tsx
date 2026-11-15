@@ -6,6 +6,7 @@ import { saveToSlot } from "../save/saves";
 import { useToasts } from "../routes/store";
 import { useDock } from "../notify/dockStore";
 import { CORNERS } from "../notify/dockLogic";
+import { AchievementsList } from "../achievements/AchievementsList";
 
 /** Desktop-only rows: fullscreen and quit. Rendered only when the platform is the Electron app. */
 function DesktopSettings() {
@@ -81,6 +82,7 @@ export default function SettingsView() {
         </div>
         {desktop && <DesktopSettings />}
       </section>
+      <AchievementsList />
       <p className="build-stamp" style={{ fontSize: 11, opacity: 0.6 }}>Build {__BUILD_SHA__} &middot; {__BUILD_DATE__}</p>
     </div>
   );
