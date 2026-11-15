@@ -30,7 +30,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # Chromium and playwright are only installed in CI; locally they are pre-installed.
       - run: npm install --no-save --prefix "$RUNNER_TEMP/pw" playwright@1 && npx --prefix "$RUNNER_TEMP/pw" playwright install --with-deps chromium
-      - name: Sim soak (reduced: 6 games x 10 years)
+      - name: "Sim soak (reduced: 6 games x 10 years)"
         run: pnpm --filter @arg/sim soak --games 6 --det 1
       - name: E2E smoke
         run: NODE_PATH="$RUNNER_TEMP/pw/node_modules" pnpm --filter @arg/app e2e
