@@ -6,7 +6,9 @@
     "dev": "pnpm --filter @arg/app dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "desktop": "pnpm --filter @arg/desktop start",
+    "desktop:dist": "pnpm --filter @arg/desktop dist"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

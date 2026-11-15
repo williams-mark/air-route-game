@@ -1,0 +1,22 @@
+appId: com.airroutegame.desktop
+productName: Air Route Game
+directories:
+  output: release
+files:
+  - dist/main.cjs
+  - dist/preload.cjs
+  - package.json
+extraResources:
+  - from: ../app/dist
+    to: game
+asar: true
+forceCodeSigning: false
+win:
+  target:
+    - dir
+    - nsis
+  signAndEditExecutable: false
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+publish: null
