@@ -251,3 +251,15 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 .rc-capline, .rp-warn { margin: 6px 0; padding: 6px 8px; border-radius: 6px; font-size: 0.9em; border: 1px solid var(--sev-warn); color: var(--text); }
 .rp-input-note { color: var(--sev-warn); font-size: .75rem; margin: .25rem 0 0; line-height: 1.3; }
 .rc-move-more { margin: 0 0 .5rem; font-size: .82rem; } .rc-move-more summary { cursor: pointer; color: var(--text-dim); } .rc-move-more .rc-move-list { margin-top: .4rem; }
+
+/* Sandbox while the two airports are still being picked: a small card in the corner so the map stays usable. It grows to the full
+   sandbox once both ends are set (frequency, fares and the projection need the room). */
+.route-panel.sandbox.picking { width: min(21rem, calc(100% - 28px)); bottom: auto; max-height: calc(100% - 28px); }
+.route-panel.sandbox.picking .sandbox-banner { padding: .2rem .7rem; font-size: .7rem; }
+.route-panel.sandbox.picking .rp-head { padding: .4rem .7rem .3rem; align-items: center; }
+.route-panel.sandbox.picking .rp-head h2 { font-size: .95rem; }
+.route-panel.sandbox.picking .rp-head p, .route-panel.sandbox.picking .rp-empty { display: none; }
+.route-panel.sandbox.picking .sandbox-close { font-size: .72rem; padding: .2rem .5rem; }
+.route-panel.sandbox.picking .rp-scroll { padding: .3rem .7rem .5rem; overflow: visible; }
+.route-panel.sandbox.picking .rp-pair { grid-template-columns: 1fr; gap: .15rem; }
+.route-panel.sandbox.picking .rp-swap { display: none; }

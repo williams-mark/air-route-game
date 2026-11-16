@@ -18,6 +18,8 @@ export interface BoardRow {
   weeklyProfit: number | null;
   /** Share of the route's passengers that are connecting (0..1); null when there is no report. */
   connectingShare: number | null;
+  /** Connecting passengers a week on the route, both directions; null when there is no report. */
+  connectingPassengers: number | null;
   /** Load of each cabin the route flies, empty cabins at 0%; empty when there is no report. */
   byCabin: CabinLoadFactor[];
 }
@@ -52,6 +54,7 @@ export function buildBoardRows(routes: readonly Route[], reports: Reports, hub: 
       loadFactor: ev ? ev.loadFactor : null,
       weeklyProfit: ev ? ev.profit : null,
       connectingShare: ev ? connectingShare(rep?.connecting?.passengersOneWay ?? 0, ev.passengersPerWeek) : null,
+      connectingPassengers: ev ? 2 * (rep?.connecting?.passengersOneWay ?? 0) : null,
       byCabin: ev ? cabinLoadsOf(ev) : [],
     });
   }
@@ -114,4 +117,71 @@ export function boardHubOptions(hubs: readonly string[], home?: string): string[
   const set = new Set(hubs);
   if (home) set.add(home);
   return [...set].sort((x, y) => (x === home ? -1 : y === home ? 1 : x.localeCompare(y, "en")));
+}
+
+/** One through market that changes planes at the hub (weekly, both directions). */
+export interface ConnectingMarketRow {
+  key: string;
+  origin: string;
+  destination: string;
+  /** Through passengers a week, both directions. */
+  passengers: number;
+  /** Share of the hub's transfer passengers. */
+  shareOfTransfers: number;
+  throughFare: number;
+  /** Through revenue a week, both directions. */
+  revenue: number;
+  /** Player's share of the through market. */
+  marketShare: number;
+}
+
+/** Connecting passenger analysis of a hub: who changes planes there, and how much of the hub's traffic that is. */
+export interface ConnectingAnalysis {
+  /** Passengers a week who change planes at the hub (each counted once, both directions); null without reports. */
+  transferPassengers: number | null;
+  /** Passengers a week who start or end their trip at the hub, or connect elsewhere. */
+  localPassengers: number;
+  /** Transfer passengers as a share of all passengers using the hub (each person counted once). */
+  transferShare: number | null;
+  /** Share of seats sold on the hub's routes that are filled by passengers changing planes here. */
+  shareOfBoardings: number | null;
+  revenue: number;
+  markets: ConnectingMarketRow[];
+}
+
+/**
+ * Through markets that connect at `hub`, largest first. A transfer passenger rides two of the hub's routes, so the hub's
+ * passenger total counts them once: route passengers minus transfers.
+ */
+export function buildConnectingAnalysis(routes: readonly Route[], reports: Reports, hub: string): ConnectingAnalysis {
+  const seen = new Map<string, ConnectingMarketRow>();
+  let boardings = 0, any = false;
+  for (const r of routes) {
+    if (r.origin !== hub && r.destination !== hub) continue;
+    const rep = reports[r.id];
+    if (!rep) continue;
+    any = true;
+    boardings += rep.evaluation.passengersPerWeek;
+    for (const m of rep.connecting?.markets ?? []) {
+      if (m.hub !== hub) continue;
+      const key = m.origin < m.destination ? `${m.origin}-${m.destination}` : `${m.destination}-${m.origin}`;
+      if (seen.has(key)) continue;
+      seen.set(key, {
+        key, origin: m.origin, destination: m.destination, passengers: 2 * m.passengersOneWay, shareOfTransfers: 0,
+        throughFare: m.throughFare, revenue: m.revenue, marketShare: m.share,
+      });
+    }
+  }
+  const markets = [...seen.values()].sort((a, b) => b.passengers - a.passengers || a.key.localeCompare(b.key, "en"));
+  const transfers = markets.reduce((s, m) => s + m.passengers, 0);
+  for (const m of markets) m.shareOfTransfers = transfers > 0 ? m.passengers / transfers : 0;
+  const people = boardings - transfers;
+  return {
+    transferPassengers: any ? transfers : null,
+    localPassengers: Math.max(0, people - transfers),
+    transferShare: any && people > 0 ? Math.min(1, transfers / people) : null,
+    shareOfBoardings: any && boardings > 0 ? Math.min(1, (2 * transfers) / boardings) : null,
+    revenue: markets.reduce((s, m) => s + m.revenue, 0),
+    markets,
+  };
 }

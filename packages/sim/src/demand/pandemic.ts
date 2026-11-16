@@ -74,3 +74,15 @@ export function pandemicNewsOn(day: Day): string[] {
   if (d.year < 2020 || d.year > 2022) return [];
   return PANDEMIC_NEWS.filter((n) => n.year === d.year && n.month === d.month + 1 && n.day === d.dayOfMonth).map((n) => n.text);
 }
+
+/** Games that began after this year skip the pandemic shock unless `SimParams.pandemic` is set to true (owner's rule, Nov 2026). */
+export const PANDEMIC_LATEST_START_YEAR = 1990;
+
+/**
+ * Whether the pandemic shock applies to a game: an explicit `SimParams.pandemic` wins; otherwise it is on only for games that
+ * started in `PANDEMIC_LATEST_START_YEAR` or earlier. `startDay` is the campaign's first day (`rivals.originDay`; 0 = 2015 in old saves).
+ */
+export function pandemicEnabled(setting: boolean | undefined, startDay: Day): boolean {
+  if (setting !== undefined) return setting;
+  return dayToDate(startDay).year <= PANDEMIC_LATEST_START_YEAR;
+}

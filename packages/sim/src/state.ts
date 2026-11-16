@@ -74,7 +74,7 @@ export interface SimParams {
   /** Cap on queued (undrained) events. Oldest are dropped first. */
   eventQueueLimit: number;
   /**
-   * Scripted 2020-2023 pandemic demand shock (demand/pandemic.ts). Absent or true = on; false = off (custom start years, sandbox).
+   * Scripted 2020-2023 pandemic demand shock (demand/pandemic.ts). true = on, false = off; absent = on only for games that started in 1990 or earlier (`pandemicEnabled`).
    * It follows the calendar, so a game that starts after 2020 is unaffected either way.
    */
   pandemic?: boolean;

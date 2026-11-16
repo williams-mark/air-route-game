@@ -1,7 +1,7 @@
 import type { AircraftType, Airport, Route } from "@arg/contracts";
 import { makeRng, mixSeed } from "../rng";
 import type { SimState } from "../state";
-import { pandemicFactor } from "../demand/pandemic";
+import { pandemicEnabled, pandemicFactor } from "../demand/pandemic";
 import { makeContext, stepRivalsWeek } from "./engine";
 
 export * from "./types";
@@ -19,7 +19,7 @@ export function stepRivals(state: SimState, day: number): SimState {
     airports, types, day, rng, state.world.routes as Route[],
     (id) => state.routeReports[id]?.operatedFraction ?? 1,
     (r) => state.routeReports[r.id]?.evaluation.seatsPerFlight ?? 0,
-    state.params.pandemic === false ? undefined : (a, b) => pandemicFactor(day, a, b),
+    pandemicEnabled(state.params.pandemic, state.rivals?.originDay ?? 0) ? (a, b) => pandemicFactor(day, a, b) : undefined,
   );
   const res = stepRivalsWeek(state.rivals, ctx, day / 7, state.world.seed);
   const next: SimState = { ...state, rivals: res.rivals, bankruptcies: [...state.bankruptcies, ...res.bankruptcies] };

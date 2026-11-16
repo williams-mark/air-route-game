@@ -30,3 +30,10 @@
 @media (max-width: 900px) { .hb-grid { grid-template-columns: 1fr; overflow: auto; } .hb-stats { margin-left: 0; } }
 
 .hb-cabins span + span::before { content: " · "; color: var(--text-dim); }
+
+.hb-grid { grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr); }
+.hb-conn { grid-column: 1 / -1; }
+.hb-conn-stats { display: flex; gap: 1.4rem; flex-wrap: wrap; padding: .1rem .9rem .5rem; font-size: .85rem; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.hb-conn-stats b { color: var(--text); font-weight: 650; }
+.hb-conn-bar { margin: 0 .9rem .6rem; }
+@media (max-width: 900px) { .hb-grid { grid-template-rows: none; } }

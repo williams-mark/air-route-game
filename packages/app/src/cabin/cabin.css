@@ -3,7 +3,7 @@
 .seatmap-wrap { margin: 0; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: .6rem .6rem .4rem; }
 .seatmap { width: 100%; height: auto; display: block; }
 .seatmap-hull { fill: var(--panel); stroke: var(--text-dim); stroke-width: 2; }
-.seatmap.overflow .seatmap-hull { stroke: var(--neg); stroke-dasharray: 6 4; }
+.seatmap .seatmap-hull.over { stroke: var(--neg); stroke-dasharray: 6 4; }
 .seatmap .seat { stroke: var(--bg); stroke-width: .6; }
 .seat-F { fill: var(--cabin-F); background: var(--cabin-F); } .seat-J { fill: var(--cabin-J); background: var(--cabin-J); }
 .seat-W { fill: var(--cabin-W); background: var(--cabin-W); } .seat-Y { fill: var(--cabin-Y); background: var(--cabin-Y); }

@@ -4,7 +4,7 @@ import { benchmarkFareFor, dayToDate, previewNewRoute, runDays, startingScenario
 import {
   bestFrequency, bestType, eligibleTypes, fareHint, FREQ_SWEEP_MAX, frequencySweep, marketFares, midMonthDay, parseFares,
   livePreview, liveSeasonal, operatingMix, ownershipReason, profitTier, rivalPresence, seasonalProfit, substitutionText, typeOwnership, suggestAirports, validateRouteDraft, type RouteDraft, type SweepPoint,
-  describeEffectiveTarget, describeTargetLf, openingFares, fullRouteWarning, fareFloorText, profitBasis, OPENING_FARE_LOAD_FACTOR, formatTargetLf, parseTargetLf, TARGET_LF_MESSAGE,
+  connectingText, describeEffectiveTarget, describeTargetLf, openingFares, fullRouteWarning, fareFloorText, profitBasis, OPENING_FARE_LOAD_FACTOR, formatTargetLf, parseTargetLf, TARGET_LF_MESSAGE,
 } from "./helpers";
 import { rangeNote, routeBlock, usableRangeKm } from "../aircraft/availability";
 import { airports } from "@arg/data";
@@ -301,5 +301,19 @@ describe("opening fare, full-route warning, floor text, profit basis", () => {
   it("labels profit before and after ownership", () => {
     expect(profitBasis(false).short).toBe("before ownership");
     expect(profitBasis(true).short).toBe("after ownership");
+  });
+});
+
+describe("connectingText (route inspector Connecting line)", () => {
+  it("gives the share and weekly figure, and never rounds a small flow to 0", () => {
+    expect(connectingText(120, 0.2, true, "available")).toBe("20% of passengers, 120 a week each way");
+    expect(connectingText(0.4, 0.004, true, "available")).toBe("0.4% of passengers, 1 a week each way");
+  });
+  it("says there is nothing to connect to only when that is true", () => {
+    expect(connectingText(0, 0, true, "none")).toMatch(/no other route of yours/);
+    expect(connectingText(0, 0, true, "all_nonstop")).toMatch(/already fly nonstop/);
+    expect(connectingText(0, 0, true, "backtrack_only")).toMatch(/double back/);
+    expect(connectingText(0, 0, false, "available")).toBe("shown after the next daily report");
+    expect(connectingText(0, 0, true, "available")).toMatch(/not flying/);
   });
 });

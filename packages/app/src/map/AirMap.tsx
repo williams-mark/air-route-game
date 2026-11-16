@@ -6,7 +6,7 @@ import type { Airport } from "@arg/contracts";
 import { readMapColors } from "./colors";
 import { applyStyleColors, buildStyle } from "./style";
 import type { RivalMapEdge } from "./layers";
-import { bandOf, buildAircraftLayer, buildGhostLayers, buildRivalEdges, buildRivalLayer, buildStaticLayers, declutterLabels, type Ghost, type ZoomBand } from "./layers";
+import { bandOf, buildAircraftLayer, buildGhostLayers, buildRivalEdges, buildRivalLayer, buildStaticLayers, declutterLabels, labelText, type Ghost, type ZoomBand } from "./layers";
 import { buildModel, toDisplay, type AggEdge, type RouteGeo } from "./model";
 import { markerBudget, markerSpacing, selectMarkers } from "./lod";
 import { boundsFor, loadCamera, saveCamera } from "./presets";
@@ -42,7 +42,20 @@ export interface AirMapProps {
 
 interface Tip { x: number; y: number; text: string }
 
+/** Zoom at which the whole globe fits the free area when centred at `lat` (the globe's radius is 512 x 2^zoom x cos(lat) / 2pi px). */
+export function wholeGlobeZoom(widthPx: number, heightPx: number, lat: number): number {
+  const radius = 0.46 * Math.max(120, Math.min(widthPx, heightPx));
+  return Math.log2((radius * 2 * Math.PI) / (512 * Math.max(0.2, Math.cos((lat * Math.PI) / 180))));
+}
+
 function fitCamera(map: MLMap, preset: CameraPresetId, airports: readonly Airport[], padding: Required<NonNullable<AirMapProps["padding"]>>) {
+  if (preset === "world") {
+    // On a globe "world" is the whole sphere, turned to where the player is looking (no single view shows every airport).
+    const c = map.getCenter(), box = map.getContainer();
+    const lat = Math.max(-35, Math.min(45, c.lat));
+    const zoom = wholeGlobeZoom(box.clientWidth - padding.left - padding.right, box.clientHeight - padding.top - padding.bottom, lat);
+    return { center: [c.lng, lat] as [number, number], zoom: Math.max(map.getMinZoom(), zoom), padding };
+  }
   const [w, s, e, n] = boundsFor(preset, airports);
   return map.cameraForBounds([[w, s], [e, n]], { padding })!;
 }
@@ -65,8 +78,17 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
   const airportsRef = useRef(airports);
   airportsRef.current = airports;
   const [tip, setTip] = useState<Tip | null>(null);
+  /** Airport labels as HTML over the map (text layers do not draw on the globe): screen position per kept label. */
+  const [labels, setLabels] = useState<Array<{ id: string; text: string; x: number; y: number; hub: boolean }>>([]);
 
   const model = useMemo(() => buildModel(airports, routes), [airports, routes]);
+  // Globe: false for a point on the far side. Stable identity; it reads the live camera.
+  const visible = useRef((lon: number, lat: number) => {
+    const t = mapRef.current?.transform as unknown as { isLocationOccluded?: (l: maplibregl.LngLat) => boolean } | undefined;
+    return !t?.isLocationOccluded?.(new maplibregl.LngLat(lon, lat));
+  }).current;
+  /** Bumped when the camera moves, so layers that hide far-side points are rebuilt. */
+  const [view, setView] = useState(0);
   const colors = useMemo(() => readMapColors(), [theme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useImperativeHandle(ref, () => ({
@@ -78,7 +100,7 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
   useEffect(() => {
     const c = readMapColors();
     const map = new maplibregl.Map({
-      container: el.current!, style: buildStyle(c), attributionControl: false, minZoom: 1.8, maxZoom: 13,
+      container: el.current!, style: buildStyle(c), attributionControl: false, minZoom: 1, maxZoom: 13,
       renderWorldCopies: false, dragRotate: false, pitchWithRotate: false, touchPitch: false, keyboard: false,
       doubleClickZoom: true, bearing: 0, pitch: 0, center: [-138, 36], zoom: 3.4, fadeDuration: 0,
     });
@@ -86,7 +108,7 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
     map.scrollZoom.setWheelZoomRate(1 / 300); // gentler, smooth for trackpads
     map.scrollZoom.setZoomRate(1 / 90);
     const overlay = new MapboxOverlay({
-      interleaved: false, layers: [], pickingRadius: 6,
+      interleaved: true, layers: [], pickingRadius: 6, // interleaved: deck.gl draws in the map's own context, which the globe projection needs
       getCursor: ({ isHovering }) => (isHovering ? "pointer" : "grab"),
       onHover: (info) => {
         const o = info.object as (RouteGeo | AggEdge | Airport | undefined);
@@ -175,15 +197,23 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
       const priority = new Set(model.served);
       if (selectedAirportId) priority.add(selectedAirportId);
       const markers = selectMarkers({
-        airports: model.airports, rank: model.rank, priority, project, width: c.clientWidth, height: c.clientHeight,
+        airports: model.airports.filter((a) => visible(a.lon, a.lat)), rank: model.rank, priority, project, width: c.clientWidth, height: c.clientHeight,
         spacing: showAllAirports ? 10 : markerSpacing(b), budget: showAllAirports ? Infinity : markerBudget(z),
       });
       const shown = model.airports.filter((a) => markers.has(a.id));
-      setLod({ markers, labels: declutterLabels(shown, model.rank, b, project, c.clientWidth, c.clientHeight) });
+      const kept = declutterLabels(shown, model.rank, b, project, c.clientWidth, c.clientHeight);
+      setLod({ markers, labels: kept });
+      const off = b === "near" ? 14 : b === "far" ? 12 : 9;
+      setLabels(shown.filter((a) => kept.has(a.id)).map((a) => { const p = project(a.lon, a.lat); return { id: a.id, text: labelText(a, b), x: Math.round(p.x + off), y: Math.round(p.y), hub: model.hubs.has(a.id) }; }));
+      setView((v) => v + 1);
     };
     run();
     map.on("moveend", run);
-    return () => { map.off("moveend", run); };
+    // While the globe turns, refresh on animation frames so far-side markers do not show through.
+    let raf = 0;
+    const onMove = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; run(); }); };
+    map.on("move", onMove);
+    return () => { map.off("moveend", run); map.off("move", onMove); cancelAnimationFrame(raf); };
   }, [ready, model, showAllAirports, selectedAirportId]);
 
   // Camera presets.
@@ -200,24 +230,27 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
   }, [colors, ready]);
 
   const staticLayers = useMemo(
-    () => buildStaticLayers({ model, colors, band, selectedRoute: selectedRouteId, selectedAirport: selectedAirportId, dark: theme === "dark", labelIds: lod?.labels ?? null, markerIds: lod?.markers ?? null, allAirports: showAllAirports }),
+    () => buildStaticLayers({ model, colors, band, selectedRoute: selectedRouteId, selectedAirport: selectedAirportId, dark: theme === "dark", labelIds: lod?.labels ?? null, markerIds: lod?.markers ?? null, allAirports: showAllAirports, visible, domLabels: true }),
     [model, colors, band, selectedRouteId, selectedAirportId, theme, lod, showAllAirports],
   );
 
   const rivalLayer = useMemo(() => {
     if (!rivalMarkets || rivalMarkets.length === 0) return null;
-    return buildRivalLayer(buildRivalEdges(rivalMarkets, model.byId), colors);
-  }, [rivalMarkets, model, colors]);
+    return buildRivalLayer(buildRivalEdges(rivalMarkets, model.byId), colors, visible);
+  }, [rivalMarkets, model, colors, view]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!ready) return;
-    const ghostLayers = ghost ? buildGhostLayers({ a: ghost.a && toDisplay(ghost.a), b: ghost.b && toDisplay(ghost.b) }, colors) : [];
-    overlayRef.current?.setProps({ layers: [...(rivalLayer ? [rivalLayer] : []), ...staticLayers, ...ghostLayers, buildAircraftLayer(model, colors, band, simTime)] });
-  }, [ready, staticLayers, rivalLayer, model, colors, band, simTime, ghost]);
+    const ghostLayers = ghost ? buildGhostLayers({ a: ghost.a && toDisplay(ghost.a), b: ghost.b && toDisplay(ghost.b) }, colors, visible) : [];
+    overlayRef.current?.setProps({ layers: [...(rivalLayer ? [rivalLayer] : []), ...staticLayers, ...ghostLayers, buildAircraftLayer(model, colors, band, simTime, visible)] });
+  }, [ready, staticLayers, rivalLayer, model, colors, band, simTime, ghost, view]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
       <div ref={el} className="map-root" />
+      <div className="map-labels" aria-hidden="true">
+        {labels.map((l) => <span key={l.id} className={l.hub ? "hub" : undefined} style={{ transform: `translate(${l.x}px, ${l.y}px) translateY(-50%)` }}>{l.text}</span>)}
+      </div>
       {tip && <div className="tip" style={{ left: tip.x, top: tip.y }}>{tip.text}</div>}
     </>
   );

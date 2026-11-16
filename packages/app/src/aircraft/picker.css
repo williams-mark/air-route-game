@@ -53,3 +53,4 @@
 .ap-own.none { color: var(--sev-warn) !important; }
 .ap-why { color: var(--neg) !important; font-size: .72rem; line-height: 1.25; }
 .ap-empty { color: var(--text-dim); font-size: .82rem; margin: .4rem; }
+.ap-photo { display: block; width: 100%; height: 5.6rem; object-fit: cover; border-radius: 6px; }

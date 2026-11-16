@@ -36,9 +36,20 @@ export interface LayerInput {
   labelIds: Set<string> | null;
   /** Airport ids that survived level-of-detail selection (null = apply the simple hub rule). */
   markerIds?: Set<string> | null;
+  /** True when the caller draws airport labels itself (HTML over the map); the text layer is then left out. */
+  domLabels?: boolean;
+  /** False for a point behind the globe; such markers are left out (absent = everything is visible). */
+  visible?: (lon: number, lat: number) => boolean;
   /** Show every airport even in the far band (route creation: all airports are clickable). */
   allAirports?: boolean;
 }
+
+/**
+ * Globe rendering. Everything deck.gl draws skips the depth test: geometry on the surface fights the globe for depth, and a
+ * screen-facing marker would be cut by the sphere. What lies behind the globe is removed from the data instead: points by the
+ * caller (`AirMap`, `transform.isLocationOccluded`), lines by `clipPaths`, which keeps only the runs of points in view.
+ */
+const ON_TOP = { depthCompare: "always" } as const;
 
 const routeWidth = (freq: number) => Math.max(1.4, Math.min(7, 1 + Math.sqrt(freq) * 0.75));
 /** Above this many player routes the far band draws corridors between hub clusters instead of each route. */
@@ -53,34 +64,36 @@ export function buildStaticLayers(inp: LayerInput): Layer[] {
   const far = band === "far";
   // A small network is drawn as its real routes even when zoomed far out (LHR-ZRH must not look like LHR-FRA); big ones as hub corridors.
   const aggregate = far && model.routes.length > AGG_ROUTE_THRESHOLD;
+  const routes = aggregate ? [] : clipPaths(model.routes, inp.visible);
+  const agg = aggregate ? clipPaths(model.agg, inp.visible) : [];
 
   if (aggregate) {
     layers.push(
       new PathLayer<AggEdge>({
-        id: "agg-casing", data: model.agg, getPath: (d) => d.path, getColor: c.casing, getWidth: (d) => aggWidth(d.freq) + 3,
+        id: "agg-casing", parameters: ON_TOP, data: agg, getPath: (d) => d.path, getColor: c.casing, getWidth: (d) => aggWidth(d.freq) + 3,
         widthUnits: "pixels", capRounded: true, jointRounded: true, pickable: false,
       }),
       new PathLayer<AggEdge>({
-        id: "agg-routes", data: model.agg, getPath: (d) => d.path, getColor: (d) => withA(tierColor(c, d.tier), alpha),
+        id: "agg-routes", parameters: ON_TOP, data: agg, getPath: (d) => d.path, getColor: (d) => withA(tierColor(c, d.tier), alpha),
         getWidth: (d) => aggWidth(d.freq), widthUnits: "pixels", capRounded: true, jointRounded: true, pickable: true,
         autoHighlight: true, highlightColor: [255, 255, 255, 70], updateTriggers: { getColor: [c, dark] },
       }),
     );
   } else {
-    const sel = selectedRoute ? model.routes.filter((g) => g.route.id === selectedRoute) : [];
+    const sel = selectedRoute ? routes.filter((g) => g.route.id === selectedRoute) : [];
     layers.push(
       new PathLayer<RouteGeo>({
-        id: "route-casing", data: model.routes, getPath: (d) => d.path, getColor: c.casing,
+        id: "route-casing", parameters: ON_TOP, data: routes, getPath: (d) => d.path, getColor: c.casing,
         getWidth: (d) => routeWidth(d.route.weeklyFrequency) + 2.5, widthUnits: "pixels", capRounded: true, jointRounded: true,
         pickable: false, updateTriggers: { getColor: [c] },
       }),
       new PathLayer<RouteGeo>({
-        id: "selected-route", data: sel, getPath: (d) => d.path, getColor: withA(c.select, 255),
+        id: "selected-route", parameters: ON_TOP, data: sel, getPath: (d) => d.path, getColor: withA(c.select, 255),
         getWidth: (d) => routeWidth(d.route.weeklyFrequency) + 6, widthUnits: "pixels", capRounded: true, jointRounded: true,
         pickable: false, updateTriggers: { getColor: [c] },
       }),
       new PathLayer<RouteGeo>({
-        id: "routes", data: model.routes, getPath: (d) => d.path,
+        id: "routes", parameters: ON_TOP, data: routes, getPath: (d) => d.path,
         getColor: (d) => withA(tierColor(c, d.route.tier), d.route.tier === "planned" ? alpha - 40 : alpha),
         getWidth: (d) => routeWidth(d.route.weeklyFrequency), widthUnits: "pixels", capRounded: true, jointRounded: true,
         pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 80], updateTriggers: { getColor: [c, dark] },
@@ -89,21 +102,25 @@ export function buildStaticLayers(inp: LayerInput): Layer[] {
   }
 
   const shown: Airport[] = markerIds ? model.airports.filter((a) => markerIds.has(a.id)) : far && !allAirports ? model.airports.filter((a) => model.hubs.has(a.id)) : model.airports;
-  const selAp = selectedAirport ? model.byId.get(selectedAirport) : undefined;
-  const showGlyph = band === "near";
+  const selAp0 = selectedAirport ? model.byId.get(selectedAirport) : undefined;
+  const selAp = selAp0 && (!inp.visible || inp.visible(selAp0.lon, selAp0.lat)) ? selAp0 : undefined;
+  // Icon and text layers do not draw on the globe (deck.gl interleaved in MapLibre 5), so airports are always discs here and
+  // `AirMap` draws the labels as HTML (`domLabels`).
+  const showGlyph = false as boolean;
+  const near = band === "near";
   const isHub = (a: Airport) => model.hubs.has(a.id);
 
   layers.push(
     new ScatterplotLayer<Airport>({
-      id: "airport-select", data: selAp ? [selAp] : [], getPosition: (a) => [a.lon, a.lat],
-      getRadius: showGlyph ? 18 : 12, radiusUnits: "pixels", filled: false, stroked: true, getLineColor: c.airportHub,
+      id: "airport-select", parameters: ON_TOP, data: selAp ? [selAp] : [], getPosition: (a) => [a.lon, a.lat],
+      getRadius: near ? 16 : 12, radiusUnits: "pixels", filled: false, stroked: true, getLineColor: c.airportHub,
       getLineWidth: 2.5, lineWidthUnits: "pixels", updateTriggers: { getLineColor: [c], getRadius: [band] },
     }),
   );
   if (showGlyph) {
     layers.push(
       new IconLayer<Airport>({
-        id: "airport-glyph", data: shown, iconAtlas: SPRITE, iconMapping: ICONS, getIcon: () => "glyph",
+        id: "airport-glyph", parameters: ON_TOP, billboard: false, data: shown, iconAtlas: SPRITE, iconMapping: ICONS, getIcon: () => "glyph",
         getPosition: (a) => [a.lon, a.lat], getSize: (a) => (isHub(a) ? 26 : 22), sizeUnits: "pixels",
         getColor: (a) => (isHub(a) ? c.airportHub : c.airportFill), pickable: true, autoHighlight: true,
         highlightColor: [255, 255, 255, 120], updateTriggers: { getColor: [c] },
@@ -112,8 +129,8 @@ export function buildStaticLayers(inp: LayerInput): Layer[] {
   } else {
     layers.push(
       new ScatterplotLayer<Airport>({
-        id: "airports", data: shown, getPosition: (a) => [a.lon, a.lat],
-        getRadius: (a) => (far && !allAirports ? 7 : far ? (isHub(a) ? 7 : 5) : isHub(a) ? 6 : 4.2), radiusUnits: "pixels",
+        id: "airports", parameters: ON_TOP, data: shown, getPosition: (a) => [a.lon, a.lat],
+        getRadius: (a) => (far && !allAirports ? 7 : far ? (isHub(a) ? 7 : 5) : near ? (isHub(a) ? 9 : 7) : isHub(a) ? 6 : 4.2), radiusUnits: "pixels",
         getFillColor: (a) => (isHub(a) ? c.airportHub : c.airportFill), getLineColor: c.airportStroke,
         getLineWidth: 1.6, lineWidthUnits: "pixels", stroked: true, pickable: true, autoHighlight: true,
         highlightColor: [255, 255, 255, 120], updateTriggers: { getRadius: [band, allAirports], getFillColor: [c], getLineColor: [c] },
@@ -123,26 +140,28 @@ export function buildStaticLayers(inp: LayerInput): Layer[] {
 
   layers.push(
     new TextLayer<Airport>({
-      id: "airport-labels", data: labelIds ? shown.filter((a) => labelIds.has(a.id)) : shown, getPosition: (a) => [a.lon, a.lat],
+      id: "airport-labels", parameters: ON_TOP, data: labelIds ? shown.filter((a) => labelIds.has(a.id)) : shown, getPosition: (a) => [a.lon, a.lat],
       getText: (a) => labelText(a, band),
       getSize: (a) => (isHub(a) ? 14 : 12), sizeUnits: "pixels", getColor: c.label,
       getPixelOffset: showGlyph ? [20, 0] : [far ? 12 : 9, 0], getTextAnchor: "start", getAlignmentBaseline: "center",
       fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif", fontWeight: 650,
       fontSettings: { sdf: true, buffer: 8, radius: 8 }, outlineWidth: 3.2, outlineColor: c.labelHalo,
-      characterSet: "auto", billboard: true, pickable: false,
+      characterSet: "auto", billboard: false, pickable: false,
       updateTriggers: { getColor: [c], getText: [band], getPixelOffset: [band], getSize: [band] },
     } as TextLayerProps<Airport>),
   );
-  return layers;
+  return inp.domLabels ? layers.filter((l) => l.id !== "airport-labels") : layers;
 }
 
-export function buildAircraftLayer(model: MapModel, c: MapColors, band: ZoomBand, simTime: number): Layer {
-  const data = aircraftAt(model.routes, simTime, band === "far");
-  return new IconLayer({
-    id: "aircraft", data, iconAtlas: SPRITE, iconMapping: ICONS, getIcon: () => "plane",
-    getPosition: (d: { position: [number, number] }) => d.position, getAngle: (d: { angle: number }) => d.angle,
-    getSize: band === "far" ? 13 : 15, sizeUnits: "pixels", getColor: c.aircraft, pickable: false,
-    updateTriggers: { getColor: [c] },
+export function buildAircraftLayer(model: MapModel, c: MapColors, band: ZoomBand, simTime: number, visible?: (lon: number, lat: number) => boolean): Layer {
+  const all = aircraftAt(model.routes, simTime, band === "far");
+  const data = visible ? all.filter((d) => visible(d.position[0], d.position[1])) : all;
+  // A disc, not the plane icon: icon layers do not draw on the globe (see buildStaticLayers).
+  return new ScatterplotLayer<{ position: [number, number] }>({
+    id: "aircraft", parameters: ON_TOP, data, getPosition: (d) => d.position,
+    getRadius: band === "far" ? 3.2 : 4.2, radiusUnits: "pixels", getFillColor: c.aircraft, getLineColor: c.casing,
+    getLineWidth: 1.2, lineWidthUnits: "pixels", stroked: true, pickable: false,
+    updateTriggers: { getFillColor: [c], getLineColor: [c] },
   });
 }
 
@@ -179,19 +198,19 @@ export function dashPath(path: [number, number][], on = 3, off = 2): [number, nu
   return out;
 }
 
-export function buildGhostLayers(ghost: Ghost, c: MapColors): Layer[] {
+export function buildGhostLayers(ghost: Ghost, c: MapColors, visible?: (lon: number, lat: number) => boolean): Layer[] {
   const layers: Layer[] = [];
-  const ends = [ghost.a, ghost.b].filter((x): x is Airport => !!x);
+  const ends = [ghost.a, ghost.b].filter((x): x is Airport => !!x && (!visible || visible(x.lon, x.lat)));
   if (ghost.a && ghost.b) {
     const path = routePath(ghost.a.lon, ghost.a.lat, ghost.b.lon, ghost.b.lat, 48);
-    const dashes = dashPath(path);
+    const dashes = dashPath(path).filter((d) => !visible || d.every((p) => visible(p[0], p[1])));
     layers.push(
       new PathLayer<[number, number][]>({
-        id: "ghost-casing", data: dashes, getPath: (d) => d, getColor: c.casing, getWidth: 7, widthUnits: "pixels", capRounded: true, pickable: false,
+        id: "ghost-casing", parameters: ON_TOP, data: dashes, getPath: (d) => d, getColor: c.casing, getWidth: 7, widthUnits: "pixels", capRounded: true, pickable: false,
         updateTriggers: { getColor: [c] },
       }),
       new PathLayer<[number, number][]>({
-        id: "ghost-arc", data: dashes, getPath: (d) => d, getColor: withA(c.airportHub, 255), getWidth: 3.6, widthUnits: "pixels", capRounded: true, pickable: false,
+        id: "ghost-arc", parameters: ON_TOP, data: dashes, getPath: (d) => d, getColor: withA(c.airportHub, 255), getWidth: 3.6, widthUnits: "pixels", capRounded: true, pickable: false,
         updateTriggers: { getColor: [c] },
       }),
     );
@@ -199,7 +218,7 @@ export function buildGhostLayers(ghost: Ghost, c: MapColors): Layer[] {
   if (ends.length) {
     layers.push(
       new ScatterplotLayer<Airport>({
-        id: "ghost-ends", data: ends, getPosition: (a) => [a.lon, a.lat], getRadius: 15, radiusUnits: "pixels", filled: true, stroked: true,
+        id: "ghost-ends", parameters: ON_TOP, data: ends, getPosition: (a) => [a.lon, a.lat], getRadius: 15, radiusUnits: "pixels", filled: true, stroked: true,
         getFillColor: withA(c.airportHub, 70), getLineColor: withA(c.airportHub, 255), getLineWidth: 3, lineWidthUnits: "pixels", pickable: false,
         updateTriggers: { getFillColor: [c], getLineColor: [c] },
       }),
@@ -221,10 +240,32 @@ export function buildRivalEdges(markets: Array<{ origin: string; destination: st
   return out;
 }
 
-export function buildRivalLayer(edges: RivalMapEdge[], c: MapColors): Layer {
+export function buildRivalLayer(edges: RivalMapEdge[], c: MapColors, visible?: Visible): Layer {
   return new PathLayer<RivalMapEdge>({
-    id: "rival-routes", data: edges, getPath: (d) => d.path, getColor: c.rival,
+    id: "rival-routes", parameters: ON_TOP, data: clipPaths(edges, visible), getPath: (d) => d.path, getColor: c.rival,
     getWidth: (d) => Math.max(1.2, Math.min(4, 0.8 + Math.sqrt(d.seats / 400))), widthUnits: "pixels", capRounded: true, jointRounded: true,
     pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 60], updateTriggers: { getColor: [c] },
   });
+}
+
+type Visible = (lon: number, lat: number) => boolean;
+
+/**
+ * Keep only the parts of each line that are in view on the globe: an item wholly in view is returned as is, one that crosses the
+ * horizon becomes one copy per visible run of points (so hover and click still find the route), one behind the globe is dropped.
+ */
+export function clipPaths<T extends { path: [number, number][] }>(items: readonly T[], visible?: Visible): T[] {
+  if (!visible) return items as T[];
+  const out: T[] = [];
+  for (const it of items) {
+    const vis = it.path.map((p) => visible(p[0], p[1]));
+    if (vis.every(Boolean)) { out.push(it); continue; }
+    let start = -1;
+    for (let i = 0; i <= vis.length; i++) {
+      if (i < vis.length && vis[i]) { if (start < 0) start = i; continue; }
+      if (start >= 0 && i - start >= 2) out.push({ ...it, path: it.path.slice(start, i) });
+      start = -1;
+    }
+  }
+  return out;
 }

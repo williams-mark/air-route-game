@@ -3,11 +3,12 @@ import { shortTypeLabel } from "../aircraft/names";
 import { CLASS_NAME, homeHubOf, playerHubs, typeBlockHours } from "@arg/sim";
 import { pct, usd } from "../routes/fmt";
 import { bridge, useSim } from "../sim/useSim";
-import { boardHubOptions, buildBoardRows, buildHourRows, hubTypeIds, summarizeBoard } from "../hubboard/hubBoard";
+import { boardHubOptions, buildBoardRows, buildConnectingAnalysis, buildHourRows, hubTypeIds, summarizeBoard } from "../hubboard/hubBoard";
 import { hubOptions } from "../fleet/typeTable";
 import "../hubboard/hubboard.css";
 
 const hours = (h: number) => Math.round(h).toLocaleString("en-US");
+const num = (v: number) => (v > 0 && v < 1 ? "<1" : Math.round(v).toLocaleString("en-US"));
 const NA = <span className="na" title="No sim report for this route yet">n/a</span>;
 
 /** Read-only hub board: routes touching the hub, block-hour use per type, connecting share. All from existing sim output. */
@@ -20,6 +21,7 @@ export default function HubBoardView() {
   const hub = picked && options.includes(picked) ? picked : home;
   const rows = useMemo(() => buildBoardRows(routes, reports, hub), [routes, reports, hub]);
   const summary = useMemo(() => summarizeBoard(routes, reports, hub), [routes, reports, hub]);
+  const conn = useMemo(() => buildConnectingAnalysis(routes, reports, hub), [routes, reports, hub]);
   const hourRows = useMemo(
     () => buildHourRows(hubTypeIds(fleet, routes, hub, home), (t) => (sim ? typeBlockHours(sim, t, hub) : { available: 0, used: 0, free: 0 })),
     [fleet, routes, hub, home, day, sim], // eslint-disable-line react-hooks/exhaustive-deps
@@ -36,8 +38,8 @@ export default function HubBoardView() {
         <div className="hb-stats" aria-label="Hub summary">
           <span>Routes <b>{summary.routes}</b></span>
           <span>Weekly profit <b className={summary.weeklyProfit < 0 ? "neg" : undefined}>{summary.routes > 0 && summary.unreported < summary.routes ? usd(summary.weeklyProfit) : "n/a"}</b></span>
-          <span>Connecting pax / wk <b>{summary.connectingPassengers === null ? "n/a" : Math.round(summary.connectingPassengers).toLocaleString("en-US")}</b>
-            {summary.connectingShare !== null && <> ({pct(summary.connectingShare, 1)} of passengers)</>}</span>
+          <span>Connecting pax / wk <b>{conn.transferPassengers === null ? "n/a" : num(conn.transferPassengers)}</b>
+            {conn.transferShare !== null && <> ({pct(conn.transferShare, 1)} of passengers)</>}</span>
         </div>
       </header>
       <div className="hb-grid">
@@ -49,7 +51,7 @@ export default function HubBoardView() {
                 <thead>
                   <tr>
                     <th scope="col">Destination</th><th scope="col">Type</th><th scope="col" className="num">Freq / wk</th>
-                    <th scope="col" className="num">Load</th><th scope="col">By cabin</th><th scope="col" className="num">Connecting</th><th scope="col" className="num">Profit / wk</th>
+                    <th scope="col" className="num">Load</th><th scope="col">By cabin</th><th scope="col" className="num">Connecting / wk</th><th scope="col" className="num">Profit / wk</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -64,7 +66,7 @@ export default function HubBoardView() {
                       <td className="hb-cabins">{r.byCabin.length === 0 ? NA : r.byCabin.map((c) => (
                         <span key={c.cls} title={`${CLASS_NAME[c.cls]}: ${Math.round(c.passengersPerWeek)} of ${Math.round(c.seatsPerWeek)} seats a week`}>{c.cls} {pct(c.loadFactor ?? 0)}</span>
                       ))}</td>
-                      <td className="num">{r.connectingShare === null ? NA : pct(r.connectingShare, 1)}</td>
+                      <td className="num">{r.connectingShare === null || r.connectingPassengers === null ? NA : `${num(r.connectingPassengers)} (${pct(r.connectingShare, 1)})`}</td>
                       <td className={`num ${r.weeklyProfit === null ? "" : r.weeklyProfit < 0 ? "neg" : "pos"}`}>{r.weeklyProfit === null ? NA : usd(r.weeklyProfit)}</td>
                     </tr>
                   ))}
@@ -91,6 +93,48 @@ export default function HubBoardView() {
                 ))}
               </ul>
               <p className="hb-note">Pools count active aircraft based at {hub} and the routes that start there; routes ending at {hub} use the hub of their origin.</p>
+            </div>
+          )}
+        </section>
+        <section className="hb-box hb-conn" aria-label="Connecting passengers">
+          <h2>Connecting passengers at {hub}</h2>
+          {conn.transferPassengers === null ? <p className="hb-empty">Shown after the next daily report.</p> : (
+            <div className="hb-scroll">
+              <div className="hb-conn-stats">
+                <span>Changing planes here <b>{num(conn.transferPassengers)}</b> / wk</span>
+                <span>Starting or ending here <b>{num(conn.localPassengers)}</b> / wk</span>
+                <span>Share connecting <b>{conn.transferShare === null ? "n/a" : pct(conn.transferShare, 1)}</b> of passengers</span>
+                <span>Seats they fill <b>{conn.shareOfBoardings === null ? "n/a" : pct(conn.shareOfBoardings, 1)}</b> of seats sold</span>
+                <span>Through revenue <b>{usd(conn.revenue)}</b> / wk</span>
+              </div>
+              {conn.transferShare !== null && (
+                <div className="hb-bar hb-conn-bar" role="img" aria-label={`${pct(conn.transferShare, 1)} of passengers at ${hub} are connecting`}>
+                  <i style={{ width: `${Math.min(100, conn.transferShare * 100)}%` }} />
+                </div>
+              )}
+              {conn.markets.length === 0 ? <p className="hb-empty">Nobody changes planes at {hub} yet. Passengers connect when two of your routes meet here and you do not already fly nonstop between their far ends.</p> : (
+                <table className="hb-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Through market</th><th scope="col" className="num">Pax / wk</th><th scope="col" className="num">Of connections</th>
+                      <th scope="col" className="num">Your market share</th><th scope="col" className="num">Through fare</th><th scope="col" className="num">Revenue / wk</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {conn.markets.map((m) => (
+                      <tr key={m.key}>
+                        <th scope="row">{m.origin}–{m.destination} <span className="na">via {hub}</span></th>
+                        <td className="num">{num(m.passengers)}</td>
+                        <td className="num">{pct(m.shareOfTransfers, 1)}</td>
+                        <td className="num">{pct(m.marketShare, 1)}</td>
+                        <td className="num">{usd(m.throughFare)}</td>
+                        <td className="num">{usd(m.revenue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <p className="hb-note">Passengers are counted both directions. Someone changing planes rides two of the hub's routes but is counted once here; the Connecting column above counts them on each route they ride.</p>
             </div>
           )}
         </section>

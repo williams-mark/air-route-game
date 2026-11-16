@@ -5,6 +5,7 @@ import { aircraftTypes, aircraftVisualById } from "@arg/data";
 import { AVAIL_LABEL, availabilityOf, rangeNote, typicalSeats, usableRangeKm } from "./availability";
 import { buildTree, manufacturerGroup, pathOf } from "./families";
 import { SideView } from "./SideView";
+import { aircraftImageCredit, aircraftImageUrl } from "./images";
 import { usePickerMemory } from "./memory";
 import { IconChevron } from "../shell/icons";
 import "./picker.css";
@@ -158,7 +159,9 @@ export function AircraftPicker({ label, value, onChange, year, types = aircraftT
                           <button type="button" role="listitem" data-tile key={t.id} className={`ap-tile ap-var ${isSel ? "sel" : ""} ${reason ? "off" : ""}`} aria-pressed={isSel} aria-disabled={reason ? true : undefined}
                             tabIndex={tabIdx(rov.tile, i, selTileIdx)} onFocus={() => setRov((r) => (r.tile === i ? r : { ...r, tile: i }))}
                             title={reason ?? undefined} onClick={() => { if (!reason) pick(t); }}>
-                            <SideView visual={aircraftVisualById[t.id]} widebody={t.widebody} name={typeShortName(t)} />
+                            {aircraftImageUrl(t.id)
+                              ? <img className="ap-photo" src={aircraftImageUrl(t.id)!} alt={`${typeShortName(t)} photograph`} title={aircraftImageCredit(t.id) ?? undefined} loading="lazy" />
+                              : <SideView visual={aircraftVisualById[t.id]} widebody={t.widebody} name={typeShortName(t)} />}
                             <span className="ap-var-top"><b>{typeShortName(t)}</b><span className={`ap-badge ap-${av}`}>{AVAIL_LABEL[av]}</span></span>
                             <span className="ap-var-spec">{typicalSeats(t)} seats typical, {t.maxSeats} max</span>
                             <span className="ap-var-spec" title={rangeNote(t)}>Range {t.rangeKm.toLocaleString()} km nominal</span>

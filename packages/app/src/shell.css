@@ -261,3 +261,4 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .fleet-dispose { display: flex; gap: .4rem; }
 .order-confirm { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; padding: .6rem .8rem; border: 1px solid var(--sev-warn); border-radius: 10px; background: var(--panel-2); }
 .order-confirm p { margin: 0; flex: 1 1 18rem; font-size: .9rem; }
+.credits { margin-top: 1rem; padding: .7rem 1rem; font-size: .82rem; } .credits summary { cursor: pointer; } .credits ul { margin: .4rem 0 0; padding-left: 1.1rem; max-height: 18rem; overflow: auto; color: var(--text-dim); } .credits a { color: var(--accent); }

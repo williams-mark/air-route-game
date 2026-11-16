@@ -372,9 +372,11 @@ for (const theme of themes) {
     assert((await ap.locator(".ap-man[aria-selected=true]").innerText()).includes("Boeing"), "Boeing not highlighted");
     await ap.locator(".ap-fam").first().click();
     assert((await ap.locator(".ap-var").count()) >= 1, "no variant tiles after choosing a family");
-    assert((await ap.locator(".ap-var svg[role=img]").count()) === (await ap.locator(".ap-var").count()), "every variant tile needs a side view");
-    const label = await ap.locator(".ap-var svg").first().getAttribute("aria-label");
-    assert(label && label.length < 80, `side-view label: ${label}`);
+    // A tile shows either the type's photo (img.ap-photo) or, when it has none, the drawn side view (svg).
+    assert((await ap.locator(".ap-var svg[role=img], .ap-var img.ap-photo").count()) === (await ap.locator(".ap-var").count()), "every variant tile needs a photo or a side view");
+    const pic = ap.locator(".ap-var svg[role=img], .ap-var img.ap-photo").first();
+    const label = (await pic.getAttribute("aria-label")) ?? (await pic.getAttribute("alt"));
+    assert(label && label.length < 80, `tile picture label: ${label}`);
     // Arrow keys move focus along the family tabs; roving tabindex follows.
     await ap.locator(".ap-fam").first().focus();
     if ((await ap.locator(".ap-fam").count()) > 1) {
