@@ -1353,3 +1353,19 @@ Shared flags: fuelBurnKgPerKm ESTIMATE; listPriceUsdM 105.1 is the A300 FAMILY u
 - A300B1: only two built, never in airline service; no range, seats, runway, price.
 - A300-600F: a freighter; the game has no cargo model, so maxSeats would be invented, and no -600F range or field length was found (Airbus history page blocked).
 - A319neo (not requested): not added. A220 and A321ceo/neo already exist.
+
+## lane/aircraft-747-8 (Boeing 747-8 Intercontinental, added 16 Nov 2026)
+Fetched 2026-11-16: Wikipedia Boeing_747-8 (https://en.wikipedia.org/wiki/Boeing_747-8) and the FAA special-conditions notices for the 747-8 in the Federal Register (https://www.govinfo.gov/content/pkg/FR-2011-10-11/pdf/2011-25504.pdf), found by web search.
+
+| id | field | value | basis |
+|---|---|---|---|
+| B747-8I | rangeKm | 14320 | Boeing_747-8 comparison table: 7,730 nmi (14,320 km) with 410 passengers. The page also gives 7,790 nmi with 467 passengers and 8,000 nmi in the variant text |
+| B747-8I | cruiseKmh | 908 | Boeing_747-8: Mach 0.855 (908 km/h) |
+| B747-8I | maxSeats | 605 | FAA Federal Register notice: capacity to carry 605 passengers (main deck 495, upper deck 110). Read from a search summary of the notice, not from the PDF itself. Typical three-class seating is 467 (Wikipedia) or 410 (later Boeing figure) |
+| B747-8I | listPriceUsdM | 418.4 | Boeing_747-8: 2019 list price US$418.4M |
+| B747-8I | introYear / endYear | 2012 / 2022 | Boeing_747-8: Lufthansa 1 Jun 2012; last 747 rolled out 6 Dec 2022 (a freighter, delivered 31 Jan 2023). The last passenger 747-8I was delivered in 2021 |
+| B747-8I | runwayNeededM | 3260 | DERIVED: not stated on the page; the 747-400ER row's figure is used |
+| B747-8I | fuelBurnKgPerKm | 10.8 | DERIVED: 747-400 row (11.5) x 0.84 x 467/416, from Boeing's claim of 16% less fuel per seat than the -400 at 467 against 416 seats. Not a measured figure |
+| B747-8I | visual | 76.25 m long, 68.40 m span | Boeing_747-8 (250 ft 2 in; 224 ft 5 in). Four engines under the wing, stretched upper deck, raked wingtips (no winglets) |
+
+Overwater: unlimited (four engines), as for the other 747 rows. Cabin geometry (`sim/src/cabin/geometry.ts`): ESTIMATE by the same rule as the 747-400ER, equivalent cabin length 76.5 m (overall length x 1.0, upper deck counted as extra length), width 6.10 m, 10 abreast. No tile photo yet (drawn side view).

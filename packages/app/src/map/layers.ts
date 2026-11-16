@@ -112,7 +112,7 @@ export function buildStaticLayers(inp: LayerInput): Layer[] {
 
   layers.push(
     new ScatterplotLayer<Airport>({
-      id: "airport-select", parameters: ON_TOP, data: selAp ? [selAp] : [], getPosition: (a) => [a.lon, a.lat],
+      id: "airport-select", parameters: ON_TOP, billboard: true, data: selAp ? [selAp] : [], getPosition: (a) => [a.lon, a.lat],
       getRadius: near ? 16 : 12, radiusUnits: "pixels", filled: false, stroked: true, getLineColor: c.airportHub,
       getLineWidth: 2.5, lineWidthUnits: "pixels", updateTriggers: { getLineColor: [c], getRadius: [band] },
     }),
@@ -129,7 +129,7 @@ export function buildStaticLayers(inp: LayerInput): Layer[] {
   } else {
     layers.push(
       new ScatterplotLayer<Airport>({
-        id: "airports", parameters: ON_TOP, data: shown, getPosition: (a) => [a.lon, a.lat],
+        id: "airports", parameters: ON_TOP, billboard: true, data: shown, getPosition: (a) => [a.lon, a.lat],
         getRadius: (a) => (far && !allAirports ? 7 : far ? (isHub(a) ? 7 : 5) : near ? (isHub(a) ? 9 : 7) : isHub(a) ? 6 : 4.2), radiusUnits: "pixels",
         getFillColor: (a) => (isHub(a) ? c.airportHub : c.airportFill), getLineColor: c.airportStroke,
         getLineWidth: 1.6, lineWidthUnits: "pixels", stroked: true, pickable: true, autoHighlight: true,
@@ -158,7 +158,7 @@ export function buildAircraftLayer(model: MapModel, c: MapColors, band: ZoomBand
   const data = visible ? all.filter((d) => visible(d.position[0], d.position[1])) : all;
   // A disc, not the plane icon: icon layers do not draw on the globe (see buildStaticLayers).
   return new ScatterplotLayer<{ position: [number, number] }>({
-    id: "aircraft", parameters: ON_TOP, data, getPosition: (d) => d.position,
+    id: "aircraft", parameters: ON_TOP, billboard: true, data, getPosition: (d) => d.position,
     getRadius: band === "far" ? 3.2 : 4.2, radiusUnits: "pixels", getFillColor: c.aircraft, getLineColor: c.casing,
     getLineWidth: 1.2, lineWidthUnits: "pixels", stroked: true, pickable: false,
     updateTriggers: { getFillColor: [c], getLineColor: [c] },
@@ -218,7 +218,7 @@ export function buildGhostLayers(ghost: Ghost, c: MapColors, visible?: (lon: num
   if (ends.length) {
     layers.push(
       new ScatterplotLayer<Airport>({
-        id: "ghost-ends", parameters: ON_TOP, data: ends, getPosition: (a) => [a.lon, a.lat], getRadius: 15, radiusUnits: "pixels", filled: true, stroked: true,
+        id: "ghost-ends", parameters: ON_TOP, billboard: true, data: ends, getPosition: (a) => [a.lon, a.lat], getRadius: 15, radiusUnits: "pixels", filled: true, stroked: true,
         getFillColor: withA(c.airportHub, 70), getLineColor: withA(c.airportHub, 255), getLineWidth: 3, lineWidthUnits: "pixels", pickable: false,
         updateTriggers: { getFillColor: [c], getLineColor: [c] },
       }),
