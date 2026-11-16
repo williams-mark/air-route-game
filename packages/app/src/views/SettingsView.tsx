@@ -1,6 +1,8 @@
 import { UI_SCALES, useUi } from "../store";
 import { useDock } from "../notify/dockStore";
 import { CORNERS } from "../notify/dockLogic";
+import { AIRCRAFT_IMAGES } from "../aircraft/images";
+import { shortTypeLabel } from "../aircraft/names";
 
 export default function SettingsView() {
   const ui = useUi();
@@ -38,6 +40,17 @@ export default function SettingsView() {
           </div>
         </div>
       </section>
+      {Object.keys(AIRCRAFT_IMAGES).length > 0 && (
+        <details className="panel-box credits">
+          <summary><strong>Aircraft photo credits</strong> ({Object.keys(AIRCRAFT_IMAGES).length} photos from Wikimedia Commons)</summary>
+          <p>Each photo is a resized copy of the original, used under the licence shown. Follow the link for the original file and the full licence.</p>
+          <ul>
+            {Object.entries(AIRCRAFT_IMAGES).map(([id, img]) => (
+              <li key={id}>{shortTypeLabel(id)}: <a href={img.page} target="_blank" rel="noreferrer noopener">{img.title}</a> by {img.author || "unknown author"}, {img.license}</li>
+            ))}
+          </ul>
+        </details>
+      )}
       <p className="build-stamp" style={{ fontSize: 11, opacity: 0.6 }}>Build {__BUILD_SHA__} &middot; {__BUILD_DATE__}</p>
     </div>
   );

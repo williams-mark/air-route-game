@@ -18,7 +18,7 @@ import { playerHubs } from "./route/farePolicy";
 import { weeklySlotFees } from "./route/congestion";
 import { stepOffers } from "./offers";
 import { airportOpen, closureOf, dayLabel } from "./world/closures";
-import { pandemicFactor, pandemicNewsOn } from "./demand/pandemic";
+import { pandemicEnabled, pandemicFactor, pandemicNewsOn } from "./demand/pandemic";
 import { isBankrupt, overdraftInterestUsd, stepCredit } from "./finance/credit";
 import { rivalItinerariesFor, stepRivals } from "./rivals";
 import { DEFAULT_SIM_PARAMS, FARE_FLOOR_NOTICE_DAYS, FULL_ROUTE_LOAD_FACTOR, type AircraftMeta, type CheckKind, type RouteReport, type SimParams, type SimState } from "./state";
@@ -154,7 +154,8 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   const rng = makeRng(mixSeed(world.seed, day));
   const notices: SimEvent[] = [];
   const say = (text: string) => notices.push({ kind: "notice", day, text });
-  if (params.pandemic !== false) for (const n of pandemicNewsOn(day)) say(n);
+  const pandemic = pandemicEnabled(params.pandemic, state.rivals?.originDay ?? 0);
+  if (pandemic) for (const n of pandemicNewsOn(day)) say(n);
   const ctx = { airports, types, prefs: plannerPrefs(state, day), homeHub: homeHubOf(state) };
 
   // Work on private copies so the input state is never modified.
@@ -244,7 +245,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     noise: (route) => {
       const n = 1 + (rng() - 0.5) * params.demandNoise;
       const a = airports.get(route.origin), b = airports.get(route.destination);
-      return a && b && params.pandemic !== false ? n * pandemicFactor(day, a, b) : n;
+      return a && b && pandemic ? n * pandemicFactor(day, a, b) : n;
     },
     // Weekly step: routes with a target load factor are re-priced before they are simulated (see liveModel).
     solveFares: day % 7 === 0,

@@ -11,6 +11,10 @@ export function useInspectedRoute() {
   const routes = useSimSelector((s) => s.routes);
   return sel?.kind === "route" ? routes.find((r) => r.id === sel.id) : undefined;
 }
+/** True while the creation sandbox is only asking for the two airports: the panel is then a small card and the map keeps its full width. */
+export function usePanelCompact(): boolean {
+  return useCreation((s) => s.open && (!s.origin || !s.destination));
+}
 export function usePanelOpen(): boolean {
   const creating = useCreation((s) => s.open);
   const route = useInspectedRoute();
@@ -23,11 +27,12 @@ export function RoutePanel() {
   const route = useInspectedRoute();
   const select = useUi((s) => s.select);
   const end = useCreation((s) => s.end);
+  const picking = useCreation((s) => !s.origin || !s.destination);
   const ref = useRef<HTMLElement>(null);
   if (!creating && !route) return null;
   return (
     <aside
-      ref={ref} className={`route-panel ${creating ? "sandbox" : ""}`} role="complementary" aria-labelledby="rp-title"
+      ref={ref} className={`route-panel ${creating ? "sandbox" : ""} ${creating && picking ? "picking" : ""}`} role="complementary" aria-labelledby="rp-title"
       onKeyDown={(e) => {
         if (e.key !== "Escape" || e.defaultPrevented) return;
         e.stopPropagation();

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
 import { baseJetAPriceUsdPerGallon } from "../finance/fuel";
-import { pandemicFactor, pandemicNewsOn } from "./pandemic";
+import { pandemicEnabled, pandemicFactor, pandemicNewsOn } from "./pandemic";
 import { jan1Day } from "../time/calendar";
 import { runDays, startingScenario } from "../index";
 
@@ -32,13 +32,22 @@ describe("pandemic shock", () => {
     for (let d = jan1Day(2020); d < jan1Day(2023); d++) n += pandemicNewsOn(d).length;
     expect(n).toBe(5);
   });
+  it("is on by default only for games that started in 1990 or earlier; an explicit setting wins", () => {
+    expect(pandemicEnabled(undefined, jan1Day(1990))).toBe(true);
+    expect(pandemicEnabled(undefined, jan1Day(1991))).toBe(false);
+    expect(pandemicEnabled(undefined, 0)).toBe(false); // 2015, and old saves
+    expect(pandemicEnabled(true, 0)).toBe(true);
+    expect(pandemicEnabled(false, jan1Day(1972))).toBe(false);
+    const s = runDays(startingScenario(airports, aircraftTypes, 4, { startYear: 2019, presentYear: 2026 }), 500);
+    expect(s.events.concat().some((e) => "text" in e && /COVID/.test(String(e.text)))).toBe(false);
+  }, 120_000);
   it("cuts 2020 revenue sharply, leaves a game with the shock off untouched, and does not touch a game starting in 2024", () => {
     const rev = (s: ReturnType<typeof startingScenario>, days: number) => {
       const t = runDays(s, days);
       return t.snapshots.slice(-days).reduce((a, x) => a + x.revenue, 0);
     };
     const mk = (opts = {}) => startingScenario(airports, aircraftTypes, 4, { startYear: 2019, presentYear: 2026, ...opts });
-    const a = mk(), b = mk({ pandemic: false });
+    const a = mk({ pandemic: true }), b = mk({ pandemic: false });
     const withShock = rev(a, 730), without = rev(b, 730);
     expect(withShock).toBeLessThan(0.85 * without);
     const late1 = startingScenario(airports, aircraftTypes, 4, { startYear: 2024, presentYear: 2026 });

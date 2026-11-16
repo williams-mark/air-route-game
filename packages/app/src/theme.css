@@ -55,3 +55,9 @@ button[aria-pressed="true"], button.on { background: var(--accent); color: var(-
 /* Cabin designer class colours (seat maps, legends). */
 :root[data-theme="dark"] { --cabin-F: #e0b04a; --cabin-J: #5fb4f0; --cabin-W: #9b8cf0; --cabin-Y: #5c7a96; }
 :root[data-theme="light"] { --cabin-F: #b8841a; --cabin-J: #1f78c1; --cabin-W: #6b57d6; --cabin-Y: #7f95aa; }
+
+/* Airport labels over the globe (HTML: the map's text layer does not draw in globe projection). */
+.map-labels { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
+.map-labels span { position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 12px; font-weight: 650; line-height: 1; color: var(--map-label);
+  text-shadow: 0 0 3px var(--map-label-halo), 0 0 3px var(--map-label-halo), 0 0 2px var(--map-label-halo), 0 0 2px var(--map-label-halo); }
+.map-labels span.hub { font-size: 14px; }

@@ -14,7 +14,7 @@ import { CommandPalette } from "./shell/CommandPalette";
 import { ShortcutsOverlay } from "./shell/ShortcutsOverlay";
 import { PLANNER_ENABLED, VIEWS, viewForKey } from "./shell/views";
 import { MapView } from "./views/MapView";
-import { RoutePanel, usePanelOpen } from "./routes/RoutePanel";
+import { RoutePanel, usePanelCompact, usePanelOpen } from "./routes/RoutePanel";
 import { Toasts } from "./routes/Toasts";
 import { useToasts } from "./routes/store";
 import { useCreation } from "./routes/store";
@@ -98,6 +98,7 @@ export function Shell() {
   const palette = useUi((s) => s.paletteOpen);
   const help = useUi((s) => s.helpOpen);
   const panel = usePanelOpen();
+  const panelCompact = usePanelCompact();
   useGlobalKeys();
   useAutosave();
   const startOpen = useUi((s) => s.startOpen);
@@ -110,7 +111,7 @@ export function Shell() {
       <TopBar />
       <DistressBanner />
       <Toolbar />
-      <div className={`main ${view === "map" ? "on-map" : ""} ${panel ? "has-panel" : ""}`}>
+      <div className={`main ${view === "map" ? "on-map" : ""} ${panel && !panelCompact ? "has-panel" : ""}`}>
         <MapView />
         {page}
         <RoutePanel />

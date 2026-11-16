@@ -6,6 +6,7 @@ import type { MapColors } from "./colors";
 export function buildStyle(c: MapColors): StyleSpecification {
   return {
     version: 8,
+    projection: { type: "globe" },
     sources: { land: { type: "geojson", data: land as never } },
     layers: [
       { id: "water", type: "background", paint: { "background-color": c.water } },
