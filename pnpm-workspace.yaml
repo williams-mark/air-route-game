@@ -1,2 +1,10 @@
 packages:
   - "packages/*"
+# Allow install scripts (Electron binary download, esbuild native binary).
+# onlyBuiltDependencies is read by pnpm 10; allowBuilds by pnpm 11.
+onlyBuiltDependencies:
+  - electron
+  - esbuild
+allowBuilds:
+  electron: true
+  esbuild: true

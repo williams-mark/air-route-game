@@ -1,3 +1,5 @@
+import { getPlatform } from "../platform";
+
 // Tiny IndexedDB wrapper (no dependency). A SaveStore keeps one record per slot: small metadata plus the save text.
 export type SlotId = "auto" | "1" | "2" | "3" | "4" | "5";
 export const MANUAL_SLOTS: SlotId[] = ["1", "2", "3", "4", "5"];
@@ -78,9 +80,7 @@ export class IdbStore implements SaveStore {
   }
 }
 
-let shared: SaveStore | null = null;
-/** The browser store; falls back to memory (saves lost on reload) when IndexedDB is unavailable. */
+/** The save store of the current platform: IndexedDB in the browser (memory when unavailable), files on the desktop. */
 export function getStore(): SaveStore {
-  shared ??= typeof indexedDB !== "undefined" ? new IdbStore() : new MemoryStore();
-  return shared;
+  return getPlatform().saves;
 }

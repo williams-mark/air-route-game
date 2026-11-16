@@ -10,6 +10,9 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      # Empty until the Cloudflare secrets are added to the repository; the deploy step is skipped until then.
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -23,7 +26,7 @@ jobs:
       - run: pnpm build
       # Skipped on fork PRs, which cannot read secrets.
       - name: Deploy to Cloudflare Pages
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        if: env.CLOUDFLARE_API_TOKEN != '' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

@@ -20,6 +20,7 @@ import { useToasts } from "./routes/store";
 import { useCreation } from "./routes/store";
 import { SaveDialog, StartScreen, quickSave } from "./save/SaveUi";
 import { installAutosave } from "./save/saves";
+import { useAchievementTracker } from "./achievements/useAchievementTracker";
 import "./routes/routes.css";
 
 const LAZY: Partial<Record<ViewId, ReturnType<typeof lazy>>> = {
@@ -101,6 +102,7 @@ export function Shell() {
   const panelCompact = usePanelCompact();
   useGlobalKeys();
   useAutosave();
+  useAchievementTracker();
   const startOpen = useUi((s) => s.startOpen);
   const saveDialog = useUi((s) => s.saveDialog);
   const Lazy = LAZY[view];

@@ -1,15 +1,58 @@
+import { useEffect, useState } from "react";
 import { UI_SCALES, useUi } from "../store";
+import { getPlatform } from "../platform";
+import { bridge } from "../sim/useSim";
+import { saveToSlot } from "../save/saves";
+import { useToasts } from "../routes/store";
 import { useDock } from "../notify/dockStore";
 import { CORNERS } from "../notify/dockLogic";
 import { AIRCRAFT_IMAGES } from "../aircraft/images";
 import { shortTypeLabel } from "../aircraft/names";
+import { AchievementsList } from "../achievements/AchievementsList";
+
+/** Desktop-only rows: fullscreen and quit. Rendered only when the platform is the Electron app. */
+function DesktopSettings() {
+  const platform = getPlatform();
+  const [full, setFull] = useState(false);
+  const [quitting, setQuitting] = useState(false);
+  useEffect(() => { void platform.fullscreen.get().then(setFull).catch(() => undefined); }, [platform]);
+  const toggle = async () => {
+    const next = !full;
+    setFull(next);
+    try { await platform.fullscreen.set(next); } catch { setFull(!next); }
+  };
+  const quit = async () => {
+    setQuitting(true);
+    // Same rules as the autosave hook: no autosave from the start screen, after bankruptcy or during the campaign review.
+    const s = bridge.getState();
+    if (!useUi.getState().startOpen && !s.credit?.bankrupt && !s.review) {
+      const o = await saveToSlot(bridge, "auto");
+      if (!o.ok) useToasts.getState().push("info", `Autosave failed: ${o.message}`);
+    }
+    await platform.quit();
+    setQuitting(false);
+  };
+  return (
+    <>
+      <div className="setting">
+        <div><strong id="s-full">Fullscreen</strong><p>Fill the whole screen.</p></div>
+        <button type="button" role="switch" className="switch" aria-checked={full} aria-labelledby="s-full" onClick={toggle}><span /></button>
+      </div>
+      <div className="setting">
+        <div><strong>Quit to desktop</strong><p>Autosaves, then closes the game.</p></div>
+        <button disabled={quitting} onClick={quit}>Quit to desktop</button>
+      </div>
+    </>
+  );
+}
 
 export default function SettingsView() {
   const ui = useUi();
   const dock = useDock();
+  const desktop = getPlatform().kind === "desktop";
   return (
     <div className="page narrow">
-      <header className="page-head"><h1>Settings</h1><p>Saved in this browser.</p></header>
+      <header className="page-head"><h1>Settings</h1><p>{desktop ? "Saved on this computer." : "Saved in this browser."}</p></header>
       <section className="panel-box">
         <div className="setting">
           <div><strong id="s-theme">Theme</strong><p>Light or dark interface and map.</p></div>
@@ -39,6 +82,7 @@ export default function SettingsView() {
             <button onClick={() => ui.setSaveDialog("load")}>Load…</button>
           </div>
         </div>
+        {desktop && <DesktopSettings />}
       </section>
       {Object.keys(AIRCRAFT_IMAGES).length > 0 && (
         <details className="panel-box credits">
@@ -51,6 +95,7 @@ export default function SettingsView() {
           </ul>
         </details>
       )}
+      <AchievementsList />
       <p className="build-stamp" style={{ fontSize: 11, opacity: 0.6 }}>Build {__BUILD_SHA__} &middot; {__BUILD_DATE__}</p>
     </div>
   );
