@@ -48,10 +48,11 @@ export function wholeGlobeZoom(widthPx: number, heightPx: number, lat: number): 
   return Math.log2((radius * 2 * Math.PI) / (512 * Math.max(0.2, Math.cos((lat * Math.PI) / 180))));
 }
 
-function fitCamera(map: MLMap, preset: CameraPresetId, airports: readonly Airport[], padding: Required<NonNullable<AirMapProps["padding"]>>) {
+function fitCamera(map: MLMap, preset: CameraPresetId, airports: readonly Airport[], padding: Required<NonNullable<AirMapProps["padding"]>>, focus?: { lon: number; lat: number } | null) {
   if (preset === "world") {
-    // On a globe "world" is the whole sphere, turned to where the player is looking (no single view shows every airport).
-    const c = map.getCenter(), box = map.getContainer();
+    // On a globe "world" is the whole sphere (no single view shows every airport), turned to the player's network (`focus`, the
+    // airport most of their routes touch) or, without routes, to where they are looking.
+    const c = focus ? { lng: focus.lon, lat: focus.lat } : map.getCenter(), box = map.getContainer();
     const lat = Math.max(-35, Math.min(45, c.lat));
     const zoom = wholeGlobeZoom(box.clientWidth - padding.left - padding.right, box.clientHeight - padding.top - padding.bottom, lat);
     return { center: [c.lng, lat] as [number, number], zoom: Math.max(map.getMinZoom(), zoom), padding };
@@ -82,6 +83,16 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
   const [labels, setLabels] = useState<Array<{ id: string; text: string; x: number; y: number; hub: boolean }>>([]);
 
   const model = useMemo(() => buildModel(airports, routes), [airports, routes]);
+  // The airport most routes touch (the home hub in practice): where the "world" view turns the globe to.
+  const focusRef = useRef<{ lon: number; lat: number } | null>(null);
+  focusRef.current = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const r of routes) for (const id of [r.origin, r.destination]) n.set(id, (n.get(id) ?? 0) + 1);
+    let best: string | null = null;
+    for (const [id, k] of n) if (best === null || k > n.get(best)!) best = id;
+    const a = best ? model.byId.get(best) : undefined;
+    return a ? { lon: a.lon, lat: a.lat } : null;
+  }, [routes, model]);
   // Globe: false for a point on the far side. Stable identity; it reads the live camera.
   const visible = useRef((lon: number, lat: number) => {
     const t = mapRef.current?.transform as unknown as { isLocationOccluded?: (l: maplibregl.LngLat) => boolean } | undefined;
@@ -151,7 +162,7 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
     map.on("load", () => {
       const saved = loadCamera();
       if (saved) map.jumpTo({ center: saved.center, zoom: Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), saved.zoom)) });
-      else map.jumpTo(fitCamera(map, "world", airportsRef.current, padRef.current));
+      else map.jumpTo(fitCamera(map, "world", airportsRef.current, padRef.current, focusRef.current));
       updateBand();
       setReady(true);
     });
@@ -216,11 +227,21 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
     return () => { map.off("moveend", run); map.off("move", onMove); cancelAnimationFrame(raf); };
   }, [ready, model, showAllAirports, selectedAirportId]);
 
+  // A game has just started or loaded (the first routes appear): turn the globe to the player's network.
+  const hadFocus = useRef(false);
+  const focusKey = focusRef.current ? `${focusRef.current.lon},${focusRef.current.lat}` : "";
+  useEffect(() => {
+    const map = mapRef.current, f = focusRef.current;
+    if (!map || !ready) return;
+    if (f && !hadFocus.current && !visible(f.lon, f.lat)) map.jumpTo({ center: [f.lon, Math.max(-35, Math.min(45, f.lat))] });
+    hadFocus.current = !!f;
+  }, [ready, focusKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Camera presets.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || presetNonce === 0) return;
-    map.flyTo({ ...fitCamera(map, preset, airportsRef.current, pad), duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1800, essential: true });
+    map.flyTo({ ...fitCamera(map, preset, airportsRef.current, pad, focusRef.current), duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1800, essential: true });
   }, [presetNonce, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Theme restyle.

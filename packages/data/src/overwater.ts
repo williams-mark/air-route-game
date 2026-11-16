@@ -54,6 +54,7 @@ const diversionMinutes: Record<string, number | null> = {
   "B747-300": null,
   "B747SP": null,
   "B747-400ER": null,
+  "B747-8I": null,
   "B757-300": 180,
   "B767-200": 90,
   "B767-200ER": 180,

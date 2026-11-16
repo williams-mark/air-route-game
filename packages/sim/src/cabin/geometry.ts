@@ -93,6 +93,7 @@ const TABLE: Record<string, Row> = {
   "B747-300": [67.0, 6.1, [10]],
   "B747SP": [51.0, 6.1, [10]],
   "B747-400ER": [71.0, 6.1, [10]],
+  "B747-8I": [76.5, 6.1, [10]], // ESTIMATE, same rule as the -400ER: overall length 76.25 m x 1.0 (upper deck counted as equivalent length), rounded up to 0.5 m
   "B757-300": [42.0, 3.54, [6]],
   "B767-200": [37.5, 4.72, [7, 8, 9]],
   "B767-200ER": [37.5, 4.72, [7, 8, 9]],
