@@ -7,3 +7,4 @@ packages/app/screenshots/qa/
 .claude/
 
 packages/app/src/dev/stress-airports.local.json
+packages/desktop/release/

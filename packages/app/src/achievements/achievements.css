@@ -1,0 +1,13 @@
+.ach-list { list-style: none; margin: 0; padding: 0; }
+.ach { display: grid; grid-template-columns: 1.4rem 1fr auto; align-items: start; gap: .7rem; padding: .7rem 0; border-bottom: 1px solid var(--line); }
+.ach:last-child { border-bottom: 0; }
+.ach p { margin: .15rem 0 0; color: var(--text-dim); font-size: .82rem; }
+.ach-mark { width: 1.2rem; height: 1.2rem; margin-top: .1rem; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; font-size: .8rem; line-height: 1; }
+.ach-done .ach-mark { background: var(--pos); border-color: var(--pos); color: var(--bg); }
+.ach-state { font-size: .78rem; color: var(--text-dim); white-space: nowrap; }
+.ach-done .ach-state { color: var(--pos); }
+.ach-note { margin: 0 0 .5rem; color: var(--text-dim); font-size: .82rem; }
+@media (max-width: 520px) {
+  .ach { grid-template-columns: 1.4rem 1fr; }
+  .ach-state { grid-column: 2; }
+}
