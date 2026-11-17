@@ -10,7 +10,7 @@ import { distanceKm } from "./geo";
 import { regionGroupOf } from "./world/regions";
 import { makeRng, mixSeed } from "./rng";
 import { newSim, stepDay, type StartOptions } from "./index";
-import { inProduction } from "./fleet/availability";
+import { canOrderNew, inProduction } from "./fleet/availability";
 import { jan1Day, START_YEAR } from "./time/calendar";
 import { startYearError } from "./time/startYear";
 import { startCampaign } from "./campaign/campaign";
@@ -64,6 +64,45 @@ export interface ScenarioOptions {
   campaignYears?: number | null;
   /** Scripted 2020-2023 pandemic demand shock (demand/pandemic.ts). Default: on only for games starting in 1990 or earlier (`pandemicEnabled`); true or false forces it. Stored in `SimState.params.pandemic`. */
   pandemic?: boolean;
+  /**
+   * The player's own starting fleet (type id, count): brand-new aircraft, owned outright and delivered on day one, worth at most
+   * `START_FLEET_BUDGET_USD` at list price. The game then starts with no routes. Absent = the standard fleet and routes.
+   * Checked by `startFleetError`.
+   */
+  startFleet?: ReadonlyArray<readonly [typeId: string, count: number]>;
+}
+
+/** List-price budget for a player-chosen starting fleet. */
+export const START_FLEET_BUDGET_USD = 500_000_000;
+/** Most aircraft a chosen starting fleet may hold (keeps the hangar sane with cheap old types). */
+export const START_FLEET_MAX_AIRCRAFT = 40;
+
+/** Types a chosen starting fleet may use in a start year: in service that year (introduced, not out of production long ago). */
+export function startFleetTypes(types: readonly AircraftType[], year: number): AircraftType[] {
+  return types.filter((t) => t.introYear <= year && canOrderNew(t, year, 0));
+}
+
+/** List value of a chosen starting fleet in USD (unknown type ids count 0). */
+export function startFleetValueUsd(types: readonly AircraftType[], fleet: ReadonlyArray<readonly [string, number]>): number {
+  const byId = new Map(types.map((t) => [t.id, t]));
+  return fleet.reduce((s, [id, n]) => s + (byId.get(id)?.listPriceUsdM ?? 0) * 1e6 * n, 0);
+}
+
+/** Why a chosen starting fleet is not allowed, or null when it is. */
+export function startFleetError(types: readonly AircraftType[], fleet: ReadonlyArray<readonly [string, number]>, year: number): string | null {
+  if (fleet.length === 0) return "Choose at least one aircraft.";
+  const allowed = new Map(startFleetTypes(types, year).map((t) => [t.id, t]));
+  let count = 0;
+  for (const [id, n] of fleet) {
+    if (!Number.isInteger(n) || n < 1) return `Aircraft counts must be whole numbers of 1 or more (${id}: ${n}).`;
+    if (!types.some((t) => t.id === id)) return `Unknown aircraft type ${id}.`;
+    if (!allowed.has(id)) return `The ${types.find((t) => t.id === id)!.name} is not available new in ${year}.`;
+    count += n;
+  }
+  if (count > START_FLEET_MAX_AIRCRAFT) return `At most ${START_FLEET_MAX_AIRCRAFT} aircraft (chosen: ${count}).`;
+  const value = startFleetValueUsd(types, fleet);
+  if (value > START_FLEET_BUDGET_USD + 1e-6) return `The fleet costs ${(value / 1e6).toFixed(1)}M at list price; the budget is ${START_FLEET_BUDGET_USD / 1e6}M.`;
+  return null;
 }
 
 /** Fleet plan of a start year: aircraft type ids with counts, and the hub slots (type id and distance band) for derived routes. */
@@ -269,6 +308,25 @@ export function startingScenario(airports: Airport[], aircraftTypes: AircraftTyp
   const era = startYear === START_YEAR ? null : eraPlanFor(aircraftTypes, startYear);
   const plan: ReadonlyArray<readonly [string, number]> = era ? era.fleet : STARTING_FLEET;
   const startDay = era ? era.day : 0;
+
+  if (options.startFleet) {
+    // Player-chosen fleet: new aircraft, owned, delivered on day one; no starting routes (the player opens them).
+    const err = startFleetError(aircraftTypes, options.startFleet, startYear);
+    if (err) throw new Error(`startingScenario: ${err}`);
+    const fleet: Aircraft[] = [];
+    for (const [typeId, count] of options.startFleet) {
+      const type = typeById.get(typeId)!;
+      for (let i = 0; i < count; i++) {
+        const n = fleet.length + 1;
+        fleet.push({ id: `ac-${n}`, typeId, tailNumber: tailFor(n, hub), layout: defaultLayout(type), status: "active", ageDays: 0, hoursSinceCheck: { A: 0, B: 0, C: 0, D: 0 } });
+      }
+    }
+    const opts: StartOptions = { cash: STARTING_CASH_USD, fleet, routes: [], airlineName, baseAirport: hubId, day: startDay };
+    const sim = newSim(seed, airports, aircraftTypes, options.pandemic === undefined ? { notionalFleet: false } : { notionalFleet: false, pandemic: options.pandemic }, opts);
+    // The campaign grade is a multiple of what the airline started with; here that includes the fleet it was given.
+    const campaign = startCampaign(startYear, options.campaignYears, STARTING_CASH_USD + startFleetValueUsd(aircraftTypes, options.startFleet));
+    return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, [], startDay), ...(campaign ? { campaign: { ...campaign, peakCashUsd: STARTING_CASH_USD } } : {}) };
+  }
 
   const buildFleet = (counts: ReadonlyMap<string, number>): Aircraft[] => {
     const rng = makeRng(mixSeed(seed, 0xf1ee7));

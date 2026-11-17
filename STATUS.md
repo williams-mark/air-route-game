@@ -1,3 +1,8 @@
+## lane/start-fleet-menu (17 Nov 2026; built on lane/aircraft-photos)
+- Starting fleet: the start screen offers "Standard fleet and routes" or "Choose my own ($500M)": brand-new owned aircraft delivered on day one, up to $500M at list price and 40 aircraft, types in service in the start year (sim `startingScenario` option `startFleet`, `startFleetError`). No starting routes; cash is the usual $150M. The campaign grade baseline is starting cash plus the fleet's list value. Not done: no routes are suggested for a chosen fleet.
+- Game menu in the top bar: Quick save, Save to a slot or file, Load a game, Quit to main menu (autosaves first; Continue brings the game back).
+- A300B2 and A300B4-100 maxSeats 281/336 to 345 (same fuselage and doors as the B4-200; source note in data SOURCES.md).
+
 ## lane/owner-backlog (owner's list of 15 Nov 2026; on top of lane/connecting-floor)
 - Pandemic: the 2020-23 demand shock now applies only to games that started in 1990 or earlier (`pandemicEnabled`, sim `demand/pandemic.ts`); `SimParams.pandemic` true/false still forces it. Existing saves from later start years lose the shock on the next day. The balance harness therefore runs without it unless `pandemic: true` is passed.
 - New route panel: a small card (21rem, top right) while the two airports are being picked, and the map keeps its full width; it grows to the full sandbox once both ends are set.

@@ -5,6 +5,7 @@ import { useUi } from "../store";
 import { IconKeyboard, IconMoon, IconSearch, IconSun, IconBell, IconTag } from "./icons";
 import { Sparkline } from "./Sparkline";
 import { useOffersUi } from "../offers/store";
+import { GameMenu } from "./GameMenu";
 
 export function TopBar() {
   const sim = useSim();
@@ -32,6 +33,7 @@ export function TopBar() {
       </div>
 
       <div className="topbar-right">
+        <GameMenu />
         {pending > 0 && (
           <button className="pill-btn" aria-label={`${pending} pending decisions. Show`} onClick={() => { ui.unsnoozeAll(); toggleDock(true); }}>
             <IconBell size={16} /> {pending}

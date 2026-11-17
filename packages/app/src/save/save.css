@@ -26,3 +26,21 @@
 .start-new input[aria-invalid="true"] { border-color: var(--sev-alert); }
 .start-new .primary { grid-column: 1 / -1; justify-self: end; font-weight: 650; }
 .start-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+/* Start screen: player-chosen starting fleet. Colours from theme.css variables only. */
+.start-card { width: min(34rem, 100%); max-height: calc(100vh - 2rem); overflow-y: auto; }
+.start-fleet-wrap { grid-column: 1 / -1; }
+.start-fleet { display: flex; flex-direction: column; gap: .5rem; padding: .6rem; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+.sf-add { display: flex; gap: .4rem; }
+.sf-add select { flex: 1; min-width: 0; }
+.sf-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .25rem; max-height: 11rem; overflow-y: auto; }
+.sf-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto 6.5rem; align-items: center; gap: .5rem; font-size: .85rem; }
+.sf-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sf-step { display: inline-flex; align-items: center; gap: .35rem; }
+.sf-step button { width: 1.7rem; height: 1.7rem; padding: 0; }
+.sf-step b { min-width: 1.4rem; text-align: center; font-variant-numeric: tabular-nums; }
+.sf-cost { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-dim); }
+.sf-budget { display: flex; flex-direction: column; gap: .25rem; font-size: .8rem; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.sf-bar { height: .45rem; border-radius: 4px; background: var(--panel); border: 1px solid var(--line); overflow: hidden; }
+.sf-bar > i { display: block; height: 100%; background: var(--accent); }
+.start-hint.bad { color: var(--sev-alert); }
