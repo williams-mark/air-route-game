@@ -263,3 +263,7 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 .route-panel.sandbox.picking .rp-scroll { padding: .3rem .7rem .5rem; overflow: visible; }
 .route-panel.sandbox.picking .rp-pair { grid-template-columns: 1fr; gap: .15rem; }
 .route-panel.sandbox.picking .rp-swap { display: none; }
+
+/* Each sandbox column scrolls on its own when its content is taller than the panel (an open aircraft browser, a long fares
+   block), so nothing ends up hidden under the time pill or the action buttons. */
+.route-panel.sandbox .rc-body > * { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: .2rem; }
