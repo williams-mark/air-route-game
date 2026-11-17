@@ -12,7 +12,7 @@ import { assign, DEFAULT_HOME_HUB } from "./fleet/scheduler";
 import { homeHubOf } from "./fleet/hubs";
 import { diversityOf } from "./fleet/diversity";
 import { plannerPrefs } from "./planner/forecast";
-import { refreshCategoryRanking } from "./planner/categories";
+import { refreshCategoryRanking } from "./planner/rebalance";
 import { evaluateNetwork } from "./route/network";
 import { pushEvents } from "./commands";
 import { playerHubs } from "./route/farePolicy";

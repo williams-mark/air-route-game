@@ -50,6 +50,11 @@ export interface RouteReport {
   fareFloorNoticeDay?: Day;
   /** Consecutive weekly checks at or above FULL_ROUTE_LOAD_FACTOR; the app warns after 4 on a route with no fare target. */
   fullWeeks?: number;
+  /**
+   * One-way weekly passengers who wanted this flight before seats ran out (the choice model's first pass, plus connecting
+   * passengers carried). Used to rank routes of an aircraft category. Absent in older saves.
+   */
+  demandOneWay?: number;
 }
 
 /** Load factor at which a route counts as full for the "Route is full" warning. */

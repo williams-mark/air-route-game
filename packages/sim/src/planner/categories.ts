@@ -8,7 +8,6 @@ import { layoutSeats } from "../fleet/layout";
 import { distanceKm } from "../geo";
 import { blockHours } from "../finance/ledger";
 import { DEFAULT_HOME_HUB, hubOfAircraft, weeklyCapacityHours } from "../fleet/scheduler";
-import { dayToDate } from "../time/calendar";
 import type { SimState } from "../state";
 import type { PlannerState } from "./types";
 
@@ -54,24 +53,6 @@ export function categoryMembers(pl: PlannerState | undefined, fleet: readonly Pi
 export function routeCategoryOf(pl: PlannerState | undefined, routeId: Id): Id | undefined {
   const c = pl?.routeCategory?.[routeId];
   return c && pl?.categories?.[c] ? c : undefined;
-}
-
-/**
- * Monthly ranking: on the first day of each month (or when there is none yet, or the set of categorised routes changed), each
- * categorised route's rank is its load factor in the latest daily report. Returns the state unchanged when no refresh is due.
- */
-export function refreshCategoryRanking(state: SimState): SimState {
-  const pl = state.planner;
-  const routes = Object.keys(pl?.routeCategory ?? {}).filter((id) => routeCategoryOf(pl, id) && state.world.routes.some((r) => r.id === id)).sort();
-  if (!pl || routes.length === 0) return state;
-  const day: Day = state.world.day;
-  const ranked = Object.keys(pl.routeRank ?? {}).sort();
-  const sameSet = ranked.length === routes.length && ranked.every((id, i) => id === routes[i]);
-  const monthStart = dayToDate(day).dayOfMonth === 1;
-  if (sameSet && pl.rankDay !== undefined && !(monthStart && pl.rankDay !== day)) return state;
-  const routeRank: Record<Id, number> = {};
-  for (const id of routes) routeRank[id] = state.routeReports[id]?.evaluation.loadFactor ?? 0;
-  return { ...state, planner: { ...pl, routeRank, rankDay: day } };
 }
 
 /** Seats of an aircraft (its own cabin). */

@@ -20,7 +20,7 @@ export interface AssignPrefs {
   reserved?: ReadonlySet<Id>;
   /**
    * Aircraft categories: route id -> the aircraft that may fly it (the route's category). Such routes are scheduled before the
-   * others, highest `routeRank` (last month's load factor) first, each taking the largest aircraft (by seats) first. They use
+   * others, highest `routeRank` (planner/rebalance.ts) first, each taking the largest aircraft (by seats) first. They use
    * only their category's aircraft; other routes may use whatever hours those aircraft have left.
    */
   routeCategory?: ReadonlyMap<Id, ReadonlySet<Id>>;

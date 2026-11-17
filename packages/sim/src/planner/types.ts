@@ -28,9 +28,13 @@ export interface PlannerState {
   aircraftCategory?: Record<Id, Id | null>;
   /** Route id -> category id: the route is flown by the category's aircraft instead of its own type. */
   routeCategory?: Record<Id, Id>;
-  /** Monthly ranking of categorised routes (load factor when ranked) and the day it was made. */
+  /** Monthly ranking of categorised routes (higher = first pick of the largest aircraft) and the day it was made (planner/rebalance.ts). */
   routeRank?: Record<Id, number>;
   rankDay?: Day;
+  /** Demand per departure each categorised route was ranked on (monthly average), for display. */
+  rankScore?: Record<Id, number>;
+  /** This month so far: summed daily demand per departure and days logged, per categorised route. */
+  demandLog?: Record<Id, { sum: number; days: number }>;
   /** Last category number handed out (ids are cat-1, cat-2, ...). */
   categorySeq?: number;
 }
