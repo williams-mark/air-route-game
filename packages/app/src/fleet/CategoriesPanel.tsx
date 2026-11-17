@@ -40,7 +40,7 @@ export function CategoriesPanel({ sim, categories, members, ownedTypeIds, onChan
   return (
     <details className="panel-box cat-panel">
       <summary><strong>Aircraft categories</strong> <span className="hint">({categories.length}) · assign routes to a group of aircraft instead of one type</span></summary>
-      <p className="hint">A route assigned to a category can be flown by any of its aircraft based at either end. Each month the scheduler ranks the category's routes by load factor and gives the fullest routes the largest aircraft first. Aircraft of an automatic type join by themselves; use the selection bar in the table below to place single aircraft (for example a sub-fleet with its own cabin).</p>
+      <p className="hint">A route assigned to a category can be flown by any of its aircraft based at either end. Each month the scheduler ranks the category's routes by demand per departure and gives the busiest routes the largest aircraft first; routes only trade places when the lower one has clearly more demand (over 12%) and the swap earns more. Aircraft of an automatic type join by themselves; use the selection bar in the table below to place single aircraft (for example a sub-fleet with its own cabin).</p>
       {categories.length > 0 && (
         <table className="data cat-table">
           <thead><tr><th scope="col">Category</th><th scope="col">Aircraft</th><th scope="col">Automatic types</th><th scope="col">Block h / wk (used / available)</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>

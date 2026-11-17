@@ -190,8 +190,8 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .cards .group-head { grid-column: 1 / -1; margin: .5rem 0 -.2rem; font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
 
 /* Fleet view: type table, hub filter, inline aircraft list. */
-.fleet-hub-filter { display: flex; align-items: center; gap: .5rem; margin: .6rem 0; font-size: .9rem; color: var(--text-dim); }
-.fleet-hub-filter select { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: .25rem .45rem; }
+.fleet-hub-filter { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .5rem; margin: .6rem 0; font-size: .9rem; color: var(--text-dim); }
+.fleet-hub-filter select { max-width: 100%; min-width: 0; font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: .25rem .45rem; }
 .fleet-types, .fleet-members { width: 100%; border-collapse: collapse; font-size: .9rem; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .fleet-types th, .fleet-types td, .fleet-members th, .fleet-members td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line); }
 .fleet-types td, .fleet-types td + td { font-variant-numeric: tabular-nums; }
@@ -289,3 +289,4 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .cat-chip.on { border-color: var(--accent); color: var(--text); }
 .cat-chip input { margin: 0; }
 .fleet-hub-filter label + select + label { margin-left: .8rem; }
+.cat-new input { width: 100%; min-width: 0; box-sizing: border-box; }
