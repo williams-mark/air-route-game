@@ -1,4 +1,5 @@
 import type { Aircraft, AircraftType, Airport, CabinClass, Day, FarePolicy, Fares, Id, Route, ServiceLevel } from "@arg/contracts";
+import { categoryBlockHours } from "../planner/categories";
 import { effectiveConnectionMarkdown, effectiveTargetLoadFactor, playerHubs } from "./farePolicy";
 import { assign, type AssignPrefs, type ScheduleResult } from "../fleet/scheduler";
 import { plannerPrefs } from "../planner/forecast";
@@ -304,7 +305,7 @@ export function previewRoutePatch(state: SimState, routeId: Id, patch: RoutePatc
 }
 
 /** Preview of a route the player has not opened yet, added to the live network (fleet, rivals, hub traffic as in the daily step). */
-export function previewNewRoute(state: SimState, draft: Omit<Route, "id">, day: Day = state.world.day): {
+export function previewNewRoute(state: SimState, draft: Omit<Route, "id">, day: Day = state.world.day, categoryId?: Id): {
   figures: PreviewFigures; ownershipIncluded: boolean; otherRoutesDelta: number; otherRoutes: { routeId: Id; delta: number }[];
   /** What the scheduler would assign (null for a notional fleet): which owned aircraft would fly it, and how many round trips. */
   scheduling: RouteReport["scheduling"];
@@ -323,10 +324,15 @@ export function previewNewRoute(state: SimState, draft: Omit<Route, "id">, day: 
   const id = "__preview__";
   const noiseOf = (rid: Id) => state.routeReports[rid]?.demandScale ?? 1;
   const base = evaluateLiveRoutes(liveInput(state, day, state.world.routes, (r) => noiseOf(r.id)));
-  const next = evaluateLiveRoutes(liveInput(state, day, [...state.world.routes, { ...draft, id }], (r) => noiseOf(r.id)));
+  // A route opened into an aircraft category is previewed as the scheduler would fly it: any aircraft of the category, the pool's hours.
+  const cat = categoryId && state.planner?.categories?.[categoryId] ? categoryId : undefined;
+  const withCat: SimState = cat ? { ...state, planner: { ...state.planner!, routeCategory: { ...(state.planner!.routeCategory ?? {}), [id]: cat } } } : state;
+  const next = evaluateLiveRoutes(liveInput(withCat, day, [...state.world.routes, { ...draft, id }], (r) => noiseOf(r.id)));
   const rep = next.reports[id];
   if (!rep) return null;
-  const hrs = routeHourSummary(state, draft.origin, draft.destination, draft.typeId, draft.weeklyFrequency);
+  const typeHrs = routeHourSummary(state, draft.origin, draft.destination, draft.typeId, draft.weeklyFrequency);
+  const pool = cat ? categoryBlockHours(state, cat, draft.origin) : null;
+  const hrs = pool ? { needed: typeHrs.needed, free: pool.free } : typeHrs;
   const perFlight = draft.weeklyFrequency > 0 ? hrs.needed / draft.weeklyFrequency : 0;
   const hoursLimited = !state.params.notionalFleet && perFlight > 0 && hrs.needed > hrs.free + 1e-9;
   const achievable = hoursLimited ? Math.max(0, Math.floor((hrs.free + 1e-9) / perFlight)) : draft.weeklyFrequency;

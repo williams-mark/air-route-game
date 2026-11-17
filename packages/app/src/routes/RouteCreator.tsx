@@ -137,7 +137,10 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
     [sugKey.typeId, sugKey.freq, originId, destinationId, mf.Y, sim?.world.day, sim?.world.fleet], // eslint-disable-line react-hooks/exhaustive-deps
   );
   useEffect(() => { if (!fareTouched && suggested) setFareTextRaw(faresToText(suggested)); }, [suggested, fareTouched]);
-  const livePrevAll = useMemo(() => (sim && typeId ? previewNewRoute(sim, dDraft) : null), [dDraft, typeId, sim?.world.day, sim?.world.fleet]); // eslint-disable-line react-hooks/exhaustive-deps
+  const categories = useMemo(() => categoriesOf(sim), [sim?.planner]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [categoryId, setCategoryId] = useState<string>("");
+  const category = categories.find((x) => x.id === categoryId);
+  const livePrevAll = useMemo(() => (sim && typeId ? previewNewRoute(sim, dDraft, undefined, category?.id) : null), [dDraft, typeId, sim?.world.day, sim?.world.fleet, category?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // No aircraft could fly it today: keep the standalone "planned, not yet operating" projection (what it would earn once you have the aircraft) instead of an idle-route loss.
   const planned = !!livePrevAll && !livePrevAll.ownershipIncluded && livePrevAll.operatedFraction === 0;
   const livePrev = planned ? null : livePrevAll;
@@ -152,7 +155,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   // "Use best" is priced on the same live model as the headline, so the two always compare like with like. The chart below stays the
   // standalone model (its shape is useful, its absolute numbers are not), and the suggestion is dropped when the live model says it is no better.
   const liveBest = useMemo(
-    () => (sim && typeId && best && !planned && best.frequency !== dDraft.weeklyFrequency ? previewNewRoute(sim, { ...dDraft, weeklyFrequency: best.frequency }) : null),
+    () => (sim && typeId && best && !planned && best.frequency !== dDraft.weeklyFrequency ? previewNewRoute(sim, { ...dDraft, weeklyFrequency: best.frequency }, undefined, category?.id) : null),
     [best?.frequency, dDraft, typeId, planned, sim?.world.day, sim?.world.fleet], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const useBest = best && (planned || !livePrev) ? { frequency: best.frequency, profit: best.profit }
@@ -162,16 +165,12 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const issue = typeId ? validateRouteDraft(draft, routes, undefined, undefined, wkDay) : { code: "no_type", message: "No owned type can fly this pair." };
   // Block-hour pool of the origin hub for the chosen type and frequency (live figures).
   // Aircraft category (optional): the route is then flown by any aircraft of the category, and the hours come from its pool.
-  const categories = useMemo(() => categoriesOf(sim), [sim?.planner]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [categoryId, setCategoryId] = useState<string>("");
-  const category = categories.find((x) => x.id === categoryId);
   const typeHours = sim && typeId ? routeHourSummary(sim, originId, destinationId, typeId, freq) : null;
   const catPool = sim && category ? categoryBlockHours(sim, category.id, originId) : null;
   const hours = typeHours && catPool ? { needed: typeHours.needed, available: catPool.available, used: catPool.used, free: catPool.free } : typeHours;
   const hoursShort = !!hours && hours.needed > hours.free + 1e-9;
   // What the projection below really shows: the preview flies at most what the hub's free block hours allow, whatever is asked.
   const achievable = hoursShort && hours && perFlight && perFlight.needed > 0 ? Math.max(0, Math.floor((hours.free + 1e-9) / perFlight.needed)) : freq;
-  // (With a category the projection still prices the planning type; the scheduler may then fly other aircraft of the category.)
   const capLine = hoursShort && hours ? `Needs ${hours.needed.toFixed(1)} block h/wk, ${Math.max(0, hours.free).toFixed(1)} free: flies ${achievable}/wk at most. The figures below are for ${achievable}/wk, not the ${freq}/wk requested, and Open route is disabled.` : null;
   const [lfText, setLfText] = useState("");
   const lf = parseTargetLf(lfText);

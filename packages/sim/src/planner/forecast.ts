@@ -30,11 +30,12 @@ export function plannerPrefs(state: SimState, day: Day): AssignPrefs | undefined
   const routeCategory = new Map<Id, ReadonlySet<Id>>();
   const routeRank = new Map<Id, number>();
   const members = categoryMembers(pl, state.world.fleet);
-  for (const r of state.world.routes) {
-    const c = routeCategoryOf(pl, r.id);
+  // Every assigned route id, including one that is not in the network yet (a new-route preview adds its draft here).
+  for (const rid of Object.keys(pl.routeCategory ?? {})) {
+    const c = routeCategoryOf(pl, rid);
     if (!c) continue;
-    routeCategory.set(r.id, new Set(members.get(c) ?? []));
-    routeRank.set(r.id, pl.routeRank?.[r.id] ?? 0);
+    routeCategory.set(rid, new Set(members.get(c) ?? []));
+    routeRank.set(rid, pl.routeRank?.[rid] ?? 0);
   }
   if (pins.size === 0 && routeTypes.size === 0 && reserved.size === 0 && routeCategory.size === 0) return undefined;
   return { pins, routeTypes, reserved, ...(routeCategory.size > 0 ? { routeCategory, routeRank } : {}) };
