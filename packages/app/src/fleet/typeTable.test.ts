@@ -28,8 +28,8 @@ describe("type table rows", () => {
     expect(rows.find((r) => r.typeId === "A321")).toMatchObject({ inService: 0, onOrder: 0 });
   });
 
-  it("keeps one row per type in first-appearance order", () => {
-    expect(buildTypeRows(fleet, "all", hours).map((r) => r.typeId)).toEqual(["B737-800", "A320", "A321"]);
+  it("keeps one row per type, sorted A-Z by type name (not purchase order)", () => {
+    expect(buildTypeRows(fleet, "all", hours).map((r) => r.typeId)).toEqual(["A320", "A321", "B737-800"]);
   });
 });
 

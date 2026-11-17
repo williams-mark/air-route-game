@@ -5,13 +5,19 @@ import { typeCanServe } from "../fleet/scheduler";
 import type { SimState } from "../state";
 import { simContext } from "./forecast";
 import { EMPTY_PLANNER, type PlannerCommand, type PlannerPin, type PlannerState } from "./types";
+import { MAX_CATEGORIES, routeCategoryOf } from "./categories";
 
 export type PlannerOk =
   | { ok: true; kind: "pinAircraft"; aircraftId: Id; routeId: Id | null }
   | { ok: true; kind: "setRouteTypes"; routeId: Id; preferredTypeIds: Id[] }
   | { ok: true; kind: "reserveAircraft"; aircraftId: Id; reserved: boolean }
   | { ok: true; kind: "applyCover"; aircraftId: Id; routeId: Id; fromDay: Day; toDay: Day }
-  | { ok: true; kind: "ignoreGap"; gapId: string; ignored: boolean };
+  | { ok: true; kind: "ignoreGap"; gapId: string; ignored: boolean }
+  | { ok: true; kind: "createCategory"; categoryId: Id }
+  | { ok: true; kind: "updateCategory"; categoryId: Id }
+  | { ok: true; kind: "deleteCategory"; categoryId: Id }
+  | { ok: true; kind: "setAircraftCategory"; aircraftIds: Id[]; categoryId: Id | null }
+  | { ok: true; kind: "setRouteCategory"; routeId: Id; categoryId: Id | null };
 export type PlannerResult = PlannerOk | CommandError;
 
 const fail = (error: CommandError["error"], message: string): CommandError => ({ ok: false, error, message });
@@ -100,6 +106,59 @@ export function applyPlannerCommand(state: SimState, cmd: PlannerCommand): { sta
         state: set({ ...pl, reserved, pins }, `${ac.tailNumber} ${cmd.reserve ? "is held as a spare" : "is back in the schedule pool"}.`),
         result: { ok: true, kind: "reserveAircraft", aircraftId: ac.id, reserved: !!cmd.reserve },
       };
+    }
+    case "createCategory":
+    case "updateCategory": {
+      const name = typeof cmd.name === "string" ? cmd.name.trim().slice(0, 40) : undefined;
+      const cats = { ...(pl.categories ?? {}) };
+      const existing = cmd.kind === "updateCategory" ? cats[cmd.categoryId] : undefined;
+      if (cmd.kind === "updateCategory" && !existing) return { state, result: fail("unknown_category", `No aircraft category "${cmd.categoryId}".`) };
+      if (cmd.kind === "createCategory" && !name) return { state, result: fail("invalid_category", "A category needs a name.") };
+      if (name !== undefined && !name) return { state, result: fail("invalid_category", "A category needs a name.") };
+      if (name && Object.values(cats).some((x) => x.name.toLowerCase() === name.toLowerCase() && x.id !== existing?.id)) {
+        return { state, result: fail("invalid_category", `There is already a category called "${name}".`) };
+      }
+      if (cmd.kind === "createCategory" && Object.keys(cats).length >= MAX_CATEGORIES) return { state, result: fail("invalid_category", `At most ${MAX_CATEGORIES} categories.`) };
+      let autoTypeIds = existing?.autoTypeIds ?? [];
+      if (cmd.autoTypeIds !== undefined) {
+        if (!Array.isArray(cmd.autoTypeIds)) return { state, result: fail("unknown_type", "Automatic types must be a list.") };
+        for (const t of cmd.autoTypeIds) if (!ctx.types.has(t)) return { state, result: fail("unknown_type", `Unknown aircraft type "${t}".`) };
+        autoTypeIds = [...new Set(cmd.autoTypeIds)];
+      }
+      const seq = cmd.kind === "createCategory" ? (pl.categorySeq ?? 0) + 1 : pl.categorySeq;
+      const id = existing?.id ?? `cat-${seq}`;
+      cats[id] = { id, name: name ?? existing!.name, autoTypeIds };
+      const text = cmd.kind === "createCategory" ? `Aircraft category "${cats[id]!.name}" created.` : undefined;
+      return { state: set({ ...pl, categories: cats, ...(seq !== undefined ? { categorySeq: seq } : {}) }, text), result: { ok: true, kind: cmd.kind, categoryId: id } };
+    }
+    case "deleteCategory": {
+      const cat = pl.categories?.[cmd.categoryId];
+      if (!cat) return { state, result: fail("unknown_category", `No aircraft category "${cmd.categoryId}".`) };
+      const categories = { ...pl.categories };
+      delete categories[cat.id];
+      const aircraftCategory = Object.fromEntries(Object.entries(pl.aircraftCategory ?? {}).filter(([, c]) => c !== cat.id));
+      const routeCategory = Object.fromEntries(Object.entries(pl.routeCategory ?? {}).filter(([, c]) => c !== cat.id));
+      return {
+        state: set({ ...pl, categories, aircraftCategory, routeCategory }, `Aircraft category "${cat.name}" deleted; its routes are flown by their own aircraft type again.`),
+        result: { ok: true, kind: "deleteCategory", categoryId: cat.id },
+      };
+    }
+    case "setAircraftCategory": {
+      if (!Array.isArray(cmd.aircraftIds) || cmd.aircraftIds.length === 0) return { state, result: fail("unknown_aircraft", "Choose at least one aircraft.") };
+      if (cmd.categoryId !== null && !pl.categories?.[cmd.categoryId]) return { state, result: fail("unknown_category", `No aircraft category "${cmd.categoryId}".`) };
+      for (const id of cmd.aircraftIds) if (!aircraftOf(id)) return { state, result: fail("unknown_aircraft", `No aircraft "${id}".`) };
+      const aircraftCategory = { ...(pl.aircraftCategory ?? {}) };
+      for (const id of cmd.aircraftIds) aircraftCategory[id] = cmd.categoryId;
+      return { state: set({ ...pl, aircraftCategory }), result: { ok: true, kind: "setAircraftCategory", aircraftIds: [...cmd.aircraftIds], categoryId: cmd.categoryId } };
+    }
+    case "setRouteCategory": {
+      const route = routeOf(cmd.routeId);
+      if (!route) return { state, result: fail("unknown_route", `No route with id "${cmd.routeId}".`) };
+      if (cmd.categoryId !== null && !pl.categories?.[cmd.categoryId]) return { state, result: fail("unknown_category", `No aircraft category "${cmd.categoryId}".`) };
+      const routeCategory = { ...(pl.routeCategory ?? {}) };
+      if (cmd.categoryId === null) delete routeCategory[route.id]; else routeCategory[route.id] = cmd.categoryId;
+      // A changed set of categorised routes is re-ranked on the next day (refreshCategoryRanking).
+      return { state: set({ ...pl, routeCategory }), result: { ok: true, kind: "setRouteCategory", routeId: route.id, categoryId: cmd.categoryId } };
     }
     case "ignoreGap": {
       if (typeof cmd.gapId !== "string") return { state, result: fail("unknown_route", "Unknown coverage gap.") };

@@ -5,6 +5,7 @@ import { blockHours } from "../finance/ledger";
 import { distanceKm } from "../geo";
 import type { SimState } from "../state";
 import { DEFAULT_HOME_HUB, hubOfAircraft, weeklyCapacityHours } from "./scheduler";
+import { routeCategoryOf } from "../planner/categories";
 
 /** Home hub of a state: world.homeHub, else the start airport, else LAX. */
 export function homeHubOf(state: { world: { homeHub?: Id }; baseAirport: Id | null }): Id {
@@ -55,7 +56,8 @@ export function hubBlockHours(state: SimState, hubId: Id, typeId: Id, excludeRou
   let used = 0;
   if (type) {
     for (const r of state.world.routes) {
-      if (r.origin !== hubId || r.typeId !== typeId || r.id === excludeRouteId) continue;
+      // Routes assigned to an aircraft category draw on that category's pool (categoryBlockHours), not their type's.
+      if (r.origin !== hubId || r.typeId !== typeId || r.id === excludeRouteId || routeCategoryOf(state.planner, r.id)) continue;
       const a = airports.get(r.origin), b = airports.get(r.destination);
       if (!a || !b) continue;
       used += r.weeklyFrequency * blockHoursPerFrequency(r, type, distanceKm(a, b));

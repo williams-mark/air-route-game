@@ -5,7 +5,8 @@ import { aircraftTypes, airportById } from "@arg/data";
 import { AircraftPicker } from "../aircraft/AircraftPicker";
 import { rangeNote, routeBlock, usableRangeKm } from "../aircraft/availability";
 import { usePickerMemory } from "../aircraft/memory";
-import { dayToDate, routeHourSummary } from "@arg/sim";
+import { categoryBlockHours, dayToDate, routeHourSummary } from "@arg/sim";
+import { categoriesOf } from "../fleet/categories";
 import { ownedOrOrderedTypeIds } from "../fleet/typeTable";
 import { useUi } from "../store";
 import { bridge, useSim } from "../sim/useSim";
@@ -160,10 +161,17 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const selectedType = aircraftTypes.find((t) => t.id === typeId);
   const issue = typeId ? validateRouteDraft(draft, routes, undefined, undefined, wkDay) : { code: "no_type", message: "No owned type can fly this pair." };
   // Block-hour pool of the origin hub for the chosen type and frequency (live figures).
-  const hours = sim && typeId ? routeHourSummary(sim, originId, destinationId, typeId, freq) : null;
+  // Aircraft category (optional): the route is then flown by any aircraft of the category, and the hours come from its pool.
+  const categories = useMemo(() => categoriesOf(sim), [sim?.planner]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [categoryId, setCategoryId] = useState<string>("");
+  const category = categories.find((x) => x.id === categoryId);
+  const typeHours = sim && typeId ? routeHourSummary(sim, originId, destinationId, typeId, freq) : null;
+  const catPool = sim && category ? categoryBlockHours(sim, category.id, originId) : null;
+  const hours = typeHours && catPool ? { needed: typeHours.needed, available: catPool.available, used: catPool.used, free: catPool.free } : typeHours;
   const hoursShort = !!hours && hours.needed > hours.free + 1e-9;
   // What the projection below really shows: the preview flies at most what the hub's free block hours allow, whatever is asked.
   const achievable = hoursShort && hours && perFlight && perFlight.needed > 0 ? Math.max(0, Math.floor((hours.free + 1e-9) / perFlight.needed)) : freq;
+  // (With a category the projection still prices the planning type; the scheduler may then fly other aircraft of the category.)
   const capLine = hoursShort && hours ? `Needs ${hours.needed.toFixed(1)} block h/wk, ${Math.max(0, hours.free).toFixed(1)} free: flies ${achievable}/wk at most. The figures below are for ${achievable}/wk, not the ${freq}/wk requested, and Open route is disabled.` : null;
   const [lfText, setLfText] = useState("");
   const lf = parseTargetLf(lfText);
@@ -174,11 +182,13 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
     if (!parsed) { push("alert", "Economy fare required; other cabins positive or blank."); return; }
     if (!lf.ok) { push("alert", TARGET_LF_MESSAGE); return; }
     const routeDraft: RouteDraft = { ...draft, targetLoadFactor: lf.value ?? undefined };
-    const res = bridge.dispatch({ kind: "openRoute", route: routeDraft });
+    const res = category
+      ? bridge.dispatch({ kind: "openCategoryRoute", route: routeDraft, categoryId: category.id })
+      : bridge.dispatch({ kind: "openRoute", route: routeDraft });
     if (res && !res.ok) { setOpenError(res.error.message); push("alert", res.error.message); return; }
     const r: Route | undefined = bridge.getState().routes.find((x) => x.origin === originId && x.destination === destinationId);
-    push("good", `Opened ${routeName(draft)}: ${freq}/wk, ${typeId}.`);
-    if (res && res.ok && res.warnings && res.warnings.length > 0) push("alert", res.warnings.join(" "));
+    push("good", `Opened ${routeName(draft)}: ${freq}/wk, ${category ? `flown by "${category.name}"` : typeId}.`);
+    if (res && res.ok && "warnings" in res && res.warnings && res.warnings.length > 0) push("alert", res.warnings.join(" "));
     end();
     if (r) selectUi({ kind: "route", id: res && res.ok && res.routeId ? res.routeId : r.id });
   };
@@ -207,6 +217,16 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
             <div className="rp-field">
               <AircraftPicker label="Aircraft type" value={typeId} onChange={setTypeId} year={year.year} types={ownedTypes}
                 block={(t) => routeBlock(t, a, b, year.year)} memoryKey="route" />
+              {categories.length > 0 && (
+                <div className="rc-flywith">
+                  <label htmlFor="rc-cat">Fly with</label>
+                  <select id="rc-cat" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+                    <option value="">This aircraft type</option>
+                    {categories.map((x) => <option key={x.id} value={x.id}>Category: {x.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {category && <div className="af-sub">Any aircraft of "{category.name}" based at {originId} or {destinationId} may fly it; the type above is used for planning.</div>}
               <div className="af-sub">
                 {types.filter((t) => t.available).length} of {aircraftTypes.length} types fly this pair
                 {selectedType && <span title={rangeNote(selectedType)}>{`; usable ${usableRangeKm(selectedType).toLocaleString()} km`}</span>}
@@ -228,7 +248,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
           {hours && (
             <div className="rc-hours" aria-live="polite">
               <span>Needs <b>{hours.needed.toFixed(1)}</b> block h/wk</span>
-              <span>Free at {originId}: <b className={hoursShort ? "neg" : undefined}>{Math.max(0, hours.free).toFixed(1)}</b> of {hours.available.toFixed(1)}</span>
+              <span>Free at {originId}{category ? ` in "${category.name}"` : ""}: <b className={hoursShort ? "neg" : undefined}>{Math.max(0, hours.free).toFixed(1)}</b> of {hours.available.toFixed(1)}</span>
               {hoursShort && <span className="rp-err" role="alert">Short at {originId}: fewer flights or another aircraft.</span>}
             </div>
           )}

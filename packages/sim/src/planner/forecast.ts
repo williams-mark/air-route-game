@@ -1,4 +1,5 @@
 import { homeHubOf } from "../fleet/hubs";
+import { categoryMembers, routeCategoryOf } from "./categories";
 import type { Aircraft, Day, Id } from "@arg/contracts";
 import { checksCoveredBy, dueCheck, MAINTENANCE_PARAMS, maintenanceEnabled } from "../fleet/maintenance";
 import { assign, type AssignPrefs } from "../fleet/scheduler";
@@ -25,8 +26,18 @@ export function plannerPrefs(state: SimState, day: Day): AssignPrefs | undefined
   }
   const routeTypes = new Map(Object.entries(pl.routeTypes).filter(([, v]) => v.length > 0));
   const reserved = new Set(Object.keys(pl.reserved));
-  if (pins.size === 0 && routeTypes.size === 0 && reserved.size === 0) return undefined;
-  return { pins, routeTypes, reserved };
+  // Aircraft categories: each categorised route may be flown by any aircraft of its category.
+  const routeCategory = new Map<Id, ReadonlySet<Id>>();
+  const routeRank = new Map<Id, number>();
+  const members = categoryMembers(pl, state.world.fleet);
+  for (const r of state.world.routes) {
+    const c = routeCategoryOf(pl, r.id);
+    if (!c) continue;
+    routeCategory.set(r.id, new Set(members.get(c) ?? []));
+    routeRank.set(r.id, pl.routeRank?.[r.id] ?? 0);
+  }
+  if (pins.size === 0 && routeTypes.size === 0 && reserved.size === 0 && routeCategory.size === 0) return undefined;
+  return { pins, routeTypes, reserved, ...(routeCategory.size > 0 ? { routeCategory, routeRank } : {}) };
 }
 
 /** Time-boxed pins beat the standing pin; among time-boxed pins the earliest start wins. */

@@ -267,3 +267,7 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 /* Each sandbox column scrolls on its own when its content is taller than the panel (an open aircraft browser, a long fares
    block), so nothing ends up hidden under the time pill or the action buttons. */
 .route-panel.sandbox .rc-body > * { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: .2rem; }
+
+/* Route creator: fly with a type or an aircraft category. */
+.rc-flywith { display: flex; align-items: center; gap: .5rem; margin-top: .35rem; font-size: .8rem; }
+.rc-flywith select { flex: 1; min-width: 0; }

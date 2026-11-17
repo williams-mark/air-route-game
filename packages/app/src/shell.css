@@ -274,3 +274,18 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .game-menu-list hr { border: 0; border-top: 1px solid var(--line); margin: .3rem 0; width: 100%; }
 .game-menu-confirm { padding: .4rem .6rem; font-size: .82rem; color: var(--text-dim); display: flex; flex-direction: column; gap: .5rem; }
 .game-menu-confirm > div { display: flex; gap: .4rem; }
+
+/* Fleet: aircraft categories. Colours from theme.css variables only. */
+.cat-panel { margin: .6rem 0; padding: .6rem .9rem; }
+.cat-panel summary { cursor: pointer; }
+.cat-panel > .hint { margin: .4rem 0; }
+.cat-table td, .cat-table th { vertical-align: middle; }
+.cat-actions { display: flex; gap: .35rem; justify-content: flex-end; }
+.cat-new { display: grid; grid-template-columns: auto minmax(0, 18rem); justify-content: start; gap: .4rem .6rem; align-items: center; margin-top: .6rem; }
+.cat-new .cat-types, .cat-new button { grid-column: 1 / -1; }
+.cat-new button { justify-self: start; }
+.cat-types { display: flex; flex-wrap: wrap; gap: .3rem; }
+.cat-chip { display: inline-flex; align-items: center; gap: .25rem; padding: .15rem .5rem; border: 1px solid var(--line); border-radius: 999px; font-size: .78rem; cursor: pointer; background: var(--panel-2); }
+.cat-chip.on { border-color: var(--accent); color: var(--text); }
+.cat-chip input { margin: 0; }
+.fleet-hub-filter label + select + label { margin-left: .8rem; }
