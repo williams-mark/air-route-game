@@ -262,3 +262,15 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .order-confirm { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; padding: .6rem .8rem; border: 1px solid var(--sev-warn); border-radius: 10px; background: var(--panel-2); }
 .order-confirm p { margin: 0; flex: 1 1 18rem; font-size: .9rem; }
 .credits { margin-top: 1rem; padding: .7rem 1rem; font-size: .82rem; } .credits summary { cursor: pointer; } .credits ul { margin: .4rem 0 0; padding-left: 1.1rem; max-height: 18rem; overflow: auto; color: var(--text-dim); } .credits a { color: var(--accent); }
+
+/* Game menu (top bar): save, load, quit to main menu. Colours from theme.css variables only. */
+.game-menu { position: relative; }
+.game-menu-btn { font-weight: 600; }
+.game-menu-list { position: absolute; right: 0; top: calc(100% + .35rem); z-index: 60; min-width: 15rem; display: flex; flex-direction: column; padding: .35rem;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+.game-menu-list > button { text-align: left; border: 0; background: transparent; padding: .5rem .6rem; border-radius: 6px; display: flex; justify-content: space-between; gap: 1rem; }
+.game-menu-list > button:hover, .game-menu-list > button:focus-visible { background: var(--panel-2); }
+.game-menu-list kbd { font-size: .72rem; color: var(--text-dim); }
+.game-menu-list hr { border: 0; border-top: 1px solid var(--line); margin: .3rem 0; width: 100%; }
+.game-menu-confirm { padding: .4rem .6rem; font-size: .82rem; color: var(--text-dim); display: flex; flex-direction: column; gap: .5rem; }
+.game-menu-confirm > div { display: flex; gap: .4rem; }

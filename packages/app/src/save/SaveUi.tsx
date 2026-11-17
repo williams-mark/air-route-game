@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { aircraftTypes, airports } from "@arg/data";
-import { earliestStartYear, hubCandidates, startYearError, STARTING_AIRLINE } from "@arg/sim";
+import { earliestStartYear, hubCandidates, startFleetError, startYearError, STARTING_AIRLINE } from "@arg/sim";
+import { StartFleet, prunePicks, type FleetPick } from "./StartFleet";
 import { countryName } from "../routes/geoNames";
 import { hubsByContinent, START_HUB_COUNT } from "./startHubs";
 import { presetForAirport } from "../map/presets";
@@ -123,6 +124,11 @@ export function StartScreen() {
   const yearErr = Number.isNaN(yearNum) ? "Start year must be a whole number." : startYearError(yearNum, presentYear, aircraftTypes);
   const [hub, setHub] = useState("LAX");
   const [airline, setAirline] = useState("");
+  // Starting fleet: the standard fleet and routes, or a fleet the player picks (up to $500M at list price, delivered on day one, no routes).
+  const [fleetMode, setFleetMode] = useState<"standard" | "custom">("standard");
+  const [picks, setPicks] = useState<FleetPick>([]);
+  const shownPicks = Number.isFinite(yearNum) ? prunePicks(picks, yearNum) : picks;
+  const fleetErr = fleetMode === "custom" && Number.isFinite(yearNum) ? startFleetError(aircraftTypes, shownPicks, yearNum) : null;
   const hubs = useMemo(() => hubCandidates(airports, START_HUB_COUNT), []);
   const hubGroups = useMemo(() => hubsByContinent(hubs), [hubs]);
   const [msg, setMsg] = useState<Outcome | null>(null);
@@ -143,7 +149,7 @@ export function StartScreen() {
             <span>{latest.airline} {"·"} {formatDate(latest.day)} {"·"} {slotName(latest.slot)}</span>
           </button>
         ) : (<p className="start-none">{metas === null ? "Looking for saved games…" : "No saved game yet."}</p>)}
-        <form className="start-new" onSubmit={(e) => { e.preventDefault(); if (parsed === null) { setMsg({ ok: false, message: "Seed must be a whole number from 0 to 999999999." }); return; } if (yearErr) { setMsg({ ok: false, message: yearErr }); return; } bridge.newGame?.(parsed, { hub, name: airline, startYear: yearNum, presentYear, campaignYears: campaign === "endless" ? null : Number(campaign) }); bridge.setSpeed(0); const home = airports.find((x) => x.id === hub); if (home && hub !== "LAX") useUi.getState().flyTo(presetForAirport(home)); begin({ ok: true, message: `New game, seed ${parsed}, ${yearNum}, ${airline.trim() || STARTING_AIRLINE} at ${hub}. Paused: press Space to start.` }); }}>
+        <form className="start-new" onSubmit={(e) => { e.preventDefault(); if (parsed === null) { setMsg({ ok: false, message: "Seed must be a whole number from 0 to 999999999." }); return; } if (yearErr) { setMsg({ ok: false, message: yearErr }); return; } if (fleetErr) { setMsg({ ok: false, message: fleetErr }); return; } bridge.newGame?.(parsed, { hub, name: airline, startYear: yearNum, presentYear, campaignYears: campaign === "endless" ? null : Number(campaign), ...(fleetMode === "custom" ? { startFleet: shownPicks } : {}) }); bridge.setSpeed(0); const home = airports.find((x) => x.id === hub); if (home && hub !== "LAX") useUi.getState().flyTo(presetForAirport(home)); begin({ ok: true, message: `New game, seed ${parsed}, ${yearNum}, ${airline.trim() || STARTING_AIRLINE} at ${hub}. Paused: press Space to start.` }); }}>
           <label htmlFor="start-airline">Airline name</label>
           <input id="start-airline" className="wide" maxLength={40} value={airline} placeholder={STARTING_AIRLINE} onChange={(e) => setAirline(e.target.value)} />
           <label htmlFor="start-hub">Home airport</label>
@@ -167,11 +173,19 @@ export function StartScreen() {
             <option value="endless">Endless</option>
           </select>
           <p id="start-campaign-hint" className="start-hint">At the end date the game pauses for a campaign review. Endless never does.</p>
+          <label htmlFor="start-fleet-mode">Starting fleet</label>
+          <select id="start-fleet-mode" value={fleetMode} onChange={(e) => setFleetMode(e.target.value as "standard" | "custom")} aria-describedby="start-fleet-hint">
+            <option value="standard">Standard fleet and routes</option>
+            <option value="custom">Choose my own ($500M)</option>
+          </select>
+          <p id="start-fleet-hint" className="start-hint">{fleetMode === "standard"
+            ? "A few aircraft and routes that suit the home airport."
+            : "Brand-new aircraft you own, delivered on day one, up to $500M at list price. You start with no routes, plus the usual cash."}</p>
+          {fleetMode === "custom" && <div className="start-fleet-wrap"><StartFleet year={yearNum} picks={shownPicks} onChange={setPicks} />{fleetErr && shownPicks.length > 0 && <p className="start-hint bad">{fleetErr}</p>}</div>}
           <label htmlFor="start-seed">Seed</label>
           <input id="start-seed" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} aria-invalid={parsed === null} />
-          <button type="submit" className="primary">New game</button>
+          <button type="submit" className="primary" disabled={fleetErr !== null}>New game</button>
         </form>
-        <p className="start-hint">You start with a few aircraft and routes that suit the home airport.</p>
         <p className="start-hint">The same seed always gives the same world and the same rivals.</p>
         <div className="start-row">
           <button aria-expanded={showLoad} onClick={() => setShowLoad((v) => !v)}>Load slot</button>
