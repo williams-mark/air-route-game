@@ -2,7 +2,8 @@ import { shortTypeLabel, typeShortName } from "../aircraft/names";
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { CabinClass, Route } from "@arg/contracts";
 import { airportById, aircraftTypes } from "@arg/data";
-import { SERVICE_LEVEL_NAME, connectingShare, dayToDate, onwardConnectionStatus, playerHubs } from "@arg/sim";
+import { SERVICE_LEVEL_NAME, categoryBlockHours, connectingShare, dayToDate, onwardConnectionStatus, playerHubs, routeCategoryOf } from "@arg/sim";
+import { categoriesOf } from "../fleet/categories";
 import { cabinLoadsOf } from "../hubboard/hubBoard";
 import { useUi } from "../store";
 import { bridge, useSim } from "../sim/useSim";
@@ -61,6 +62,18 @@ export function RouteInspector({ route }: { route: Route }) {
   const week = report ? { evaluation: report.evaluation, snapshot: report.market } : projected;
   const sched = report?.scheduling ?? null;
   const ev = week?.evaluation;
+  // Aircraft category of the route (planner/categories.ts in the sim); re-read after a change.
+  const [catVersion, setCatVersion] = useState(0);
+  const categories = useMemo(() => categoriesOf(simNow), [simNow, catVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+  const routeCat = simNow ? routeCategoryOf(simNow.planner, route.id) : undefined;
+  const catName = categories.find((x) => x.id === routeCat)?.name;
+  const catPool = simNow && routeCat ? categoryBlockHours(simNow, routeCat, route.origin) : null;
+  const setRouteCategory = (categoryId: string | null) => {
+    const res = bridge.dispatch({ kind: "setRouteCategory", routeId: route.id, categoryId });
+    if (res && !res.ok) { push("alert", res.error.message); return; }
+    setCatVersion((n) => n + 1);
+    push("good", categoryId ? `${routeName(route)} is now flown by "${categories.find((x) => x.id === categoryId)?.name ?? categoryId}".` : `${routeName(route)} is flown by its own aircraft type again.`);
+  };
   // Passengers and experience: per-cabin load (flown cabins only; an empty one shows 0%), connecting share, experience per cabin.
   const paxCabins = ev ? cabinLoadsOf(ev) : [];
   const connPax = report?.connecting?.passengersOneWay ?? 0;
@@ -160,7 +173,7 @@ export function RouteInspector({ route }: { route: Route }) {
         {fullRouteWarning(report, effTarget.text !== "off") && <div className="rp-warn" role="status"><b>{fullRouteWarning(report, effTarget.text !== "off")}</b></div>}
         {sched && sched.underSupplied > 0 && (
           <div className="rp-alert" role="status"><IconAlert size={16} /><div><b>Under-supplied: {sched.scheduledFrequency} of {route.weeklyFrequency} round trips a week can be flown</b>
-            <ul><li>Not enough free aircraft of this type. Order more, or lower the frequency.</li></ul></div></div>
+            <ul><li>{catName ? `Not enough free aircraft in "${catName}" at ${route.origin} or ${route.destination}.` : "Not enough free aircraft of this type."} Order more, or lower the frequency.</li></ul></div></div>
         )}
 
         <section aria-labelledby="rp-sched" className="rp-sec">
@@ -169,6 +182,16 @@ export function RouteInspector({ route }: { route: Route }) {
             <dt>Frequency</dt><dd>{route.weeklyFrequency} per week each way ({ev.flightsPerWeek} flights)</dd>
             <dt>Target load factor</dt><dd>{effTarget.text}</dd>
             <dt>Aircraft</dt><dd>{substituted ?? shortTypeLabel(route.typeId)}, {Math.round(ev.seatsPerFlight)} seats per flight, {sched ? `${sched.aircraftIds.length} assigned` : `${ev.aircraftEquivalent.toFixed(1)} needed`}</dd>
+            {categories.length > 0 && (<>
+              <dt>Aircraft category</dt>
+              <dd>
+                <select aria-label="Aircraft category" value={routeCat ?? ""} onChange={(e) => setRouteCategory(e.target.value || null)}>
+                  <option value="">None (fly {shortTypeLabel(route.typeId)})</option>
+                  {categories.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                </select>
+                {catPool && <span className="hint"> {Math.round(catPool.used)} of {Math.round(catPool.available)} block h/wk used at {route.origin}</span>}
+              </dd>
+            </>)}
             {CABINS.slice().reverse().map((c) => cabinFare(c) !== undefined && (<Fragment key={c}><dt>{CABIN_NAME[c]}</dt><dd>{usd(cabinFare(c)!)}</dd></Fragment>))}
           </dl>
         </section>

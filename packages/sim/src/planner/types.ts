@@ -1,5 +1,6 @@
 import type { Day, Id } from "@arg/contracts";
 import type { CheckKind } from "../state";
+import type { AircraftCategory } from "./categories";
 
 /** A player pin: the aircraft flies this route first. Optional inclusive day window (time-boxed cover). */
 export interface PlannerPin {
@@ -21,6 +22,21 @@ export interface PlannerState {
   reserved: Record<Id, true>;
   /** Coverage gap ids the player chose to ignore. */
   ignoredGaps: string[];
+  /** Aircraft categories by id (see planner/categories.ts). Absent in older saves. */
+  categories?: Record<Id, AircraftCategory>;
+  /** Aircraft id -> category id, or null for "explicitly in no category" (overrides a category's automatic types). */
+  aircraftCategory?: Record<Id, Id | null>;
+  /** Route id -> category id: the route is flown by the category's aircraft instead of its own type. */
+  routeCategory?: Record<Id, Id>;
+  /** Monthly ranking of categorised routes (higher = first pick of the largest aircraft) and the day it was made (planner/rebalance.ts). */
+  routeRank?: Record<Id, number>;
+  rankDay?: Day;
+  /** Demand per departure each categorised route was ranked on (monthly average), for display. */
+  rankScore?: Record<Id, number>;
+  /** This month so far: summed daily demand per departure and days logged, per categorised route. */
+  demandLog?: Record<Id, { sum: number; days: number }>;
+  /** Last category number handed out (ids are cat-1, cat-2, ...). */
+  categorySeq?: number;
 }
 
 export type PlannerCommand =
@@ -28,7 +44,12 @@ export type PlannerCommand =
   | { kind: "setRouteTypes"; routeId: Id; preferredTypeIds: Id[] }
   | { kind: "reserveAircraft"; aircraftId: Id; reserve: boolean }
   | { kind: "applyCover"; aircraftId: Id; routeId: Id; fromDay: Day; toDay: Day; gapId?: string }
-  | { kind: "ignoreGap"; gapId: string; ignore: boolean };
+  | { kind: "ignoreGap"; gapId: string; ignore: boolean }
+  | { kind: "createCategory"; name: string; autoTypeIds?: Id[] }
+  | { kind: "updateCategory"; categoryId: Id; name?: string; autoTypeIds?: Id[] }
+  | { kind: "deleteCategory"; categoryId: Id }
+  | { kind: "setAircraftCategory"; aircraftIds: Id[]; categoryId: Id | null }
+  | { kind: "setRouteCategory"; routeId: Id; categoryId: Id | null };
 
 export const EMPTY_PLANNER: PlannerState = { pins: {}, routeTypes: {}, reserved: {}, ignoredGaps: [] };
 

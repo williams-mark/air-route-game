@@ -6,7 +6,7 @@ import { formatMoney } from "./format";
 import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as rawAirports, terminalsFor } from "@arg/data";
 import {
-  applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, LIFECYCLE_PARAMS, dayToDate, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay, campaignReview, campaignReviewDue, type CampaignReview, type CampaignCommand,
+  applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, LIFECYCLE_PARAMS, dayToDate, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay, campaignReview, campaignReviewDue, type CampaignReview, type CampaignCommand, type CategoryRouteCommand,
   validateSimState, type Clock, type SimState, type HubCommand, type FinanceCommand, homeHubOf, creditStatus, isBankrupt, fleetDiversity, holdingOf,
 } from "@arg/sim";
 
@@ -281,7 +281,7 @@ export class RealSimBridge implements SimBridge {
 
   getSim = (): SimState => this.sim;
 
-  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand): CommandResult | void {
+  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand | CategoryRouteCommand): CommandResult | void {
     if (cmd.kind === "setSpeed") {
       if (![0, 1, 2, 3, 4, 5].includes(cmd.speed)) return { ok: false, error: { code: "invalid_speed", message: "Speed must be 0 to 5." } };
       this.setSpeed(cmd.speed);

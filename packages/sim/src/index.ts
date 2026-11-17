@@ -12,6 +12,7 @@ import { assign, DEFAULT_HOME_HUB } from "./fleet/scheduler";
 import { homeHubOf } from "./fleet/hubs";
 import { diversityOf } from "./fleet/diversity";
 import { plannerPrefs } from "./planner/forecast";
+import { refreshCategoryRanking } from "./planner/rebalance";
 import { evaluateNetwork } from "./route/network";
 import { pushEvents } from "./commands";
 import { playerHubs } from "./route/farePolicy";
@@ -144,7 +145,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   if (isBankrupt(state)) return state;
   // The campaign review is due: the sim is paused on its end date until the player dismisses it (campaign/campaign.ts).
   if (campaignReviewDue(state)) return markCampaignReview(state);
-  state = closeRoutesAtClosedAirports(state);
+  state = refreshCategoryRanking(closeRoutesAtClosedAirports(state));
   let { world } = state;
   const { params } = state;
   const day = world.day;

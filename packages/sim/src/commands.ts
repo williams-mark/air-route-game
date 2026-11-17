@@ -1,4 +1,7 @@
 import { usdM } from "./money";
+import { categoryBlockHours, routeCategoryOf } from "./planner/categories";
+import { EMPTY_PLANNER } from "./planner/types";
+import { blockHours } from "./finance/ledger";
 import type { Aircraft, AircraftType, Airport, CabinClass, Command, Day, FarePolicy, Fares, Id, Route, RouteCategory, ServiceLevel, SimEvent } from "@arg/contracts";
 import { canFlyOverwater, isOverwaterRoute } from "@arg/data";
 import { distanceKm, simRunwayM } from "./geo";
@@ -91,7 +94,9 @@ export type CommandErrorCode =
   | "aircraft_on_route"
   | "leased_aircraft"
   | "not_leased"
-  | "bankrupt";
+  | "bankrupt"
+  | "unknown_category"
+  | "invalid_category";
 
 export interface CommandError {
   ok: false;
@@ -146,11 +151,15 @@ export type FinanceCommand =
 /** Dismiss the end-of-campaign review and play on with no end date (campaign/campaign.ts). */
 export type CampaignCommand = { kind: "continueEndless" };
 
-export type AnyCommand = Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand;
+/** Open a route flown by an aircraft category (planner/categories.ts) instead of one type. `route.typeId` is the planning type. */
+export type CategoryRouteCommand = { kind: "openCategoryRoute"; route: Omit<Route, "id">; categoryId: Id };
+
+export type AnyCommand = Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand | CategoryRouteCommand;
 type OfferOk = Exclude<OfferResult, CommandError>;
 type FullResultMap = CommandResultMap & { acceptOffer: Extract<OfferOk, { kind: "acceptOffer" }>; dismissOffer: Extract<OfferOk, { kind: "dismissOffer" }>; refitAircraft: Extract<RefitResult, { ok: true }> }
   & { [K in PlannerCommand["kind"]]: Extract<PlannerOk, { kind: K }> }
-  & { continueEndless: { ok: true; kind: "continueEndless" } };
+  & { continueEndless: { ok: true; kind: "continueEndless" } }
+  & { openCategoryRoute: { ok: true; kind: "openCategoryRoute"; routeId: Id; route: Route; categoryId: Id; warnings: string[] } };
 export type CommandResult<K extends AnyCommand["kind"] = AnyCommand["kind"]> = FullResultMap[K] | CommandError;
 export type ResultOf<C extends AnyCommand> = CommandResult<C["kind"]>;
 
@@ -219,7 +228,7 @@ export function routeFeasibilityError(a: Airport, b: Airport, type: AircraftType
   return null;
 }
 
-function validateRoute(state: SimState, spec: RouteSpec, selfId: Id | null, checkFleet: boolean): Validated | CommandError {
+function validateRoute(state: SimState, spec: RouteSpec, selfId: Id | null, checkFleet: boolean, categoryId?: Id): Validated | CommandError {
   const a = state.airports.find((x) => x.id === spec.origin);
   const b = state.airports.find((x) => x.id === spec.destination);
   if (!a) return fail("unknown_airport", `Unknown origin airport "${spec.origin}".`);
@@ -258,8 +267,20 @@ function validateRoute(state: SimState, spec: RouteSpec, selfId: Id | null, chec
     }
   }
 
-  // Block-hour pool of the origin hub for this type (not checked while the notional fleet can fly unowned types).
-  if (!state.params.notionalFleet) {
+  // Block-hour pool of the origin hub: the route's aircraft category if it has one, else its type (not checked while the
+  // notional fleet can fly unowned types).
+  const category = categoryId ?? (selfId ? routeCategoryOf(state.planner, selfId) : undefined);
+  if (!state.params.notionalFleet && category) {
+    const cat = state.planner!.categories![category]!;
+    const need = spec.weeklyFrequency * 2 * blockHours(distanceKm(a, b), type);
+    const pool = categoryBlockHours(state, category, a.id, selfId ?? undefined);
+    if (need > pool.free + 1e-9) {
+      return fail(
+        "insufficient_block_hours",
+        `${a.id}-${b.id} at ${spec.weeklyFrequency}/wk in "${cat.name}" needs about ${need.toFixed(1)} block hours a week from ${a.id}; ${Math.max(0, pool.free).toFixed(1)} are free there (${pool.available.toFixed(1)} available, ${pool.used.toFixed(1)} used).`,
+      );
+    }
+  } else if (!state.params.notionalFleet) {
     const h = routeHourSummary(state, a.id, b.id, type.id, spec.weeklyFrequency, selfId ?? undefined);
     if (h.needed > h.free + 1e-9) {
       return fail(
@@ -270,7 +291,7 @@ function validateRoute(state: SimState, spec: RouteSpec, selfId: Id | null, chec
   }
 
   const warnings: string[] = [];
-  if (checkFleet) {
+  if (checkFleet && !category) {
     const owned = state.world.fleet.filter((ac) => ac.status !== "stored");
     const sameType = owned.filter((ac) => ac.typeId === type.id);
     if (sameType.length > 0) {
@@ -514,6 +535,11 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
     case "refitAircraft":
       return applyRefit(state, cmd);
     case "pinAircraft":
+    case "createCategory":
+    case "updateCategory":
+    case "deleteCategory":
+    case "setAircraftCategory":
+    case "setRouteCategory":
     case "setRouteTypes":
     case "reserveAircraft":
     case "applyCover":
@@ -533,6 +559,20 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
         [notice(state, `Opened ${v.a.id}-${v.b.id}: ${route.weeklyFrequency}/wk with ${route.typeId} (${Math.round(v.dist)} km).`)],
       );
       return { state: next, result: { ok: true, kind: "openRoute", routeId: route.id, route, warnings: v.warnings } };
+    }
+    case "openCategoryRoute": {
+      const cat = state.planner?.categories?.[cmd.categoryId];
+      if (!cat) return { state, result: fail("unknown_category", `No aircraft category "${cmd.categoryId}".`) };
+      const v = validateRoute(state, cmd.route, null, true, cat.id);
+      if ("ok" in v) return { state, result: v };
+      const { id, counters } = nextId(state, "route");
+      const route: Route = { ...cmd.route, id: `route-${id}`, fares: { ...cmd.route.fares } };
+      const planner = { ...(state.planner ?? EMPTY_PLANNER), routeCategory: { ...(state.planner?.routeCategory ?? {}), [route.id]: cat.id } };
+      const next = pushEvents(
+        { ...state, world: { ...state.world, routes: [...state.world.routes, route] }, counters, planner },
+        [notice(state, `Opened ${v.a.id}-${v.b.id}: ${route.weeklyFrequency}/wk flown by "${cat.name}" (${Math.round(v.dist)} km).`)],
+      );
+      return { state: next, result: { ok: true, kind: "openCategoryRoute", routeId: route.id, route, categoryId: cat.id, warnings: v.warnings } };
     }
     case "updateRoute": {
       const cur = state.world.routes.find((r) => r.id === cmd.id);

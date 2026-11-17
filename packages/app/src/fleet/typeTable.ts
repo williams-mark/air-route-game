@@ -36,7 +36,7 @@ export function atHub(a: Pick<FleetItem, "hub">, hub: HubFilter, home?: string):
 }
 
 /**
- * One row per aircraft type in the fleet (including types with only stored aircraft), in fleet order of first appearance.
+ * One row per aircraft type in the fleet (including types with only stored aircraft), sorted A-Z by type name.
  * `hoursFor(typeId)` supplies the block hours for the selected hub filter.
  */
 export function buildTypeRows(
@@ -57,7 +57,8 @@ export function buildTypeRows(
     if (a.status === "delivery") r.onOrder++;
     else if (a.status !== "stored") r.inService++;
   }
-  return [...rows.values()];
+  // A-Z by type name, numbers in natural order (A320ceo, A320neo, A321ceo ...), not order of first purchase.
+  return [...rows.values()].sort((a, b) => a.typeName.localeCompare(b.typeName, "en", { numeric: true, sensitivity: "base" }));
 }
 
 /** Type ids the airline owns (in the fleet, not stored) or has on order: the only types the route sandbox offers. */

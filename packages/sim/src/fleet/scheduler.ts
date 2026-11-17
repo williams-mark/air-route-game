@@ -2,6 +2,7 @@ import type { Aircraft, AircraftType, Airport, Id, Route } from "@arg/contracts"
 import { canFlyOverwater, isOverwaterRoute } from "@arg/data";
 import { blockHours, isRangeFeasible } from "../finance/ledger";
 import { distanceKm, simRunwayM } from "../geo";
+import { layoutSeats } from "./layout";
 import type { RouteScheduling } from "../state";
 
 /** Planned utilisation targets, block hours per aircraft per day. */
@@ -17,6 +18,13 @@ export interface AssignPrefs {
   routeTypes?: ReadonlyMap<Id, readonly Id[]>;
   /** Aircraft held back as spares: not scheduled at all (a pin on the aircraft overrides). */
   reserved?: ReadonlySet<Id>;
+  /**
+   * Aircraft categories: route id -> the aircraft that may fly it (the route's category). Such routes are scheduled before the
+   * others, highest `routeRank` (planner/rebalance.ts) first, each taking the largest aircraft (by seats) first. They use
+   * only their category's aircraft; other routes may use whatever hours those aircraft have left.
+   */
+  routeCategory?: ReadonlyMap<Id, ReadonlySet<Id>>;
+  routeRank?: ReadonlyMap<Id, number>;
 }
 
 export interface ScheduleContext {
@@ -135,7 +143,45 @@ export function assign(routes: readonly Route[], fleet: readonly Aircraft[], ctx
     }
   }
 
+  // Categorised routes first: fullest last month first; within a route, the largest aircraft of the category first.
+  const catRoutes = prepared
+    .filter((p) => prefs?.routeCategory?.has(p.route.id))
+    .sort((p, q) => (prefs!.routeRank?.get(q.route.id) ?? 0) - (prefs!.routeRank?.get(p.route.id) ?? 0) || q.need - p.need || (p.route.id < q.route.id ? -1 : 1));
+  for (const p of catRoutes) {
+    const { route, a, b } = p;
+    const res = out[route.id]!;
+    if (!a || !b) continue;
+    const allowed = prefs!.routeCategory!.get(route.id)!;
+    let left = leftBy.get(route.id)!;
+    const used = usedBy.get(route.id)!;
+    while (left > 0) {
+      const cands = active
+        .filter((ac) => allowed.has(ac.id) && servesHub(ac, route))
+        .map((ac) => ({ ac, type: ctx.types.get(ac.typeId)! }))
+        .filter(({ type }) => typeCanServe(a, b, type))
+        .map(({ ac, type }) => { const rt = 2 * blockHours(p.dist, type); return { ac, rt, seats: layoutSeats(ac.layout), fit: Math.floor((free.get(ac.id)! + 1e-9) / rt) }; })
+        .filter((c) => c.fit >= 1)
+        .sort((x, y) => y.seats - x.seats || y.fit - x.fit || (x.ac.id < y.ac.id ? -1 : 1));
+      const pick = cands[0];
+      if (!pick) break;
+      const k = Math.min(left, pick.fit);
+      free.set(pick.ac.id, free.get(pick.ac.id)! - k * pick.rt);
+      const load = loads[pick.ac.id]!;
+      load.blockHoursPerWeek += k * pick.rt;
+      load.assignments.push({ routeId: route.id, roundTrips: k, blockHoursPerRoundTrip: pick.rt });
+      used.set(pick.ac.id, (used.get(pick.ac.id) ?? 0) + k * pick.rt);
+      res.scheduledFrequency += k;
+      res.blockHoursPerWeek += k * pick.rt;
+      res.roundTripsByAircraft![pick.ac.id] = (res.roundTripsByAircraft![pick.ac.id] ?? 0) + k;
+      left -= k;
+    }
+    leftBy.set(route.id, left);
+    res.underSupplied = left;
+    res.aircraftIds = [...used.entries()].sort((x, y) => y[1] - x[1] || (x[0] < y[0] ? -1 : 1)).map(([id]) => id);
+  }
+
   for (const p of order) {
+    if (prefs?.routeCategory?.has(p.route.id)) continue;
     const { route, a, b, reqType } = p;
     const res = out[route.id]!;
     if (!a || !b || !reqType) continue;

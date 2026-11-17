@@ -14,6 +14,8 @@ import { disposeOptions, planDisposal } from "../fleet/disposePlan";
 import type { FleetItem } from "../sim/bridge";
 import { bridge, useSim, useSimSelector } from "../sim/useSim";
 import { useUi } from "../store";
+import { CategoriesPanel } from "../fleet/CategoriesPanel";
+import { aircraftCategories, categoriesOf, inCategory, seatSplit, type CategoryFilter } from "../fleet/categories";
 
 /** "In check" only exists while the maintenance programme runs; otherwise the hangar holds cabin refits only. */
 const label = (st: FleetItem["status"]) => ({ active: "Active", maintenance: maintenanceEnabled() ? "In check" : "Cabin refit", delivery: "On order", stored: "Stored" })[st];
@@ -22,13 +24,15 @@ const fmtHours = (h: number) => Math.round(h).toLocaleString("en-US");
 const canRefit = (a: FleetItem) => (a.status === "active" || a.status === "stored") && !!a.layout;
 
 /** Actions on several selected aircraft (all within the open type). */
-function BulkBar({ count, hubs, home, canCabin, cabinHint, sellable, returnable, onMove, onCabin, onDispose, onClear }: {
+function BulkBar({ count, hubs, home, canCabin, cabinHint, sellable, returnable, onMove, onCabin, onDispose, onClear, categories, onCategory }: {
   count: number; hubs: string[]; home?: string; canCabin: boolean; cabinHint: string | null;
+  categories: { id: string; name: string }[]; onCategory: (categoryId: string | null) => void;
   /** How many of the selected aircraft are owned (can be sold) and leased (can be returned), not counting those that fly routes. */
   sellable: number; returnable: number;
   onMove: (hubId: string) => void; onCabin: () => void; onDispose: (action: DisposalAction) => void; onClear: () => void;
 }) {
   const [target, setTarget] = useState<string>(home ?? hubs[0] ?? "");
+  const [cat, setCat] = useState<string>(categories[0]?.id ?? "none");
   return (
     <div className="fleet-bulk" role="group" aria-label="Actions for the selected aircraft">
       <span className="fleet-bulk-count">{count} selected</span>
@@ -38,6 +42,17 @@ function BulkBar({ count, hubs, home, canCabin, cabinHint, sellable, returnable,
         </select>
       </label>
       <button type="button" onClick={() => onMove(target)} disabled={!target}>Move selected</button>
+      {categories.length > 0 && (
+        <>
+          <label className="fleet-bulk-label">Category
+            <select aria-label="Category for selected aircraft" value={cat} onChange={(e) => setCat(e.target.value)}>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <option value="none">No category</option>
+            </select>
+          </label>
+          <button type="button" onClick={() => onCategory(cat === "none" ? null : cat)}>Set category</button>
+        </>
+      )}
       <button type="button" disabled={!canCabin} title={cabinHint ?? undefined} onClick={onCabin}>Cabin change{"…"}</button>
       <button type="button" disabled={sellable === 0} title={sellable === 0 ? "None of the selected aircraft is owned outright and off its routes" : undefined} onClick={() => onDispose("sell")}>Sell{sellable > 0 ? ` ${sellable}` : ""}{"…"}</button>
       <button type="button" disabled={returnable === 0} title={returnable === 0 ? "None of the selected aircraft is leased and off its routes" : undefined} onClick={() => onDispose("return")}>Return{returnable > 0 ? ` ${returnable}` : ""}{"…"}</button>
@@ -47,8 +62,9 @@ function BulkBar({ count, hubs, home, canCabin, cabinHint, sellable, returnable,
 }
 
 /** Top-level rows: one per aircraft type, with a hub filter and inline expansion to the individual aircraft. */
-function TypeTable({ rows, fleet, hub, home, hubs, openType, onOpen, selected, onToggle, onToggleAll, bulk, onCabin, onMove, onOrder, onDispose }: {
+function TypeTable({ rows, fleet, hub, home, hubs, openType, onOpen, selected, onToggle, onToggleAll, bulk, onCabin, onMove, onOrder, onDispose, cats, catNames, catFilter }: {
   rows: TypeRow[]; fleet: FleetItem[]; hub: HubFilter; home?: string; hubs: string[];
+  cats: ReadonlyMap<string, string>; catNames: ReadonlyMap<string, string>; catFilter: CategoryFilter;
   openType: string | null; onOpen: (typeId: string | null) => void;
   selected: ReadonlySet<string>; onToggle: (aircraftId: string) => void; onToggleAll: (ids: string[], on: boolean) => void;
   bulk: ReactNode; onCabin: (a: FleetItem) => void; onMove: (aircraftId: string, hubId: string) => void; onOrder: (typeId: string) => void;
@@ -65,7 +81,7 @@ function TypeTable({ rows, fleet, hub, home, hubs, openType, onOpen, selected, o
       <tbody>
         {rows.map((r) => {
           const expanded = openType === r.typeId;
-          const members = fleet.filter((a) => a.typeId === r.typeId && atHub(a, hub, home));
+          const members = fleet.filter((a) => a.typeId === r.typeId && atHub(a, hub, home) && inCategory(a.id, catFilter, cats));
           const allOn = members.length > 0 && members.every((m) => selected.has(m.id));
           return (
             <Fragment key={r.typeId}>
@@ -86,20 +102,22 @@ function TypeTable({ rows, fleet, hub, home, hubs, openType, onOpen, selected, o
                 <tr id={`fleet-type-${r.typeId}`}>
                   <td colSpan={6}>
                     {members.length === 0 ? (
-                      <p className="hint">No {r.typeName} at {hub === "all" ? "any hub" : hub} yet.</p>
+                      <p className="hint">No {r.typeName} {catFilter === "all" ? "" : "in this category "}at {hub === "all" ? "any hub" : hub}.</p>
                     ) : (
                       <>
                         {bulk}
                         <table className="fleet-members" aria-label={`${r.typeName} aircraft`}>
                           <thead><tr>
                             <th scope="col"><input type="checkbox" aria-label={`Select all ${r.typeName} shown`} checked={allOn} onChange={() => onToggleAll(members.map((m) => m.id), !allOn)} /></th>
-                            <th scope="col">Tail</th><th scope="col">Hub</th><th scope="col">Status</th><th scope="col">Flying</th><th scope="col">Age</th><th scope="col">Move to hub</th><th scope="col">Cabin</th><th scope="col">Sell / return</th>
+                            <th scope="col">Tail</th><th scope="col">Seats F/J/W/Y</th><th scope="col">Category</th><th scope="col">Hub</th><th scope="col">Status</th><th scope="col">Flying</th><th scope="col">Age</th><th scope="col">Move to hub</th><th scope="col">Cabin</th><th scope="col">Sell / return</th>
                           </tr></thead>
                           <tbody>
                             {members.map((a) => (
                               <tr key={a.id}>
                                 <td><input type="checkbox" aria-label={`Select ${a.tail}`} checked={selected.has(a.id)} onChange={() => onToggle(a.id)} /></td>
                                 <td>{a.tail}</td>
+                                <td className="num" title="First / Business / Premium economy / Economy">{seatSplit(a.layout)}</td>
+                                <td>{catNames.get(cats.get(a.id) ?? "") ?? <span className="hint">–</span>}</td>
                                 <td>{a.hub ?? "–"}</td>
                                 <td>{label(a.status)}</td>
                                 <td>{a.routes.length ? a.routes.join(", ") : "–"}</td>
@@ -153,6 +171,9 @@ export default function FleetView() {
   const [disposing, setDisposing] = useState<{ items: FleetItem[]; action: DisposalAction } | null>(null);
   const setView = useUi((s) => s.setView);
   const [hub, setHub] = useState<HubFilter>("all");
+  const [catFilter, setCatFilter] = useState<CategoryFilter>("all");
+  // Category commands change the planner, not the fleet list: bump this to re-read them.
+  const [catVersion, setCatVersion] = useState(0);
   const [openType, setOpenType] = useState<string | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const sim = bridge.getSim?.() ?? null;
@@ -164,6 +185,19 @@ export default function FleetView() {
     () => buildTypeRows(fleet, hub, (typeId, h) => (sim ? typeBlockHours(sim, typeId, h === "all" ? undefined : h) : { available: 0, used: 0, free: 0 }), home),
     [fleet, hub, day, home], // eslint-disable-line react-hooks/exhaustive-deps
   );
+  const categories = useMemo(() => categoriesOf(sim), [sim, catVersion, day]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cats = useMemo(() => aircraftCategories(sim), [sim, catVersion, fleet, day]); // eslint-disable-line react-hooks/exhaustive-deps
+  const catNames = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
+  const catCounts = useMemo(() => { const m = new Map<string, number>(); for (const c of cats.values()) m.set(c, (m.get(c) ?? 0) + 1); return m; }, [cats]);
+  const shownRows = useMemo(() => (catFilter === "all" ? typeRows : typeRows.filter((r) => fleet.some((a) => a.typeId === r.typeId && inCategory(a.id, catFilter, cats)))), [typeRows, catFilter, cats, fleet]);
+  const ownedTypeIds = useMemo(() => [...new Set(fleet.map((a) => a.typeId))], [fleet]);
+  const setCategory = (categoryId: string | null) => {
+    const ids = [...selected];
+    const res = bridge.dispatch({ kind: "setAircraftCategory", aircraftIds: ids, categoryId });
+    if (res && !res.ok) { push("alert", res.error.message); return; }
+    setSelected(new Set()); setCatVersion((n) => n + 1);
+    push("good", ids.length + " aircraft " + (categoryId ? "now in \"" + (catNames.get(categoryId) ?? categoryId) + "\"" : "now in no category") + ".");
+  };
   const refitType = refitting ? aircraftTypes.find((t) => t.id === refitting[0]?.typeId) : undefined;
 
   const move = (aircraftId: string, hubId: string) => {
@@ -225,7 +259,8 @@ export default function FleetView() {
   const bulk = selList.length > 0 ? (
     <BulkBar count={selList.length} hubs={hubs} home={home} canCabin={cabinHint === null} cabinHint={cabinHint}
       sellable={bulkOk("sell").length} returnable={bulkOk("return").length}
-      onMove={moveSelected} onCabin={() => setRefitting(refitable)} onDispose={(action) => openDispose(bulkOk(action), action)} onClear={() => setSelected(new Set())} />
+      onMove={moveSelected} onCabin={() => setRefitting(refitable)} onDispose={(action) => openDispose(bulkOk(action), action)} onClear={() => setSelected(new Set())}
+      categories={categories} onCategory={setCategory} />
   ) : null;
 
   const n = (st: FleetItem["status"]) => fleet.filter((a) => a.status === st).length;
@@ -254,9 +289,16 @@ export default function FleetView() {
           <option value="all">All hubs</option>
           {hubFilterOptions.map((h) => <option key={h} value={h}>{h}</option>)}
         </select>
+        <label htmlFor="fleet-cat">Category</label>
+        <select id="fleet-cat" value={catFilter} onChange={(e) => { setCatFilter(e.target.value); setSelected(new Set()); }}>
+          <option value="all">All categories</option>
+          {categories.map((c) => <option key={c.id} value={c.id}>{c.name} ({catCounts.get(c.id) ?? 0})</option>)}
+          <option value="none">No category</option>
+        </select>
       </div>
+      <CategoriesPanel sim={sim} categories={categories} members={catCounts} ownedTypeIds={ownedTypeIds} onChanged={() => setCatVersion((n) => n + 1)} />
       <div className="fleet-scroll">
-        <TypeTable rows={typeRows} fleet={fleet} hub={hub} home={home} hubs={hubs} openType={openType} onOpen={changeOpen}
+        <TypeTable rows={shownRows} fleet={fleet} cats={cats} catNames={catNames} catFilter={catFilter} hub={hub} home={home} hubs={hubs} openType={openType} onOpen={changeOpen}
           selected={selected} onToggle={toggle} onToggleAll={toggleAll} bulk={bulk} onCabin={(a) => setRefitting([a])} onMove={move} onOrder={orderType} onDispose={(a) => openDispose([a], disposeOptions(a)?.action ?? "sell")} />
       </div>
       {disposing && sim && (

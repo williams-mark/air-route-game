@@ -144,6 +144,7 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
       demandScale: noise,
       scheduling: notional ? null : sched ?? null,
       experience: week.experience,
+      demandOneWay: week.choice.itineraries[0]?.unconstrained ?? week.playerPassengersOneWay,
     };
   }
   // Hub connecting passengers (SAN-HNL via LAX ...): extra revenue and cost on the legs, load factors updated.
@@ -157,7 +158,7 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
   routeCosts += net.deltaCosts / 7;
   for (const [id, evaluation] of Object.entries(net.evaluations)) {
     const rep = reports[id];
-    if (rep) reports[id] = { ...rep, evaluation, connecting: net.connecting[id] };
+    if (rep) reports[id] = { ...rep, evaluation, connecting: net.connecting[id], demandOneWay: (rep.demandOneWay ?? 0) + (net.connecting[id]?.passengersOneWay ?? 0) };
   }
   return { schedule, reports, weeks, solvedFares, floorBinding, revenue, routeCosts };
 }
@@ -216,6 +217,15 @@ export interface RoutePreview {
   ownershipTreatmentChanges: boolean;
   /** Live report profit minus the same model re-run today with no change (state drift since the report; 0 right after a step). */
   drift: number;
+}
+
+/**
+ * Weekly network result (route revenue less route costs) of the live model for a state, with no demand noise. Used to check
+ * whether a change to the scheduler's steering (for example swapping two routes' ranking in an aircraft category) pays.
+ */
+export function networkWeeklyResult(state: SimState, day: Day = state.world.day): number {
+  const r = evaluateLiveRoutes(liveInput(state, day, state.world.routes, () => 1));
+  return (r.revenue - r.routeCosts) * 7;
 }
 
 function liveInput(state: SimState, day: Day, routes: readonly Route[], noise: (r: Route) => number): LiveModelInput {
