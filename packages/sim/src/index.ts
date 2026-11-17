@@ -352,7 +352,9 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     world: { ...world, day: day + 1, cash, fleet: fleet.filter((ac) => !retiredIds.has(ac.id)) },
     orders: retiredIds.size === 0 ? state.orders : state.orders.map((o) => {
       const keep = o.aircraftIds.map((id) => !retiredIds.has(id));
-      return keep.every(Boolean) ? o : { ...o, aircraftIds: o.aircraftIds.filter((_, i) => keep[i]), deliveryDays: o.deliveryDays.filter((_, i) => keep[i]) };
+      // A retired aircraft leaves the fleet, so it leaves its order too (saves must not point at missing aircraft); it was delivered,
+      // so the order's count drops with it and the order stays complete (the count used to stay, leaving "0 of 1 delivered").
+      return keep.every(Boolean) ? o : { ...o, count: Math.max(0, o.count - keep.filter((k) => !k).length), aircraftIds: o.aircraftIds.filter((_, i) => keep[i]), deliveryDays: o.deliveryDays.filter((_, i) => keep[i]) };
     }),
     snapshots,
     routeReports: reports,

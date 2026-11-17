@@ -96,6 +96,9 @@ describe("hard lifespan cap", () => {
     expect(next.fleetMeta[id]).toBeUndefined();
     expect(next.orders.at(-1)!.aircraftIds).not.toContain(id);
     expect(next.orders.at(-1)!.aircraftIds.length).toBe(next.orders.at(-1)!.deliveryDays.length);
+    // The order stays complete: its count drops with the retired aircraft (it used to read "0 of 1 delivered").
+    const o = next.orders.at(-1)!;
+    expect(o.count).toBe(o.aircraftIds.length);
     expect(next.pendingEvents.some((e) => e.kind === "notice" && e.text.includes("retired"))).toBe(true);
   });
 

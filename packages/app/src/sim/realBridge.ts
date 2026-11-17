@@ -451,9 +451,11 @@ export function buildOrders(sim: SimState): OrderItem[] {
   const status = new Map(sim.world.fleet.map((a) => [a.id, a.status]));
   return sim.orders.map((o) => ({
     id: o.id, typeId: o.typeId, typeName: shortTypeLabel(o.typeId), count: o.count,
-    delivered: o.aircraftIds.filter((id) => status.get(id) !== "delivery").length,
+    // Delivered = ordered minus still waiting. Aircraft retired or sold since delivery have left the order's list, so counting the
+    // list would call them undelivered (older saves keep the original count: "0 of 1 delivered" for a retired aircraft).
+    delivered: Math.max(0, o.count - o.aircraftIds.filter((id) => status.get(id) === "delivery").length),
     orderDay: o.orderDay, deliveryDays: o.deliveryDays,
-    firstDelivery: Math.min(...o.deliveryDays), lastDelivery: Math.max(...o.deliveryDays),
+    firstDelivery: o.deliveryDays.length ? Math.min(...o.deliveryDays) : o.orderDay, lastDelivery: o.deliveryDays.length ? Math.max(...o.deliveryDays) : o.orderDay,
     unitPriceUsd: o.unitPriceUsd, discount: o.discount, depositUsd: o.depositUsd, seats: layoutSeats(o.layout),
     financing: o.financing,
   }));
