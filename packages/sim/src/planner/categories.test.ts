@@ -3,7 +3,7 @@ import { aircraftTypes, airports } from "@arg/data";
 import { applyCommand, runDays, startingScenario, stepDay, type SimState } from "../index";
 import { categoryBlockHours, categoryMembers, categoryOfAircraft } from "./categories";
 import { refreshCategoryRanking } from "./rebalance";
-import { networkWeeklyResult } from "../route/liveModel";
+import { networkWeeklyResult, previewNewRoute } from "../route/liveModel";
 import { layoutSeats } from "../fleet/layout";
 
 const base = () => startingScenario(airports, aircraftTypes, 2015); // LAX: 3 B737-800, 1 A320, 2 B757-200, 2 B777-200ER
@@ -119,5 +119,17 @@ describe("aircraft categories", () => {
     const plain = base();
     expect(JSON.stringify(stepDay(plain).routeReports)).toBe(JSON.stringify(stepDay(base()).routeReports));
     expect(stepDay(plain).planner).toBeUndefined();
+  });
+
+  it("a new-route preview into a category is flown by the category's aircraft and uses its block-hour pool", () => {
+    let s = ok(applyCommand(base(), { kind: "createCategory", name: "Airbus only", autoTypeIds: ["A320"] }));
+    s = stepDay(s);
+    const draft = { origin: "LAX", destination: "LAS", weeklyFrequency: 3, fares: { Y: 90 }, typeId: "B737-800" };
+    const asType = previewNewRoute(s, draft)!;
+    const asCat = previewNewRoute(s, draft, undefined, "cat-1")!;
+    const typesOf = (p: typeof asCat) => Object.keys(p.scheduling?.roundTripsByAircraft ?? {}).map((id) => s.world.fleet.find((a) => a.id === id)!.typeId);
+    expect(typesOf(asCat).length).toBeGreaterThan(0);
+    expect(new Set(typesOf(asCat))).toEqual(new Set(["A320"]));
+    expect(typesOf(asType)).not.toContain("A320");
   });
 });
