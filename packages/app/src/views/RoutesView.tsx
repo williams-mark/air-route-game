@@ -6,6 +6,14 @@ import { formatMoney } from "../sim/format";
 import { useCreation, useSwapRequest } from "../routes/store";
 import { useRouteSummaries, type RouteSummary } from "../routes/useRoutes";
 import { profitBasis } from "../routes/helpers";
+import { routeCategoryOf, type SimState } from "@arg/sim";
+import { bridge } from "../sim/useSim";
+
+/** What the Aircraft column shows: the route's aircraft category when it has one, else its aircraft type. */
+export function aircraftLabel(route: { id: string; typeId: string }, sim: Pick<SimState, "planner"> | null): string {
+  const cat = sim ? routeCategoryOf(sim.planner, route.id) : undefined;
+  return cat ? sim!.planner!.categories![cat]!.name : shortTypeLabel(route.typeId);
+}
 
 const TIER_LABEL: Record<ProfitTier, string> = { profit: "Profitable", marginal: "Marginal", loss: "Losing", planned: "Planned" };
 const TIERS: ProfitTier[] = ["profit", "marginal", "loss"];
@@ -13,7 +21,7 @@ const TIERS: ProfitTier[] = ["profit", "marginal", "loss"];
 type SortKey = "name" | "aircraft" | "freq" | "load" | "profit" | "margin";
 const COLS: Array<{ key: SortKey; label: string; num?: boolean; get: (r: RouteSummary) => string | number }> = [
   { key: "name", label: "Route", get: (r) => r.name },
-  { key: "aircraft", label: "Aircraft", get: (r) => r.route.typeId },
+  { key: "aircraft", label: "Aircraft", get: (r) => aircraftLabel(r.route, bridge.getSim?.() ?? null) },
   { key: "freq", label: "Freq / wk", num: true, get: (r) => r.route.weeklyFrequency },
   { key: "load", label: "Load factor", num: true, get: (r) => r.loadFactor },
   { key: "margin", label: "Margin", num: true, get: (r) => r.margin },
@@ -90,7 +98,13 @@ export default function RoutesView() {
                     <span className={`dot tier-${r.tier}`} aria-hidden="true" />{r.name}
                   </button>
                 </th>
-                <td>{shortTypeLabel(r.route.typeId)}</td>
+                <td>{(() => {
+                  const sim = bridge.getSim?.() ?? null;
+                  const inCat = !!sim && !!routeCategoryOf(sim.planner, r.route.id);
+                  return inCat
+                    ? <span title={`Aircraft category; planned with the ${shortTypeLabel(r.route.typeId)}`}>{aircraftLabel(r.route, sim)} <span className="hint">(category)</span></span>
+                    : shortTypeLabel(r.route.typeId);
+                })()}</td>
                 <td className="num">{r.scheduled !== undefined && r.scheduled < r.route.weeklyFrequency ? <span className="neg" title="Round trips actually flown with the aircraft you have">{r.scheduled} of {r.route.weeklyFrequency}</span> : r.route.weeklyFrequency}</td>
                 <td className="num">{r.feasible ? `${Math.round(r.loadFactor * 100)}%` : "–"}</td>
                 <td className={`num ${r.margin < 0 ? "neg" : "pos"}`}>{r.feasible ? `${(r.margin * 100).toFixed(0)}%` : "–"}</td>
