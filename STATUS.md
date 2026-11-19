@@ -1,3 +1,7 @@
+## lane/categories-hub-filter (18 Nov 2026)
+- Fleet: the Aircraft categories panel is open by default, above the fleet list. The Hub filter now applies to it: aircraft counts and block hours (used / available) are for the chosen hub, like the type rows (sim `categoryBlockHours(state, id, hub)`, app `categoryCounts`). The category dropdown counts follow the hub too.
+- Test: `categoryCounts` in app `fleet/categories.test.ts`. Checked in the preview browser: panel open on arrival; LAX+SFO with 2 aircraft moved to SFO shows 2 aircraft, 133 h at SFO, matching the type table.
+
 ## lane/category-followups (18 Nov 2026)
 - Routes list shows a categorised route's category in the Aircraft column (with "(category)"; the planning type in the tooltip).
 - New-route previews opened into a category are priced as the scheduler would fly them (the category's aircraft and block-hour pool): `previewNewRoute(state, draft, day, categoryId)`. The scheduler now looks categories up by assignment, so a draft route can carry one.
