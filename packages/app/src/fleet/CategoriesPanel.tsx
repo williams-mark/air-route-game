@@ -4,6 +4,7 @@ import { shortTypeLabel } from "../aircraft/names";
 import { bridge } from "../sim/useSim";
 import { useToasts } from "../routes/store";
 import { byName } from "./categories";
+import type { HubFilter } from "./typeTable";
 
 const hours = (h: number) => Math.round(h).toLocaleString("en-US");
 
@@ -11,10 +12,16 @@ const hours = (h: number) => Math.round(h).toLocaleString("en-US");
  * Aircraft categories: groups of aircraft that routes can be assigned to instead of one type (like fare policies, for aircraft).
  * Aircraft join by type automatically ("automatic types") or one by one from the Fleet table's selection bar.
  */
-export function CategoriesPanel({ sim, categories, members, ownedTypeIds, onChanged }: {
-  sim: SimState | null; categories: AircraftCategory[]; members: ReadonlyMap<string, number>; ownedTypeIds: string[]; onChanged: () => void;
+export function CategoriesPanel({ sim, hub = "all", categories, members, ownedTypeIds, onChanged }: {
+  sim: SimState | null;
+  /** Fleet hub filter: aircraft counts (`members`) and block hours are for this hub only. */
+  hub?: HubFilter;
+  categories: AircraftCategory[]; members: ReadonlyMap<string, number>; ownedTypeIds: string[]; onChanged: () => void;
 }) {
   const push = useToasts((s) => s.push);
+  // Open by default; the player can fold it away for the session.
+  const [open, setOpen] = useState(true);
+  const at = hub === "all" ? undefined : hub;
   const [name, setName] = useState("");
   const [types, setTypes] = useState<string[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
@@ -38,15 +45,15 @@ export function CategoriesPanel({ sim, categories, members, ownedTypeIds, onChan
     </div>
   );
   return (
-    <details className="panel-box cat-panel">
+    <details className="panel-box cat-panel" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary><strong>Aircraft categories</strong> <span className="hint">({categories.length}) · assign routes to a group of aircraft instead of one type</span></summary>
       <p className="hint">A route assigned to a category can be flown by any of its aircraft based at either end. Each month the scheduler ranks the category's routes by demand per departure and gives the busiest routes the largest aircraft first; routes only trade places when the lower one has clearly more demand (over 12%) and the swap earns more. Aircraft of an automatic type join by themselves; use the selection bar in the table below to place single aircraft (for example a sub-fleet with its own cabin).</p>
       {categories.length > 0 && (
         <table className="data cat-table">
-          <thead><tr><th scope="col">Category</th><th scope="col">Aircraft</th><th scope="col">Automatic types</th><th scope="col">Block h / wk (used / available)</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
+          <thead><tr><th scope="col">Category</th><th scope="col">Aircraft{at ? ` at ${at}` : ""}</th><th scope="col">Automatic types</th><th scope="col">Block h / wk{at ? ` at ${at}` : ""} (used / available)</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>
             {categories.map((c) => {
-              const h = sim ? categoryBlockHours(sim, c.id) : { used: 0, available: 0, free: 0 };
+              const h = sim ? categoryBlockHours(sim, c.id, at) : { used: 0, available: 0, free: 0 };
               return editing === c.id ? (
                 <tr key={c.id}>
                   <td><input aria-label="Category name" value={editName} maxLength={40} onChange={(e) => setEditName(e.target.value)} /></td>
