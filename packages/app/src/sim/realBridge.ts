@@ -24,7 +24,7 @@ export interface RealBridgeOptions {
   seed?: number;
   /** Start at speed 0. Default is speed 1 (running). */
   startPaused?: boolean;
-  /** Real-time delta is clamped to this, which bounds the days stepped per frame (max speed 30 days/s). Default 250 ms = 7 days. */
+  /** Real-time delta is clamped to this, which bounds the days stepped per frame (max speed 15 days/s). Default 500 ms = 7 days. */
   maxDtMs?: number;
   initial?: SimState;
 }
@@ -116,7 +116,7 @@ export class RealSimBridge implements SimBridge {
     this.sim = sim;
     this.notices = []; this.lastOverdrawnAlert = -Infinity; this.nextNotice = 1; this.ledger = []; this.pending = []; this.engine = new DecisionEngine();
     this.lowCash = false; this.offersOf = null; this.viewOf = null; this.rivalsOf = null;
-    this.clock = createClock({ startDay: this.sim.world.day, speed: this.frozen() ? 0 : speed, maxDtMs: this.opts.maxDtMs ?? 250 });
+    this.clock = createClock({ startDay: this.sim.world.day, speed: this.frozen() ? 0 : speed, maxDtMs: this.opts.maxDtMs ?? 500 });
     this.sim = { ...this.sim, speed: this.clock.speed };
     if (extras) {
       this.notices = extras.notices; this.nextNotice = extras.nextNotice; this.ledger = extras.ledger; this.pending = extras.pending;

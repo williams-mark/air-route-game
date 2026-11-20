@@ -503,10 +503,10 @@ for (const theme of themes) {
       await nav(page, "Map");
       for (const b of await page.getByRole("button", { name: /^(Dismiss|Later|Snooze)/ }).all()) await b.click().catch(() => {});
       await page.keyboard.press(String(sp));
-      const rate = { 1: 0.5, 2: 1, 3: 3, 4: 7 }[sp];
+      const rate = { 1: 0.25, 2: 0.5, 3: 1.5, 4: 3.5 }[sp];
       const d0 = await simDay(page);
       const t0 = Date.now();
-      await page.waitForTimeout(sp === 1 ? 5000 : 3500);
+      await page.waitForTimeout(sp <= 2 ? 8000 : 3500);
       const secs = (Date.now() - t0) / 1000;
       const d1 = await simDay(page);
       const state = (await page.getByRole("button", { name: "Resume" }).count()) === 1 ? "game was paused (decision or alert)" : `speed ${await speedPressed(page)}`;
