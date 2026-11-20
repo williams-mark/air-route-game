@@ -304,7 +304,19 @@ export const WORLD_FIELD = {
   pendingMaxDays: 730,
   maxPending: 4,
   /** Fare policy review: network load factor above `highLF` raises the fare level by `step`, below `lowLF` lowers it. */
-  fareLevel: { step: 0.03, min: 0.85, max: 1.15, highLF: 0.82, lowLF: 0.72 },
+  fareLevel: { step: 0.03, min: 0.85, max: 1.2, highLF: 0.82, lowLF: 0.72 },
+  /**
+   * Yield-management ceiling (multiple of the archetype fare x fare level); the classic field uses RIVAL_PARAMS.fareCeiling 1.12.
+   * Higher here because no stand-in rivals absorb demand, so sold-out markets must be able to price up (balance probe, 20 Nov 2026).
+   */
+  fareCeiling: 1.2,
+  /**
+   * Share of the carried market a new route is sized for (seats at 80% load). The classic field uses ARCHETYPES entryShare
+   * (0.17-0.45) because the stand-in rivals carry the rest; here nobody does (balance probe, 20 Nov 2026).
+   */
+  entryShare: { legacy: 0.6, lcc: 0.5, regional: 0.7, interisland: 0.6 } as Record<Archetype, number>,
+  /** Extra indirect cost share of revenue on top of the archetype's, calibrated so median margins land near the 5-15% band. */
+  extraIndirectPct: { legacy: 0.13, lcc: 0.12, regional: 0.02, interisland: 0.02 } as Record<Archetype, number>,
   /** Seats of a rival leg offered to connecting passengers on its one-stop itineraries (share of the leg's seats). Assumption. */
   connectingSeatShare: 0.3,
   /** A new startup each year while fewer than `airlines` are active, with this chance. */
