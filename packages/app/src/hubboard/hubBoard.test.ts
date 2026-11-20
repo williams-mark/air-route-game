@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Route } from "@arg/contracts";
 import type { RouteReport } from "@arg/sim";
 import type { FleetItem } from "../sim/bridge";
-import { boardHubOptions, buildBoardRows, buildHourRows, connectingShare, hubTypeIds, summarizeBoard } from "./hubBoard";
+import { boardHubOptions, buildBoardRows, buildConnectingAnalysis, buildHourRows, connectingShare, hubTypeIds, summarizeBoard } from "./hubBoard";
 
 const route = (id: string, origin: string, destination: string, typeId = "B737-800", weeklyFrequency = 7): Route =>
   ({ id, origin, destination, typeId, weeklyFrequency, fares: { economy: 100 } }) as unknown as Route;
@@ -81,5 +81,38 @@ describe("boardHubOptions", () => {
   });
   it("does not add airports just because routes touch them", () => {
     expect(boardHubOptions(["SFO"], "LAX")).toEqual(["LAX", "SFO"]);
+  });
+});
+
+describe("buildConnectingAnalysis", () => {
+  const conn = (markets: { o: string; d: string; pax: number; rev: number }[], viaHub?: Record<string, { passengersOneWay: number; revenue: number; markets: number }>) =>
+    ({
+      evaluation: { profit: 0, loadFactor: 0.8, passengersPerWeek: 2000 },
+      scheduling: null,
+      connecting: { passengersOneWay: 0, markets: markets.map((m) => ({ origin: m.o, hub: "LAX", destination: m.d, passengersOneWay: m.pax, throughFare: 200, revenue: m.rev, share: 0.1 })), viaHub },
+    }) as unknown as RouteReport;
+  const hubRoutes = [route("x", "SFO", "LAX"), route("y", "LAX", "HNL")];
+
+  it("uses the routes' exact per-hub totals, which include markets too small to be listed", () => {
+    // SFO-HNL is listed on both legs; both legs also carry 40 smaller markets (unlisted) worth 300 one-way passengers.
+    const listed = [{ o: "SFO", d: "HNL", pax: 100, rev: 40000 }];
+    const r = {
+      x: conn(listed, { LAX: { passengersOneWay: 400, revenue: 50000, markets: 41 } }),
+      y: conn(listed, { LAX: { passengersOneWay: 400, revenue: 70000, markets: 41 } }),
+    };
+    const a = buildConnectingAnalysis(hubRoutes, r, "LAX");
+    expect(a.transferPassengers).toBe(800);
+    expect(a.revenue).toBe(120000);
+    expect(a.marketCount).toBe(41);
+    expect(a.markets).toHaveLength(1);
+    expect(a.markets[0]!.shareOfTransfers).toBeCloseTo(200 / 800);
+  });
+
+  it("falls back to the listed markets for reports without per-hub totals (older saves)", () => {
+    const listed = [{ o: "SFO", d: "HNL", pax: 100, rev: 40000 }];
+    const a = buildConnectingAnalysis(hubRoutes, { x: conn(listed), y: conn(listed) }, "LAX");
+    expect(a.transferPassengers).toBe(200);
+    expect(a.revenue).toBe(40000);
+    expect(a.marketCount).toBe(1);
   });
 });
