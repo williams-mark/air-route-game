@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Airport, Id } from "@arg/contracts";
-import { COMMAND_PARAMS, baseSlotFeeUsd, homeHubOf, hubCongestion, ownedHubsOf, playerHubs, playerTerminalOf, terminalsOf, weeklySlotFees } from "@arg/sim";
+import { COMMAND_PARAMS, OUTSTATION_PARAMS, baseSlotFeeUsd, homeHubOf, hubCongestion, outstationBlockHours, outstationsOf, ownedHubsOf, playerHubs, playerTerminalOf, terminalsOf, weeklySlotFees } from "@arg/sim";
 import { Modal } from "../shell/Modal";
 import { usd } from "../routes/fmt";
 import { bridge, useSim } from "../sim/useSim";
@@ -21,13 +21,16 @@ export default function HubsView() {
   const [move, setMove] = useState<Move | null>(null);
   const [unlockId, setUnlockId] = useState("");
   const owned = sim ? ownedHubsOf(sim) : [];
-  const unlockCost = COMMAND_PARAMS.hubUnlockUsd;
-  const unlock = () => {
-    const res = bridge.dispatch({ kind: "unlockHub", airportId: unlockId });
+  const stations = sim ? outstationsOf(sim) : [];
+  const unlockCost = COMMAND_PARAMS.hubUnlockUsd, stationCost = COMMAND_PARAMS.outstationUsd;
+  const run = (kind: "unlockHub" | "openOutstation", id: string, good: string) => {
+    const res = bridge.dispatch({ kind, airportId: id });
     if (res && !res.ok) useToasts.getState().push("alert", res.error.message);
-    else useToasts.getState().push("good", `${unlockId} is now one of your hubs.`);
+    else useToasts.getState().push("good", good);
     setUnlockId("");
   };
+  const unlock = () => run("unlockHub", unlockId, `${unlockId} is now one of your hubs.`);
+  const openStation = () => run("openOutstation", unlockId, `${unlockId} is now one of your outstations.`);
   const [staged, setStaged] = useState<Record<Id, Id>>({});
   const home = sim ? homeHubOf(sim) : bridge.getState().airline.hub;
   const hubs = sim ? hubCardIds(playerHubs(sim), home) : [];
@@ -53,12 +56,38 @@ export default function HubsView() {
 <p className="hubs-intro">Each round trip a week uses 2 slots at both of its airports. Slot counts, slot fees and the terminal fee tiers below are estimates built for this game, not published airport figures. You can move the slots at your home hub too.</p>
       {sim && (
         <div className="hubs-unlock">
-          <AirportField label="Unlock a hub" value={unlockId || null} onChange={(id) => setUnlockId(id ?? "")} exclude={owned} picking={false} onPickMode={() => undefined} hidePick />
-          <button className="primary" disabled={!unlockId || cash < unlockCost} onClick={unlock} title={!unlockId ? "Search for an airport first" : cash < unlockCost ? "Not enough cash" : undefined}>
+          <AirportField label="Open a hub or outstation" value={unlockId || null} onChange={(id) => setUnlockId(id ?? "")} exclude={owned} picking={false} onPickMode={() => undefined} hidePick />
+          <button className="primary" disabled={!unlockId || cash < stationCost || stations.includes(unlockId)} onClick={openStation} title={!unlockId ? "Search for an airport first" : stations.includes(unlockId) ? "Already an outstation" : cash < stationCost ? "Not enough cash" : undefined}>
+            Open outstation for {usd(stationCost)}
+          </button>
+          <button disabled={!unlockId || cash < unlockCost} onClick={unlock} title={!unlockId ? "Search for an airport first" : cash < unlockCost ? "Not enough cash" : undefined}>
             Unlock hub for {usd(unlockCost)}
           </button>
-          <span className="dim">Only your hubs can base aircraft or receive new deliveries.</span>
+          <span className="dim">Aircraft can be based, delivered and start routes only at your hubs and outstations. An outstation allows {OUTSTATION_PARAMS.blockHoursPerWeek} block hours a week of your flights through the airport; a hub has no limit.</span>
         </div>
+      )}
+      {sim && stations.length > 0 && (
+        <section className="hubs-card" aria-label="Outstations">
+          <div className="hubs-card-head"><h2>Outstations</h2><span className="hubs-nums dim">Block hours a week of your flights touching each airport, of {OUTSTATION_PARAMS.blockHoursPerWeek}</span></div>
+          <table className="hubs-table">
+            <thead><tr><th scope="col">Airport</th><th scope="col" className="num">Used</th><th scope="col" className="num">Free</th><th scope="col">Routes</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
+            <tbody>
+              {stations.map((id) => {
+                const h = outstationBlockHours(sim, id);
+                const routes = sim.world.routes.filter((r) => r.origin === id || r.destination === id).map((r) => (r.origin === id ? r.destination : r.origin));
+                return (
+                  <tr key={id}>
+                    <th scope="row">{airportById.get(id) ? hubTitle(airportById.get(id)!) : id}</th>
+                    <td className="num">{n0(h.used)}</td>
+                    <td className={`num${h.free < 0 ? " neg" : ""}`}>{n0(h.free)}</td>
+                    <td>{routes.length ? routes.sort().join(", ") : <span className="dim">none yet</span>}</td>
+                    <td><button disabled={cash < unlockCost} title={cash < unlockCost ? "Not enough cash" : "No block-hour limit as a hub"} onClick={() => run("unlockHub", id, `${id} is now one of your hubs.`)}>Make hub ({usd(unlockCost)})</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
       )}
       {!sim ? (
         <div className="empty-state"><h2>Needs the full simulation</h2><p>Slots and terminals are not modelled in the mock game (?mock), so there is nothing to show here.</p></div>

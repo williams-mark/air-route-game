@@ -16,7 +16,7 @@ import { FINANCING_PARAMS } from "./fleet/lifecycle";
 import { deliveredCollateralUsd, depositRefusal, isBankrupt, orderFundingRefusal, type ScheduledBalance } from "./finance/credit";
 import { typeCanServe } from "./fleet/scheduler";
 import { disposalQuote, withoutAircraft } from "./fleet/disposal";
-import { homeHubOf, isOwnedHub, ownedHubsOf, routeHourSummary } from "./fleet/hubs";
+import { homeHubOf, isBase, isOutstation, isOwnedHub, OUTSTATION_PARAMS, outstationBlockHours, outstationsOf, ownedHubsOf, routeHourSummary } from "./fleet/hubs";
 import { makeRng, mixSeed } from "./rng";
 import type { AircraftOrder, SimState } from "./state";
 import { dayToDate, jan1Day } from "./time/calendar";
@@ -46,6 +46,8 @@ export const COMMAND_PARAMS = {
   daysPerMonth: 30.4375,
   /** Cost to unlock a hub other than the home hub (the home hub is free). */
   hubUnlockUsd: 50_000_000,
+  /** Cost to open an outstation (fleet/hubs.ts OUTSTATION_PARAMS). */
+  outstationUsd: OUTSTATION_PARAMS.costUsd,
 } as const;
 
 export function orderDiscount(count: number): number {
@@ -96,7 +98,9 @@ export type CommandErrorCode =
   | "not_leased"
   | "bankrupt"
   | "unknown_category"
-  | "invalid_category";
+  | "invalid_category"
+  | "already_outstation"
+  | "outstation_full";
 
 export interface CommandError {
   ok: false;
@@ -115,6 +119,7 @@ export interface CommandResultMap {
   setServiceLevel: { ok: true; kind: "setServiceLevel"; cabin: CabinClass; level: ServiceLevel };
   setAircraftHub: { ok: true; kind: "setAircraftHub"; aircraftId: Id; hubId: Id };
   unlockHub: { ok: true; kind: "unlockHub"; airportId: Id; costUsd: number };
+  openOutstation: { ok: true; kind: "openOutstation"; airportId: Id; costUsd: number };
   sellAircraft: { ok: true; kind: "sellAircraft"; aircraftId: Id; tail: string; proceedsUsd: number; creditLimitBeforeUsd: number; creditLimitAfterUsd: number };
   returnLease: { ok: true; kind: "returnLease"; aircraftId: Id; tail: string; feeUsd: number; monthlySavingUsd: number };
   cancelOrder: { ok: true; kind: "cancelOrder"; orderId: Id; cancelled: number; forfeitedUsd: number; balancesRelievedUsd: number };
@@ -135,7 +140,7 @@ export interface CommandResultMap {
 /** Service level of one cabin for the airline (passenger experience and premium fares). */
 export type ServiceCommand = { kind: "setServiceLevel"; cabin: CabinClass; level: ServiceLevel };
 
-export type HubCommand = { kind: "setAircraftHub"; aircraftId: Id; hubId: Id } | ServiceCommand;
+export type HubCommand = { kind: "setAircraftHub"; aircraftId: Id; hubId: Id } | { kind: "openOutstation"; airportId: Id } | ServiceCommand;
 
 /**
  * Cancel the aircraft of an order that have not been delivered yet (a cure for financial distress). The deposit paid for them is
@@ -290,6 +295,19 @@ function validateRoute(state: SimState, spec: RouteSpec, selfId: Id | null, chec
     }
   }
 
+  // Outstation cap at either end: the player's flights touching an outstation use at most OUTSTATION_PARAMS.blockHoursPerWeek.
+  for (const ap of [a, b]) {
+    if (!isOutstation(state, ap.id)) continue;
+    const need = spec.weeklyFrequency * 2 * blockHours(dist, type);
+    const cap = outstationBlockHours(state, ap.id, selfId ?? undefined);
+    if (need > cap.free + 1e-9) {
+      return fail(
+        "outstation_full",
+        `${a.id}-${b.id} at ${spec.weeklyFrequency}/wk needs ${need.toFixed(1)} block hours a week at the ${ap.id} outstation; ${Math.max(0, cap.free).toFixed(1)} of its ${cap.available} are free. Make ${ap.id} a hub (${usdM(COMMAND_PARAMS.hubUnlockUsd)}) for unlimited hours.`,
+      );
+    }
+  }
+
   const warnings: string[] = [];
   if (checkFleet && !category) {
     const owned = state.world.fleet.filter((ac) => ac.status !== "stored");
@@ -324,8 +342,8 @@ function doOrder(state: SimState, cmd: Extract<Command, { kind: "orderAircraft" 
   const type = state.aircraftTypes.find((t) => t.id === cmd.typeId);
   if (!type) return { state, result: fail("unknown_type", `Unknown aircraft type "${cmd.typeId}".`) };
   const deliveryHub = cmd.deliveryHubId ?? homeHubOf(state);
-  if (!isOwnedHub(state, deliveryHub)) {
-    return { state, result: fail("not_a_hub", `${deliveryHub} is not one of your hubs; new aircraft can only be delivered to a hub you own.`) };
+  if (!isBase(state, deliveryHub)) {
+    return { state, result: fail("not_a_hub", `${deliveryHub} is not one of your hubs or outstations; new aircraft can only be delivered to one of them.`) };
   }
   if (!Number.isInteger(cmd.count) || cmd.count < 1 || cmd.count > COMMAND_PARAMS.maxOrderCount) {
     return { state, result: fail("invalid_count", `Order size must be a whole number from 1 to ${COMMAND_PARAMS.maxOrderCount}.`) };
@@ -644,7 +662,7 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
       if (!ac) return { state, result: fail("unknown_aircraft", `No aircraft "${cmd.aircraftId}".`) };
       if (ac.status !== "active") return { state, result: fail("aircraft_unavailable", `${ac.tailNumber} is ${ac.status}; only active aircraft can be based at a hub.`) };
       if (!state.airports.some((x) => x.id === cmd.hubId)) return { state, result: fail("unknown_airport", `Unknown hub airport "${cmd.hubId}".`) };
-      if (!isOwnedHub(state, cmd.hubId)) return { state, result: fail("not_a_hub", `${cmd.hubId} is not one of your hubs. Unlock it first (${usdM(COMMAND_PARAMS.hubUnlockUsd)}).`) };
+      if (!isBase(state, cmd.hubId)) return { state, result: fail("not_a_hub", `${cmd.hubId} is not one of your hubs or outstations. Open an outstation (${usdM(COMMAND_PARAMS.outstationUsd)}) or a hub (${usdM(COMMAND_PARAMS.hubUnlockUsd)}) there first.`) };
       const fleet = state.world.fleet.map((x) => (x.id === ac.id ? { ...x, hubId: cmd.hubId } : x));
       return {
         state: pushEvents({ ...state, world: { ...state.world, fleet } }, [notice(state, `${ac.tailNumber} now based at ${cmd.hubId}.`)]),
@@ -677,10 +695,32 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
             ownedHubs: [...ownedHubsOf(state), ap.id].sort(),
             cashLog: [...(state.world.cashLog ?? []), { day: state.world.day, amountUsd: -cost, text }],
           },
+          // An outstation upgraded to a hub stops being an outstation (and its block-hour cap).
+          ...(state.outstations?.includes(ap.id) ? { outstations: state.outstations.filter((x) => x !== ap.id) } : {}),
         },
         [notice(state, text)],
       );
       return { state: next, result: { ok: true, kind: "unlockHub", airportId: ap.id, costUsd: cost } };
+    }
+    case "openOutstation": {
+      const ap = state.airports.find((x) => x.id === cmd.airportId);
+      if (!ap) return { state, result: fail("unknown_airport", `Unknown airport "${cmd.airportId}".`) };
+      if (isOwnedHub(state, ap.id)) return { state, result: fail("already_hub", `${ap.id} is already one of your hubs.`) };
+      if (isOutstation(state, ap.id)) return { state, result: fail("already_outstation", `${ap.id} is already one of your outstations.`) };
+      const cost = COMMAND_PARAMS.outstationUsd;
+      if (state.world.cash < cost) {
+        return { state, result: fail("insufficient_cash", `Opening an outstation at ${ap.id} costs ${usdM(cost)} but cash is ${usdM(state.world.cash)}.`) };
+      }
+      const text = `Opened an outstation at ${ap.id} (${ap.name}) for ${usdM(cost)}: up to ${OUTSTATION_PARAMS.blockHoursPerWeek} block hours a week.`;
+      const next = pushEvents(
+        {
+          ...state,
+          world: { ...state.world, cash: state.world.cash - cost, cashLog: [...(state.world.cashLog ?? []), { day: state.world.day, amountUsd: -cost, text }] },
+          outstations: [...outstationsOf(state), ap.id].sort(),
+        },
+        [notice(state, text)],
+      );
+      return { state: next, result: { ok: true, kind: "openOutstation", airportId: ap.id, costUsd: cost } };
     }
   }
 }

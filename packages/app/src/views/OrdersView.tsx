@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { typeShortName } from "../aircraft/names";
 import { aircraftTypes } from "@arg/data";
-import { COMMAND_PARAMS, dayToDate, defaultLayout, FINANCING_PARAMS, homeHubOf, layoutSeats, orderableTypes, orderDiscount, ownedHubsOf } from "@arg/sim";
+import { COMMAND_PARAMS, dayToDate, defaultLayout, FINANCING_PARAMS, homeHubOf, layoutSeats, orderableTypes, orderDiscount, basesOf } from "@arg/sim";
 import { bridge, useSim } from "../sim/useSim";
 import { formatDate, formatMoney, formatMonthYear } from "../sim/format";
 import { useToasts } from "../routes/store";
@@ -61,7 +61,7 @@ export default function OrdersView() {
   // New aircraft are delivered to a hub the player owns; the home hub is the default.
   const simNow = bridge.getSim?.() ?? null;
   const home = simNow ? homeHubOf(simNow) : bridge.getState().airline.hub;
-  const hubs = ownedHubChoices(simNow ? ownedHubsOf(simNow) : [home], home);
+  const hubs = ownedHubChoices(simNow ? basesOf(simNow) : [home], home);
   const [deliveryHub, setDeliveryHub] = useState<string>(home);
   const deliveryHubId = hubs.includes(deliveryHub) ? deliveryHub : home;
   // Double-click guard: after an order the button stays disabled until the quote changes or the lock runs out. Purchases and deposits over $10M
