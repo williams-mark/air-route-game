@@ -275,3 +275,48 @@ export const RIVAL_PARAMS = {
   randomEntrantChancePerYear: 0.1, randomEntrantFromYear: 2018, maxActive: 20, entrantCash: 70_000_000,
   newsLimit: 900,
 } as const;
+
+/**
+ * The generated world field (owner, 20 Nov 2026; rivals/world.ts). Every figure here is a game-design choice, not real-world data:
+ * 50 airlines with hubs at 50 different airports of the top 100 by the model's own demand, the same hub and outstation rules as the
+ * player (fleet/hubs.ts OUTSTATION_PARAMS), and decisions spread over an 8-week cycle so only about 6 airlines decide in any week.
+ */
+export const WORLD_FIELD = {
+  airlines: 50,
+  topAirports: 100,
+  /** Each airline decides once per cycle, in its own week (assigned at the start so every week has about the same number). */
+  decisionCycleWeeks: 8,
+  /** Archetype mix of the generated airlines (interisland is not generated). */
+  mix: [["legacy", 0.35], ["lcc", 0.4], ["regional", 0.25]] as ReadonlyArray<readonly [Archetype, number]>,
+  /** Starting network size per archetype: [min, max] routes. */
+  seedRoutes: { legacy: [12, 22], lcc: [10, 18], regional: [6, 12], interisland: [6, 10] } as Record<Archetype, readonly [number, number]>,
+  /** Opening cash per starting route (USD). */
+  cashPerRoute: { legacy: 30_000_000, lcc: 16_000_000, regional: 9_000_000, interisland: 9_000_000 } as Record<Archetype, number>,
+  maxRoutes: { legacy: 60, lcc: 48, regional: 30, interisland: 24 } as Record<Archetype, number>,
+  /** Legacy carriers may fly long-haul from their bases up to this distance (widebodies; feasibility from the aircraft data). */
+  legacyMaxKm: 12_000,
+  entriesPerDecision: 2,
+  /** Outstations: at most this many per airline; considered once it flies this many routes; chance per decision. */
+  maxOutstations: 4, outstationMinRoutes: 8, outstationChance: 0.2,
+  /** Order lead time in months (from order to delivery), uniform in the range. Shorter than the player's factory slots: rivals also use lessors. */
+  leadMonths: { narrow: [4, 12], wide: [8, 18] } as Record<"narrow" | "wide", readonly [number, number]>,
+  /** Routes waiting for aircraft are dropped after this many days. */
+  pendingMaxDays: 730,
+  maxPending: 4,
+  /** Fare policy review: network load factor above `highLF` raises the fare level by `step`, below `lowLF` lowers it. */
+  fareLevel: { step: 0.03, min: 0.85, max: 1.15, highLF: 0.82, lowLF: 0.72 },
+  /** Seats of a rival leg offered to connecting passengers on its one-stop itineraries (share of the leg's seats). Assumption. */
+  connectingSeatShare: 0.3,
+  /** A new startup each year while fewer than `airlines` are active, with this chance. */
+  startupChancePerYear: 0.6,
+  startupCash: [60_000_000, 160_000_000] as readonly [number, number],
+} as const;
+
+/** Word lists for generated airline names (fictional combinations; checked not to spell a real airline in the tests' list). */
+export const WORLD_NAME_FIRST = [
+  "Amber", "Azure", "Basalt", "Birch", "Bramble", "Cedar", "Cinder", "Cobalt", "Copper", "Coral", "Crimson", "Dune", "Ember", "Fable",
+  "Fern", "Flint", "Garnet", "Glacier", "Granite", "Harbor", "Hazel", "Indigo", "Ivory", "Jade", "Juniper", "Lantern", "Larch", "Linden",
+  "Maple", "Marble", "Mistral", "Nimbus", "Obsidian", "Ochre", "Onyx", "Opal", "Orchid", "Pebble", "Quartz", "Quill", "Rowan", "Russet",
+  "Saffron", "Sable", "Slate", "Sorrel", "Tamarind", "Thistle", "Topaz", "Umber", "Velvet", "Willow", "Zephyr",
+];
+export const WORLD_NAME_SECOND = ["Air", "Airways", "Jet", "Wings", "Express", "Connect", "Aviation", "Skies"];

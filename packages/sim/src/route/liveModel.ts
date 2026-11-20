@@ -4,7 +4,7 @@ import { effectiveConnectionMarkdown, effectiveTargetLoadFactor, playerHubs } fr
 import { assign, type AssignPrefs, type ScheduleResult } from "../fleet/scheduler";
 import { plannerPrefs } from "../planner/forecast";
 import { homeHubOf, routeHourSummary } from "../fleet/hubs";
-import { rivalItinerariesFor } from "../rivals";
+import { competitorItinerariesFor, rivalItinerariesFor } from "../rivals";
 import type { RivalsState } from "../rivals/types";
 import type { RouteReport, SimState } from "../state";
 import { dayToDate, daysInMonth } from "../time/calendar";
@@ -89,6 +89,7 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
       demandScale: noise,
       chargeOwnership: notional,
       rivalItineraries: a && b ? rivalItinerariesFor(inp.rivals, a, b, types) : undefined,
+      competitors: a && b ? competitorItinerariesFor(inp.rivals, a, b, types, airports) : undefined,
       serviceLevels: inp.serviceLevels,
     };
     const weekAt = (r: Route) => (a && b ? simulateRouteWeek(r, airports, types, day, weekOpts) : null);
@@ -154,7 +155,8 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
     markdown = {};
     for (const r of routes) markdown[r.id] = effectiveConnectionMarkdown(r, inp.farePolicies, airports, inp.hubs);
   }
-  const net = evaluateNetwork({ connectionMarkdown: markdown, routes: pricedRoutes, airports, types, day, weeks, fleet: routeFleet, flights: routeFlights, operatedFraction: routeFraction, serviceLevels: inp.serviceLevels });
+  const competitorsFor = inp.rivals?.field === "world" ? (x: Airport, y: Airport) => competitorItinerariesFor(inp.rivals, x, y, types, airports) : undefined;
+  const net = evaluateNetwork({ competitorsFor, connectionMarkdown: markdown, routes: pricedRoutes, airports, types, day, weeks, fleet: routeFleet, flights: routeFlights, operatedFraction: routeFraction, serviceLevels: inp.serviceLevels });
   revenue += net.deltaRevenue / 7;
   routeCosts += net.deltaCosts / 7;
   for (const [id, evaluation] of Object.entries(net.evaluations)) {

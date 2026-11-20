@@ -1,3 +1,9 @@
+## lane/rival-world (20 Nov 2026; built on lane/outstations)
+- New games get a generated field of 50 rival airlines, each with its hub at a different airport of the top 100 by model demand (sim `rivals` world field, RIVALS.md "World field"). They follow the player's hub and outstation rules, order aircraft (routes wait for deliveries), open and close routes, and set a network fare policy. Each airline decides on its own week of an 8-week cycle. Startups refill the field.
+- No invisible stand-in competitors in the world field: the player's routes and hub connections compete only with the rivals' nonstops and their one-stops through their own bases (`competitorItinerariesFor`). The classic field (sim default, old saves, calibration tests) is unchanged.
+- Tests: `sim/src/rivals/world.test.ts` (12). Two-year run, seed 2015: 50 airlines, 534 to 945 routes, about 100 orders, 30 outstations, no bankruptcies, 34 ms per game day.
+- Not done: rivals' P&L has no connecting passengers; rival margins not balanced; the player's starting LAX routes run 100% full until repriced; the Rivals screen still shows the old list (next lane).
+
 ## lane/outstations (20 Nov 2026)
 - Outstations: `openOutstation` (USD 10M, sim `fleet/hubs.ts OUTSTATION_PARAMS`). Like a hub, aircraft can be based and delivered there and routes start there; unlike a hub, the player's flights touching the airport (either end, round-trip block hours on the planning type) are capped at 500 a week (`outstationBlockHours`, refused with `outstation_full` on open or edit). Hubs stay unlimited; `unlockHub` on an outstation upgrades it (full USD 50M). Stored in `SimState.outstations` (not contracts; old saves have none). Game-design figures, not real data.
 - App: Hubs screen opens an outstation or a hub, and lists outstations with hours used / free, routes and "Make hub"; the new-route callout offers both; Fleet moves and Orders delivery list hubs and outstations.

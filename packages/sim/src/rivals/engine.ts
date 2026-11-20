@@ -5,7 +5,8 @@ import { isEurope } from "../world/regions";
 import { runChoice, type Itinerary } from "../demand/choice";
 import { benchmarkFareFor, outsideFor } from "../demand/fares";
 import { baseWeeklyDemand, marketOnDay, segmentMap } from "../demand/market";
-import { aircraftEquivalentFor, evaluateRoute, isRangeFeasible, monthlyOwnershipUsd, type CabinInput } from "../finance/ledger";
+import { aircraftEquivalentFor, blockHours, evaluateRoute, isRangeFeasible, monthlyOwnershipUsd, type CabinInput } from "../finance/ledger";
+import { OUTSTATION_PARAMS } from "../fleet/hubs";
 import { defaultLayout } from "../fleet/layout";
 import { distanceKm, simRunwayM } from "../geo";
 import { makeRng, mixSeed } from "../rng";
@@ -14,7 +15,7 @@ import { carriedShare } from "../route/rivalSizing";
 import { dayToDate } from "../time/calendar";
 import {
   ARCHETYPES, ENTRANT_NAME_POOL, RIVAL_PARAMS as RP, SCHEDULED_ENTRANTS, SCOPES, STARTING_RIVALS,
-  EUROPE_LCC_TYPES,
+  EUROPE_LCC_TYPES, WORLD_FIELD, WORLD_NAME_FIRST, WORLD_NAME_SECOND,
   type ArchetypeSpec, type EntrantSpec,
 } from "./config";
 import type {
@@ -84,6 +85,8 @@ export interface RivalCtx {
   player: Map<string, { route: Route; seatsPerFlight: number; frequency: number }>;
   /** Demand multiplier for a pair today (the pandemic shock); absent = 1. */
   demandFactor?: (a: Airport, b: Airport) => number;
+  /** The generated world field (RivalsState.field "world"): no synthetic one-stop rival, orders, outstations, fare policy. */
+  world?: boolean;
 }
 
 /** Stricter of the data package's feasibility (`canFlyRoute`) and the ledger's own range/runway test. */
@@ -174,8 +177,10 @@ export function evaluateMarket(ctx: RivalCtx, a: Airport, b: Airport, entries: E
     index.push(e.route);
     live.push(e);
   }
-  for (const c of buildRivals(a, b, dist, market, DEFAULT_ROUTE_MODEL_CONFIG).filter((i) => i.id.startsWith("conn:"))) {
-    its.push(c); index.push(null);
+  if (!ctx.world) {
+    for (const c of buildRivals(a, b, dist, market, DEFAULT_ROUTE_MODEL_CONFIG).filter((i) => i.id.startsWith("conn:"))) {
+      its.push(c); index.push(null);
+    }
   }
   const choice = runChoice({
     demand, itineraries: its,
@@ -208,7 +213,7 @@ export function evaluateMarket(ctx: RivalCtx, a: Airport, b: Airport, entries: E
 
 function needByType(air: RivalAirline, ctx: RivalCtx): Map<string, number> {
   const need = new Map<string, number>();
-  for (const r of air.routes) {
+  for (const r of [...air.routes, ...(air.pending ?? [])]) {
     const t = ctx.types.get(r.typeId);
     const a = ctx.airports.get(r.origin);
     const b = ctx.airports.get(r.destination);
@@ -298,7 +303,7 @@ function chooseType(ctx: RivalCtx, air: RivalAirline, a: Airport, b: Airport, ta
   const spec = ARCHETYPES[air.archetype];
   const dist = distanceKm(a, b);
   const owned = new Set(air.fleet.map((f) => f.typeId));
-  const prefs = air.typePrefs ?? spec.types;
+  const prefs = air.typePrefs ?? (air.scope?.world ? worldTypePrefs(ctx, air.archetype) : spec.types);
   const opts: AircraftType[] = [];
   for (const id of prefs) {
     const t = ctx.types.get(id);
@@ -363,7 +368,7 @@ function planEntry(ctx: RivalCtx, air: RivalAirline, all: Map<string, Entry[]>, 
   const wanted = Math.min(spec.maxEntryFrequency, Math.max(spec.minFrequency, Math.ceil(target / seats)));
   const freq = freqOverride ?? wanted;
   const bench = benchmarkFareFor(a, b, dist);
-  let fare = bench * spec.fareFactor;
+  let fare = bench * spec.fareFactor * (air.fareLevel ?? 1);
   const others = otherFares(ctx, all, marketKey(a.id, b.id), air);
   if (air.archetype === "lcc" && others.length > 0) fare = Math.min(fare, Math.min(...others) * 0.94);
   fare = Math.max(fare, bench * spec.floorFareFactor);
@@ -394,7 +399,7 @@ const baseCandCache = new WeakMap<Airport, Map<string, Cand[]>>();
 function baseCandidates(ctx: RivalCtx, air: RivalAirline, a: Airport): Cand[] {
   const spec = ARCHETYPES[air.archetype];
   const scope = scopeOf(air, ctx.airports);
-  const key = `${air.archetype}|${(scope.states ?? []).join(",")}/${(scope.countries ?? []).join(",")}${scope.transatlantic ? "T" : ""}|${airportEpoch(ctx.day)}`;
+  const key = `${air.archetype}|${(scope.states ?? []).join(",")}/${(scope.countries ?? []).join(",")}${scope.transatlantic ? "T" : ""}${scope.world ? "W" : ""}|${airportEpoch(ctx.day)}`;
   let byKey = baseCandCache.get(a);
   if (!byKey) baseCandCache.set(a, (byKey = new Map()));
   const hit = byKey.get(key);
@@ -403,7 +408,7 @@ function baseCandidates(ctx: RivalCtx, air: RivalAirline, a: Airport): Cand[] {
   const out: Cand[] = [];
   for (const b of ctx.airports.values()) {
     if (b.id === a.id || !airportOpen(b.id, ctx.day)) continue;
-    const across = crossAtlantic(a, b);
+    const across = !scope.world && crossAtlantic(a, b);
     if (across) {
       if (!scope.transatlantic || c.interislandOnly) continue;
     } else if (!inScope(scope, b)) continue;
@@ -411,7 +416,8 @@ function baseCandidates(ctx: RivalCtx, air: RivalAirline, a: Airport): Cand[] {
     if (!c.interislandOnly && air.archetype !== "legacy" && air.archetype !== "regional" && a.region === "HI" && b.region === "HI") continue;
     if (b.metroPopulation < c.minMetro || b.slotsPerHour < c.minSlots) continue;
     const d = distanceKm(a, b);
-    if (across ? d < TRANSATLANTIC_MIN_KM || d > TRANSATLANTIC_MAX_KM || air.archetype !== "legacy" : d < c.minKm || d > c.maxKm) continue;
+    const maxKm = scope.world && air.archetype === "legacy" ? WORLD_FIELD.legacyMaxKm : c.maxKm;
+    if (across ? d < TRANSATLANTIC_MIN_KM || d > TRANSATLANTIC_MAX_KM || air.archetype !== "legacy" : d < c.minKm || d > maxKm) continue;
     const demand = baseWeeklyDemand(a, b, undefined, ctx.day);
     if (demand < c.minDemand) continue;
     out.push({ b, demand });
@@ -465,6 +471,18 @@ function considerEntries(ctx: RivalCtx, air: RivalAirline, rivals: RivalsState, 
     const ok = relaxed ? s.est > 0 : s.est >= spec.minEntryProfitPerWeek && s.margin >= spec.minEntryMargin;
     if (!ok) continue;
     const route = makeRoute(ctx, air, s.a, s.b, s.plan.t, s.plan.freq, s.plan.fare);
+    if (ctx.world && !withinStations(air, ctx, route)) { air.nextRoute--; continue; }
+    if (ctx.world && !relaxed) {
+      // World field: a new route needs aircraft. Fly it now if the fleet has them, else order them and open it on delivery.
+      if ((air.pending?.length ?? 0) >= WORLD_FIELD.maxPending) { air.nextRoute--; continue; }
+      (air.pending ??= []).push(route);
+      if (!canAffordGrowth(air, ctx)) { air.pending.pop(); air.nextRoute--; continue; }
+      if (openPendingIfFlyable(ctx, air, route, rivals, sink)) { entered++; continue; }
+      const toOrder = (shortfall(air, ctx).get(route.typeId) ?? 0) - onOrder(air, route.typeId);
+      if (toOrder > 0) placeOrder(ctx, sink, air, route.typeId, toOrder, ` for ${route.origin}-${route.destination}`);
+      entered++;
+      continue;
+    }
     air.routes.push(route);
     if (!relaxed && !canAffordGrowth(air, ctx)) { air.routes.pop(); air.nextRoute--; continue; }
     for (const [typeId, n] of shortfall(air, ctx)) acquire(air, ctx, typeId, n);
@@ -535,7 +553,9 @@ export function makeContext(
 /** Build the 2015 field. Deterministic in `seed`. */
 export function createRivals(
   airports: readonly Airport[], types: readonly AircraftType[], seed: number, playerRoutes: readonly Route[] = [], day: Day = 0,
+  field: "classic" | "world" = "classic",
 ): RivalsState {
+  if (field === "world") return createWorldRivals(airports, types, seed, playerRoutes, day);
   const ctx = makeContext(new Map(airports.map((a) => [a.id, a])), new Map(types.map((t) => [t.id, t])), day, makeRng(mixSeed(seed, 0x21fa15)), playerRoutes);
   const state: RivalsState = { airlines: [], news: [], launchedEntrants: [], nextAirline: 0, originDay: day };
   for (const spec of STARTING_RIVALS) {
@@ -681,8 +701,9 @@ export function stepRivalsWeek(
   const sink: Sink = { news: [], notices: [] };
   const bankruptcies: BankruptcyRecord[] = [];
 
-  // Scheduled entrants and (rare) random startups.
-  for (const e of SCHEDULED_ENTRANTS) {
+  // Scheduled entrants and (rare) random startups (classic field); the world field has its own startups.
+  if (ctx.world) worldStartups(ctx, rivals, sink, week);
+  for (const e of ctx.world ? [] : SCHEDULED_ENTRANTS) {
     if (rivals.launchedEntrants.includes(e.id)) continue;
     const jitter = Math.round((makeRng(mixSeed(seed, 0xe17a))() - 0.5) * 2 * e.jitterDays);
     if (ctx.day >= (rivals.originDay ?? 0) + Math.round(e.launchYear * 365.25) + jitter) {
@@ -690,7 +711,7 @@ export function stepRivalsWeek(
       launchAirline(ctx, rivals, sink, e);
     }
   }
-  if (week > 0 && week % RP.yearWeeks === 0 && ctx.year >= RP.randomEntrantFromYear) {
+  if (!ctx.world && week > 0 && week % RP.yearWeeks === 0 && ctx.year >= RP.randomEntrantFromYear) {
     const active = rivals.airlines.filter((a) => a.status === "active").length;
     if (active < RP.maxActive && ctx.rng() < RP.randomEntrantChancePerYear) {
       const name = ENTRANT_NAME_POOL.find((n) => !rivals.airlines.some((a) => a.name === n));
@@ -750,6 +771,22 @@ export function stepRivalsWeek(
 
     // 3. Weekly pricing and memory.
     for (const rt of air.routes) updatePricing(ctx, sink, air, rt, all, spec);
+
+    if (ctx.world) {
+      receiveDeliveries(ctx, sink, air, rivals);
+      // All decisions on the airline's own week of the cycle (assigned at set-up), so only a few airlines decide in any week.
+      if (week > 0 && week % WORLD_FIELD.decisionCycleWeeks === (air.decisionWeek ?? 0)) {
+        air.lastDecisionDay = ctx.day;
+        monthly(ctx, sink, air, spec);
+        quarterlyExits(ctx, sink, air, rivals, spec);
+        if (air.cash > 0) considerEntries(ctx, air, rivals, sink, WORLD_FIELD.entriesPerDecision, air.routes.length < 2);
+        considerOutstation(ctx, sink, air);
+        reviewFarePolicy(ctx, sink, air);
+        if (ctx.day - (air.lastFleetDay ?? 0) >= 364) { air.lastFleetDay = ctx.day; annualFleet(ctx, sink, air, spec); }
+        enforceStations(ctx, air, spec);
+      }
+      return;
+    }
 
     const isMonth = week > 0 && (week + idx) % RP.monthWeeks === 0;
     const isQuarter = week > 0 && (week + 2 * idx) % RP.quarterWeeks === 0;
@@ -828,7 +865,7 @@ function updatePricing(ctx: RivalCtx, sink: Sink, air: RivalAirline, rt: RivalRo
     if (rt.profitHist.length >= 2) {
       if (lf > RP.yieldHighLF) rt.baseFare *= 1 + RP.yieldUp;
       else if (lf < RP.yieldLowLF) rt.baseFare *= 1 - RP.yieldDown;
-      rt.baseFare = Math.min(bench * spec.fareFactor * RP.fareCeiling, Math.max(bench * spec.floorFareFactor * 1.05, rt.baseFare));
+      rt.baseFare = Math.min(bench * spec.fareFactor * (air.fareLevel ?? 1) * RP.fareCeiling, Math.max(bench * spec.floorFareFactor * 1.05, rt.baseFare));
     }
     rt.fare = rt.fare < rt.baseFare ? Math.min(rt.baseFare, rt.fare * (1 + RP.relaxPerWeek)) : rt.baseFare;
   }
@@ -881,9 +918,11 @@ function monthly(ctx: RivalCtx, sink: Sink, air: RivalAirline, spec: ArchetypeSp
     if (spec.freqResponse && mem?.active && rt.frequency < rt.baselineFrequency * 1.35 && rt.frequency < spec.maxFrequency) {
       rt.frequency += Math.max(1, Math.round(rt.frequency * 0.1));
       if (!canAffordGrowth(air, ctx)) rt.frequency = before;
+      else if (ctx.world) worldGrowthCheck(ctx, sink, air, rt, before);
     } else if (lf >= RP.growLF && margin >= RP.growMargin && rt.frequency < spec.maxFrequency && !mem?.active) {
       rt.frequency = Math.min(spec.maxFrequency, rt.frequency + Math.max(1, Math.round(rt.frequency * (lf > 0.95 ? 0.25 : 0.12))));
       if (!canAffordGrowth(air, ctx)) rt.frequency = before;
+      else if (ctx.world) worldGrowthCheck(ctx, sink, air, rt, before);
     } else if ((lf <= RP.shrinkLF || margin <= RP.shrinkMargin) && rt.frequency > spec.minFrequency) {
       rt.frequency = Math.max(spec.minFrequency, rt.frequency - Math.max(1, Math.round(rt.frequency * 0.12)));
     }
@@ -894,7 +933,8 @@ function monthly(ctx: RivalCtx, sink: Sink, air: RivalAirline, spec: ArchetypeSp
       });
     }
   }
-  for (const [typeId, n] of shortfall(air, ctx)) acquire(air, ctx, typeId, n);
+  // Classic field: lease what the changes need at once. World field: growth waited for ordered aircraft (worldGrowthCheck).
+  if (!ctx.world) for (const [typeId, n] of shortfall(air, ctx)) acquire(air, ctx, typeId, n);
 }
 
 function quarterlyExits(ctx: RivalCtx, sink: Sink, air: RivalAirline, _rivals: RivalsState, spec: ArchetypeSpec) {
@@ -971,5 +1011,305 @@ export function rivalItinerariesFor(
       (out ??= []).push(rivalItinerary(air, rt, dist, t));
     }
   }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Generated world field (RivalsState.field "world"; owner design of 20 Nov 2026). See RIVALS.md "World field".
+// ---------------------------------------------------------------------------
+
+const worldPrefCache = new Map<string, string[]>();
+
+/**
+ * Aircraft a world-field airline flies, for the current year: every type in service (or on the used market), by archetype class
+ * (regional up to 110 seats, low-cost single-aisle 120-240 seats, legacy anything from 100 seats), newest designs first.
+ */
+function worldTypePrefs(ctx: RivalCtx, archetype: Archetype): string[] {
+  const key = `${archetype}|${ctx.year}|${ctx.types.size}`;
+  const hit = worldPrefCache.get(key);
+  if (hit) return hit;
+  const fits = (t: AircraftType) =>
+    archetype === "regional" || archetype === "interisland" ? !t.widebody && t.maxSeats <= 110
+      : archetype === "lcc" ? !t.widebody && t.maxSeats >= 120 && t.maxSeats <= 240
+        : t.maxSeats >= 100;
+  const out = [...ctx.types.values()].filter((t) => fits(t) && typeAvailable(t, ctx.year, false))
+    .sort((x, y) => y.introYear - x.introYear || cmp(x.id, y.id)).map((t) => t.id);
+  worldPrefCache.set(key, out);
+  return out;
+}
+
+/** Round-trip block hours a week of the airline's routes touching an airport (plus `extra` if it is not already among them). */
+function stationHours(air: RivalAirline, ctx: RivalCtx, airportId: Id, extra?: RivalRoute): number {
+  let h = 0;
+  const list = extra && !air.routes.includes(extra) ? [...air.routes, extra] : air.routes;
+  for (const r of list) {
+    if (r.origin !== airportId && r.destination !== airportId) continue;
+    const t = ctx.types.get(r.typeId), a = ctx.airports.get(r.origin), b = ctx.airports.get(r.destination);
+    if (t && a && b) h += r.frequency * 2 * blockHours(distanceKm(a, b), t);
+  }
+  return h;
+}
+
+/** Same rule as the player (fleet/hubs.ts): flights touching an outstation use at most OUTSTATION_PARAMS.blockHoursPerWeek a week. */
+function withinStations(air: RivalAirline, ctx: RivalCtx, route: RivalRoute): boolean {
+  for (const end of [route.origin, route.destination]) {
+    if ((air.outstations ?? []).includes(end) && stationHours(air, ctx, end, route) > OUTSTATION_PARAMS.blockHoursPerWeek + 1e-9) return false;
+  }
+  return true;
+}
+
+const onOrder = (air: RivalAirline, typeId: string) => (air.orders ?? []).reduce((n, o) => n + (o.typeId === typeId ? o.count : 0), 0);
+
+function placeOrder(ctx: RivalCtx, sink: Sink, air: RivalAirline, typeId: string, count: number, why: string) {
+  const t = ctx.types.get(typeId);
+  if (!t || count <= 0) return;
+  const [lo, hi] = t.widebody ? WORLD_FIELD.leadMonths.wide : WORLD_FIELD.leadMonths.narrow;
+  const deliveryDay = ctx.day + Math.round((lo + ctx.rng() * (hi - lo)) * 30.4375);
+  (air.orders ??= []).push({ typeId, count, deliveryDay });
+  air.cash -= count * RP.depositMonths * monthlyLease(t);
+  emit(ctx, sink, air, "order", `${air.name} orders ${count} ${t.name}${why}.`, { typeId, aircraft: count });
+}
+
+/** Aircraft (with spares) a route needs. */
+function routeNeed(ctx: RivalCtx, r: RivalRoute): number {
+  const t = ctx.types.get(r.typeId), a = ctx.airports.get(r.origin), b = ctx.airports.get(r.destination);
+  return t && a && b ? aircraftEquivalentFor(distanceKm(a, b), t, r.frequency) * RP.fleetSpareFactor : 0;
+}
+
+/** Open a route waiting for aircraft when the fleet now covers it (and the flying routes of its type). */
+function openPendingIfFlyable(ctx: RivalCtx, air: RivalAirline, route: RivalRoute, rivals: RivalsState, sink: Sink): boolean {
+  const flying = air.routes.filter((r) => r.typeId === route.typeId).reduce((s, r) => s + routeNeed(ctx, r), 0);
+  if (Math.ceil(flying + routeNeed(ctx, route) - 1e-9) > ownedCount(air, route.typeId)) return false;
+  if (!withinStations(air, ctx, route)) return false;
+  air.pending = (air.pending ?? []).filter((r) => r !== route);
+  route.enteredDay = ctx.day;
+  air.routes.push(route);
+  openRoute(ctx, air, route, rivals, sink);
+  return true;
+}
+
+/** Weekly: ordered aircraft that are due join the fleet, then routes waiting for them open. Stale waiting routes are dropped. */
+function receiveDeliveries(ctx: RivalCtx, sink: Sink, air: RivalAirline, rivals: RivalsState) {
+  const due = (air.orders ?? []).filter((o) => o.deliveryDay <= ctx.day);
+  if (due.length > 0) {
+    air.orders = (air.orders ?? []).filter((o) => o.deliveryDay > ctx.day);
+    for (const o of due) for (let i = 0; i < o.count; i++) air.fleet.push({ id: `${air.id}-ac${++air.nextAircraft}`, typeId: o.typeId, ageDays: 0 });
+  }
+  for (const r of [...(air.pending ?? [])]) {
+    if (ctx.day - r.enteredDay > WORLD_FIELD.pendingMaxDays) { air.pending = air.pending!.filter((x) => x !== r); continue; }
+    openPendingIfFlyable(ctx, air, r, rivals, sink);
+  }
+}
+
+/** World field growth: keep a frequency rise only within the outstation cap and with aircraft in hand; otherwise order them. */
+function worldGrowthCheck(ctx: RivalCtx, sink: Sink, air: RivalAirline, rt: RivalRoute, before: number) {
+  if (!withinStations(air, ctx, rt)) { rt.frequency = before; return; }
+  const short = shortfall(air, ctx).get(rt.typeId) ?? 0;
+  if (short <= 0) return;
+  rt.frequency = before;
+  const toOrder = short - onOrder(air, rt.typeId);
+  if (toOrder > 0) placeOrder(ctx, sink, air, rt.typeId, toOrder, ` to grow ${rt.origin}-${rt.destination}`);
+}
+
+/** Keep every outstation within its cap (a type change can raise frequencies): trim the busiest routes touching it. */
+function enforceStations(ctx: RivalCtx, air: RivalAirline, spec: ArchetypeSpec) {
+  for (const o of air.outstations ?? []) {
+    for (let guard = 0; guard < 200 && stationHours(air, ctx, o) > OUTSTATION_PARAMS.blockHoursPerWeek + 1e-9; guard++) {
+      const r = air.routes.filter((x) => (x.origin === o || x.destination === o) && x.frequency > 1).sort((x, y) => y.frequency - x.frequency || cmp(x.id, y.id))[0];
+      if (!r) break;
+      r.frequency = Math.max(1, r.frequency - Math.max(1, Math.round(r.frequency * 0.1)));
+      void spec;
+    }
+  }
+}
+
+/** Open an outstation at the busiest airport the airline already serves (not a base), if it is big enough and can pay. */
+function considerOutstation(ctx: RivalCtx, sink: Sink, air: RivalAirline) {
+  const outs = (air.outstations ??= []);
+  if (air.routes.length < WORLD_FIELD.outstationMinRoutes || outs.length >= WORLD_FIELD.maxOutstations) return;
+  if (ctx.rng() >= WORLD_FIELD.outstationChance) return;
+  const cost = OUTSTATION_PARAMS.costUsd;
+  if (air.cash - cost < ARCHETYPES[air.archetype].reserveWeeks * weeklyFixed(air, ctx) || air.lossWeeks > 0) return;
+  const served = [...new Set(air.routes.flatMap((r) => [r.origin, r.destination]))].filter((id) => !air.bases.includes(id) && airportOpen(id, ctx.day)).sort(cmp);
+  let best: { id: string; score: number } | null = null;
+  for (const id of served) {
+    const ap = ctx.airports.get(id);
+    if (!ap) continue;
+    // Only where its flights there leave room under the cap (at most half of it used already).
+    if (stationHours(air, ctx, id) > OUTSTATION_PARAMS.blockHoursPerWeek / 2) continue;
+    const score = baseCandidates(ctx, air, ap).slice(0, 10).reduce((s, c) => s + c.demand, 0);
+    if (!best || score > best.score) best = { id, score };
+  }
+  if (!best || best.score <= 0) return;
+  air.bases = [...air.bases, best.id];
+  outs.push(best.id);
+  air.cash -= cost;
+  emit(ctx, sink, air, "outstation", `${air.name} opens an outstation at ${best.id}.`, { origin: best.id });
+}
+
+/** Fare policy: one network-wide fare level, raised when its flights run full and cut when they run empty. */
+function reviewFarePolicy(ctx: RivalCtx, sink: Sink, air: RivalAirline) {
+  let seats = 0, pax = 0;
+  for (const rt of air.routes) { const s = rt.frequency * rt.seatsPerFlight; seats += s; pax += s * rt.loadFactor; }
+  if (seats <= 0) return;
+  const lf = pax / seats;
+  const p = WORLD_FIELD.fareLevel;
+  const lvl = air.fareLevel ?? 1;
+  const next = lf > p.highLF ? Math.min(p.max, lvl * (1 + p.step)) : lf < p.lowLF ? Math.max(p.min, lvl * (1 - p.step)) : lvl;
+  if (Math.abs(next - lvl) < 1e-9) return;
+  for (const rt of air.routes) rt.baseFare *= next / lvl;
+  air.fareLevel = next;
+  const pct = Math.round(Math.abs(next / lvl - 1) * 100);
+  emit(ctx, sink, air, "farePolicy", `${air.name} ${next > lvl ? "raises" : "cuts"} fares ${pct}% across its network (fare policy).`, { pct });
+}
+
+const topCache = new Map<string, Id[]>();
+
+/**
+ * The `n` busiest airports by the model's own demand: each airport's potential weekly passengers to the 120 largest metros
+ * (`baseWeeklyDemand`), among the 300 largest by metro population that are open. Cached per year.
+ */
+export function topAirportsByDemand(airports: ReadonlyMap<string, Airport>, n: number, day: Day): Airport[] {
+  const key = `${airports.size}|${dayToDate(day).year}|${airportEpoch(day)}|${n}`;
+  let ids = topCache.get(key);
+  if (!ids) {
+    const open = [...airports.values()].filter((a) => airportOpen(a.id, day)).sort((x, y) => y.metroPopulation - x.metroPopulation || cmp(x.id, y.id));
+    const partners = open.slice(0, 120);
+    const scored = open.slice(0, 300).map((a) => ({ a, s: partners.reduce((t, p) => t + (p.id === a.id ? 0 : baseWeeklyDemand(a, p, undefined, day)), 0) }));
+    ids = scored.sort((x, y) => y.s - x.s || cmp(x.a.id, y.a.id)).slice(0, n).map((x) => x.a.id);
+    topCache.set(key, ids);
+  }
+  return ids.map((id) => airports.get(id)!).filter(Boolean);
+}
+
+function shuffled<T>(list: readonly T[], rng: () => number): T[] {
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [out[i], out[j]] = [out[j]!, out[i]!]; }
+  return out;
+}
+
+function pickArchetype(rng: () => number): Archetype {
+  let x = rng();
+  for (const [a, w] of WORLD_FIELD.mix) { if (x < w) return a; x -= w; }
+  return WORLD_FIELD.mix[WORLD_FIELD.mix.length - 1]![0];
+}
+
+/** A fictional name not used yet: one word from each list ("Cobalt Wings"). */
+export function worldName(rng: () => number, used: ReadonlySet<string>): string {
+  for (let i = 0; i < 200; i++) {
+    const name = `${WORLD_NAME_FIRST[Math.floor(rng() * WORLD_NAME_FIRST.length)]} ${WORLD_NAME_SECOND[Math.floor(rng() * WORLD_NAME_SECOND.length)]}`;
+    if (!used.has(name)) return name;
+  }
+  return `Startup ${used.size + 1}`;
+}
+
+/** World-field state of a new airline: no outstations or orders yet, standard fares, its decision week. */
+function worldify(air: RivalAirline, ctx: RivalCtx, decisionWeek: number) {
+  Object.assign(air, { outstations: [], decisionWeek, lastDecisionDay: ctx.day, orders: [], pending: [], fareLevel: 1, lastFleetDay: ctx.day });
+}
+
+/**
+ * The generated field: WORLD_FIELD.airlines airlines, each with its hub at a different airport among the top WORLD_FIELD.topAirports
+ * (random, seeded), a random archetype, a starting network built from its hub (`seedNetwork`: only routes the true economics say pay)
+ * and a decision week of the cycle (spread evenly). Deterministic in `seed`.
+ */
+function createWorldRivals(airports: readonly Airport[], types: readonly AircraftType[], seed: number, playerRoutes: readonly Route[], day: Day): RivalsState {
+  const ctx = makeContext(new Map(airports.map((a) => [a.id, a])), new Map(types.map((t) => [t.id, t])), day, makeRng(mixSeed(seed, 0x30e1d)), playerRoutes);
+  ctx.world = true;
+  const state: RivalsState = { airlines: [], news: [], launchedEntrants: [], nextAirline: 0, originDay: day, field: "world" };
+  const hubs = shuffled(topAirportsByDemand(ctx.airports, WORLD_FIELD.topAirports, day), ctx.rng).slice(0, WORLD_FIELD.airlines);
+  const weeks = shuffled(hubs.map((_, i) => i % WORLD_FIELD.decisionCycleWeeks), ctx.rng);
+  const used = new Set<string>();
+  hubs.forEach((hub, i) => {
+    const archetype = pickArchetype(ctx.rng);
+    const [lo, hi] = WORLD_FIELD.seedRoutes[archetype];
+    const count = lo + Math.floor(ctx.rng() * (hi - lo + 1));
+    const name = worldName(ctx.rng, used);
+    used.add(name);
+    const air = newAirline(ctx, `w${i}`, name, archetype, [hub.id], WORLD_FIELD.cashPerRoute[archetype] * count, { scope: { world: true }, maxRoutes: WORLD_FIELD.maxRoutes[archetype] });
+    worldify(air, ctx, weeks[i]!);
+    state.airlines.push(air);
+    seedNetwork(ctx, state, air, count);
+    // A regional or low-cost airline that finds no paying market at its hub (few short-haul neighbours in the data) becomes a
+    // network carrier instead, which may also fly long-haul.
+    if (air.routes.length === 0 && archetype !== "legacy") {
+      air.archetype = "legacy";
+      air.maxRoutes = WORLD_FIELD.maxRoutes.legacy;
+      seedNetwork(ctx, state, air, WORLD_FIELD.seedRoutes.legacy[0]);
+    }
+    for (const r of air.routes) air.memory[marketKey(r.origin, r.destination)] ??= quietMemory(ctx, "self");
+  });
+  state.nextAirline = state.airlines.length;
+  return state;
+}
+
+/** Yearly: while fewer than WORLD_FIELD.airlines are flying, a new low-cost or regional startup may launch at a top airport. */
+function worldStartups(ctx: RivalCtx, rivals: RivalsState, sink: Sink, week: number) {
+  if (week <= 0 || week % RP.yearWeeks !== 0) return;
+  const active = rivals.airlines.filter((a) => a.status === "active");
+  if (active.length >= WORLD_FIELD.airlines || ctx.rng() >= WORLD_FIELD.startupChancePerYear) return;
+  const top = topAirportsByDemand(ctx.airports, WORLD_FIELD.topAirports, ctx.day);
+  if (top.length === 0) return;
+  const hub = top[Math.floor(ctx.rng() * top.length)]!;
+  const archetype: Archetype = ctx.rng() < 0.5 ? "lcc" : "regional";
+  const [lo, hi] = WORLD_FIELD.startupCash;
+  const name = worldName(ctx.rng, new Set(rivals.airlines.map((a) => a.name)));
+  // The least busy decision week, so the cycle stays balanced.
+  const load = new Array<number>(WORLD_FIELD.decisionCycleWeeks).fill(0);
+  for (const a of active) load[a.decisionWeek ?? 0]!++;
+  const slot = load.indexOf(Math.min(...load));
+  const id = `w${rivals.nextAirline}`;
+  launchAirline(ctx, rivals, sink, { id, name, archetype, bases: [hub.id], cash: Math.round(lo + ctx.rng() * (hi - lo)), initialRoutes: 4, scope: { world: true }, maxRoutes: WORLD_FIELD.maxRoutes[archetype] });
+  const air = rivals.airlines.find((a) => a.id === id);
+  if (air) worldify(air, ctx, slot);
+}
+
+const routeIndexCache = new WeakMap<RivalAirline, Map<string, RivalRoute>>();
+const competitorCache = new WeakMap<RivalsState, Map<string, Itinerary[]>>();
+
+/**
+ * Every competing itinerary in a market in the world field: the rivals' nonstops, plus their one-stop connections through one of
+ * their own bases (hub or outstation) when they fly both legs and the trip does not double back (at most 2x the direct distance).
+ * A one-stop is offered at 92% of the benchmark fare times the airline's fare factor and level, on WORLD_FIELD.connectingSeatShare
+ * of each leg's seats (assumption). Undefined outside the world field (the caller keeps the synthetic rivals). Cached per weekly
+ * rival state.
+ */
+export function competitorItinerariesFor(
+  rivals: RivalsState | null | undefined, a: Airport, b: Airport, types: ReadonlyMap<string, AircraftType>, airports: ReadonlyMap<string, Airport>,
+): Itinerary[] | undefined {
+  if (!rivals || rivals.field !== "world") return undefined;
+  let cache = competitorCache.get(rivals);
+  if (!cache) competitorCache.set(rivals, (cache = new Map()));
+  const key = marketKey(a.id, b.id);
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const out: Itinerary[] = [...(rivalItinerariesFor(rivals, a, b, types) ?? [])];
+  const dist = distanceKm(a, b);
+  for (const air of rivals.airlines) {
+    if (air.status !== "active" || air.bases.length === 0) continue;
+    let idx = routeIndexCache.get(air);
+    if (!idx) { idx = new Map(air.routes.map((r) => [marketKey(r.origin, r.destination), r])); routeIndexCache.set(air, idx); }
+    for (const h of air.bases) {
+      if (h === a.id || h === b.id) continue;
+      const r1 = idx.get(marketKey(a.id, h)), r2 = idx.get(marketKey(h, b.id));
+      const hub = airports.get(h);
+      if (!r1 || !r2 || !hub) continue;
+      const d1 = distanceKm(a, hub), d2 = distanceKm(hub, b);
+      if (d1 + d2 > 2 * dist) continue;
+      const t1 = types.get(r1.typeId), t2 = types.get(r2.typeId);
+      if (!t1 || !t2) continue;
+      const spec = ARCHETYPES[air.archetype];
+      const id = `rv1:${air.id}:${key}:${h}`;
+      const leg = (o: string, d: string, km: number, t: AircraftType, r: RivalRoute) => ({
+        id: `${id}:${o}`, origin: o, destination: d, distanceKm: km, blockMin: blockMin(km, t.cruiseKmh),
+        weeklyFrequency: r.frequency, weeklySeats: r.frequency * r.seatsPerFlight * WORLD_FIELD.connectingSeatShare,
+      });
+      out.push({
+        id, carrier: air.id, fare: benchmarkFareFor(a, b, dist) * 0.92 * spec.fareFactor * (air.fareLevel ?? 1), quality: spec.quality, marketDistanceKm: dist,
+        legs: [leg(a.id, h, d1, t1, r1), leg(h, b.id, d2, t2, r2)],
+      });
+    }
+  }
+  cache.set(key, out);
   return out;
 }

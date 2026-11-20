@@ -70,6 +70,11 @@ export interface ScenarioOptions {
    * Checked by `startFleetError`.
    */
   startFleet?: ReadonlyArray<readonly [typeId: string, count: number]>;
+  /**
+   * Rival field: "world" = the generated 50-airline field with no synthetic stand-in rivals (rivals/world, what new games use);
+   * "classic" = the original named field (default, so calibration tests keep their reference world).
+   */
+  rivalField?: "classic" | "world";
 }
 
 /** List-price budget for a player-chosen starting fleet. */
@@ -325,7 +330,7 @@ export function startingScenario(airports: Airport[], aircraftTypes: AircraftTyp
     const sim = newSim(seed, airports, aircraftTypes, options.pandemic === undefined ? { notionalFleet: false } : { notionalFleet: false, pandemic: options.pandemic }, opts);
     // The campaign grade is a multiple of what the airline started with; here that includes the fleet it was given.
     const campaign = startCampaign(startYear, options.campaignYears, STARTING_CASH_USD + startFleetValueUsd(aircraftTypes, options.startFleet));
-    return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, [], startDay), ...(campaign ? { campaign: { ...campaign, peakCashUsd: STARTING_CASH_USD } } : {}) };
+    return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, [], startDay, options.rivalField), ...(campaign ? { campaign: { ...campaign, peakCashUsd: STARTING_CASH_USD } } : {}) };
   }
 
   const buildFleet = (counts: ReadonlyMap<string, number>): Aircraft[] => {
@@ -389,5 +394,5 @@ export function startingScenario(airports: Airport[], aircraftTypes: AircraftTyp
   const opts: StartOptions = { cash: STARTING_CASH_USD, fleet, routes, airlineName, baseAirport: hubId, day: startDay };
   const sim = newSim(seed, airports, aircraftTypes, options.pandemic === undefined ? { notionalFleet: false } : { notionalFleet: false, pandemic: options.pandemic }, opts);
   const campaign = startCampaign(startYear, options.campaignYears, STARTING_CASH_USD);
-  return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, sim.world.routes, startDay), ...(campaign ? { campaign } : {}) };
+  return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, sim.world.routes, startDay, options.rivalField), ...(campaign ? { campaign } : {}) };
 }
