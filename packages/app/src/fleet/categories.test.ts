@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { byName, inCategory, seatSplit } from "./categories";
+import { byName, categoryCounts, inCategory, seatSplit } from "./categories";
 import { buildTypeRows } from "./typeTable";
 
 describe("fleet categories helpers", () => {
@@ -19,5 +19,12 @@ describe("fleet categories helpers", () => {
     const item = (id: string, typeId: string, typeName: string) => ({ id, typeId, typeName, status: "active" }) as never;
     const rows = buildTypeRows([item("1", "A320", "A320ceo"), item("2", "B738", "B737-800"), item("3", "A320N", "A320neo")], "all", () => ({ available: 0, used: 0, free: 0 }));
     expect(rows.map((r) => r.typeName)).toEqual(["A320ceo", "A320neo", "B737-800"]);
+  });
+  it("aircraft per category follow the hub filter (no hub set = home hub)", () => {
+    const fleet = [{ id: "a", hub: "IAH" }, { id: "b", hub: "IAH" }, { id: "c", hub: "DEN" }, { id: "d" }, { id: "e", hub: "IAH" }];
+    const cats = new Map([["a", "nb"], ["b", "nb"], ["c", "nb"], ["d", "nb"], ["e", "wb"]]);
+    expect([...categoryCounts(fleet, cats, "all", "ORD")]).toEqual([["nb", 4], ["wb", 1]]);
+    expect([...categoryCounts(fleet, cats, "IAH", "ORD")]).toEqual([["nb", 2], ["wb", 1]]);
+    expect([...categoryCounts(fleet, cats, "ORD", "ORD")]).toEqual([["nb", 1]]);
   });
 });
