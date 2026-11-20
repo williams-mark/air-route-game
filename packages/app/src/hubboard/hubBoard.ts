@@ -146,7 +146,10 @@ export interface ConnectingAnalysis {
   /** Share of seats sold on the hub's routes that are filled by passengers changing planes here. */
   shareOfBoardings: number | null;
   revenue: number;
+  /** The largest through markets (each route lists only its own largest; smaller ones are counted in the totals only). */
   markets: ConnectingMarketRow[];
+  /** All through markets connecting here, listed or not. */
+  marketCount: number;
 }
 
 /**
@@ -156,12 +159,18 @@ export interface ConnectingAnalysis {
 export function buildConnectingAnalysis(routes: readonly Route[], reports: Reports, hub: string): ConnectingAnalysis {
   const seen = new Map<string, ConnectingMarketRow>();
   let boardings = 0, any = false;
+  // Exact totals from each route's per-hub figures. A transfer rides two of the hub's routes, so summing one-way passengers over
+  // the routes gives both directions; the prorated revenue shares of the two legs add up to the through revenue.
+  let viaPax = 0, viaRevenue = 0, viaMarkets = 0, haveVia = false;
   for (const r of routes) {
     if (r.origin !== hub && r.destination !== hub) continue;
     const rep = reports[r.id];
     if (!rep) continue;
     any = true;
     boardings += rep.evaluation.passengersPerWeek;
+    if (rep.connecting?.viaHub) haveVia = true;
+    const via = rep.connecting?.viaHub?.[hub];
+    if (via) { viaPax += via.passengersOneWay; viaRevenue += via.revenue; viaMarkets += via.markets; }
     for (const m of rep.connecting?.markets ?? []) {
       if (m.hub !== hub) continue;
       const key = m.origin < m.destination ? `${m.origin}-${m.destination}` : `${m.destination}-${m.origin}`;
@@ -173,7 +182,8 @@ export function buildConnectingAnalysis(routes: readonly Route[], reports: Repor
     }
   }
   const markets = [...seen.values()].sort((a, b) => b.passengers - a.passengers || a.key.localeCompare(b.key, "en"));
-  const transfers = markets.reduce((s, m) => s + m.passengers, 0);
+  // Older saves have no per-hub figures: fall back to the listed markets.
+  const transfers = haveVia ? viaPax : markets.reduce((s, m) => s + m.passengers, 0);
   for (const m of markets) m.shareOfTransfers = transfers > 0 ? m.passengers / transfers : 0;
   const people = boardings - transfers;
   return {
@@ -181,7 +191,8 @@ export function buildConnectingAnalysis(routes: readonly Route[], reports: Repor
     localPassengers: Math.max(0, people - transfers),
     transferShare: any && people > 0 ? Math.min(1, transfers / people) : null,
     shareOfBoardings: any && boardings > 0 ? Math.min(1, (2 * transfers) / boardings) : null,
-    revenue: markets.reduce((s, m) => s + m.revenue, 0),
+    revenue: haveVia ? viaRevenue : markets.reduce((s, m) => s + m.revenue, 0),
     markets,
+    marketCount: haveVia ? Math.max(markets.length, Math.round(viaMarkets / 2)) : markets.length,
   };
 }

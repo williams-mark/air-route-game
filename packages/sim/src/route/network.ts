@@ -1,11 +1,12 @@
 import type { Aircraft, AircraftType, Airport, CabinClass, Day, Id, Route, ServiceLevel } from "@arg/contracts";
-import { marketOnDay } from "../demand/market";
+import { marketOnDay, pairMarket } from "../demand/market";
 import { benchmarkFareFor } from "../demand/fares";
 import { distanceKm } from "../geo";
 import { evaluateRoute, LEDGER_PARAMS, type CabinLoad, type LedgerLine, type RouteEvaluation } from "../finance/ledger";
 import {
   DEFAULT_ROUTE_MODEL_CONFIG, evaluateWithFleet, fleetGroups, evaluateHubConnection, networkContribution, type RouteWeek,
 } from "./routeModel";
+import { fastConnectionDemand } from "./connectFast";
 
 /** One through market served by two of the player's routes (e.g. SAN-HNL via LAX). Weekly figures. */
 export interface ConnectingMarketReport {
@@ -34,6 +35,13 @@ export interface RouteConnecting {
   floorOneWay?: number;
   /** One-way weekly local passengers who gave up a seat to floor connecting passengers on a full flight; absent when none. */
   displacedOneWay?: number;
+  /**
+   * Totals by connecting hub over ALL markets on this route (`markets` lists only the largest): one-way passengers who change
+   * planes at that hub, this route's prorated share of their through revenue, and the number of markets.
+   */
+  viaHub?: Record<Id, { passengersOneWay: number; revenue: number; markets: number }>;
+  /** Markets carried but not listed in `markets` (smallest first to go): count, one-way passengers, through revenue. */
+  otherMarkets?: { count: number; passengersOneWay: number; revenue: number };
 }
 
 export interface NetworkInput {
@@ -68,17 +76,25 @@ export interface NetworkResult {
 }
 
 /**
- * Network-wide cut: the largest `maxMarkets` through markets with at least `minWeeklyDemand` are evaluated each day. Each route's own
- * largest markets are evaluated as well (`CONNECTING_FLOOR.guaranteedMarketsPerRoute`), so stepDay stays O(routes).
+ * Which through markets are evaluated (MODEL.md 9c). Every sensible market (one that does not double back) with at least
+ * `minWeeklyDemand` is evaluated: each hub's `fullMarketsPerHub` largest with the full model, all the others with the fast tier
+ * (route/connectFast.ts). There is no network-wide cap, so a hub's connecting traffic grows with the number of its routes.
  */
-export const NETWORK_LIMITS = { maxMarkets: 12, minWeeklyDemand: 300 } as const;
+export const NETWORK_LIMITS = {
+  /** Largest markets per hub that get the full model (evaluateHubConnection); every other sensible market uses the fast tier. */
+  fullMarketsPerHub: 30,
+  /** Markets smaller than this (one-way potential passengers a week) are not evaluated at all. */
+  minWeeklyDemand: 5,
+  /** Markets listed per route in its report (the rest are summarised in `otherMarkets`; totals stay exact). */
+  listedMarketsPerRoute: 25,
+} as const;
 
 /**
  * Connecting floor: a route with a sensible onward connection never reports exactly 0 connecting passengers.
  * A connection is sensible when it does not double back: flown distance <= `maxCircuity` x the direct distance (HNL-OGG via LAX
  * is not; MRY-SAN via LAX is). Only sensible connections count below.
- * 1. Each route's `guaranteedMarketsPerRoute` largest through markets are always evaluated with the choice model, whatever the
- *    network-wide `NETWORK_LIMITS` cut (which used to drop every market of a small spoke once the network had 12 larger ones).
+ * 1. Every sensible market is evaluated (full or fast tier, `NETWORK_LIMITS`), so a small spoke is no longer dropped by a
+ *    network-wide cut (the old cut of 12 markets dropped all of them once the network had 12 larger ones).
  * 2. If the route still carries fewer one-way connecting passengers than
  *    max(minPassengersOneWay, min(maxShare, sharePerOnwardRoute x onward cities) x local one-way passengers),
  *    capped at `maxShareOfOnwardDemand` of the onward markets' demand, the shortfall is added on its largest onward markets at the
@@ -88,7 +104,7 @@ export const NETWORK_LIMITS = { maxMarkets: 12, minWeeklyDemand: 300 } as const;
  * 2-passenger minimum and the circuity limit are assumptions.
  */
 export const CONNECTING_FLOOR = {
-  guaranteedMarketsPerRoute: 2, sharePerOnwardRoute: 0.002, maxShare: 0.01, minPassengersOneWay: 2, maxShareOfOnwardDemand: 0.25, maxCircuity: 2,
+  sharePerOnwardRoute: 0.002, maxShare: 0.01, minPassengersOneWay: 2, maxShareOfOnwardDemand: 0.25, maxCircuity: 2,
 } as const;
 
 /** True when flying a-hub-b does not double back (see `CONNECTING_FLOOR.maxCircuity`). */
@@ -168,6 +184,9 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
   interface Cand { hub: Airport; r1: Route; r2: Route; a: Airport; b: Airport; weekly: number }
   const cands: Cand[] = [];
   const cfg = DEFAULT_ROUTE_MODEL_CONFIG;
+  // Each route's length (= the distance from the far end to the hub), computed once rather than for every pair it is part of.
+  const routeLen = new Map<Id, number>();
+  for (const r of routes) { const o = airports.get(r.origin), d = airports.get(r.destination); if (o && d) routeLen.set(r.id, distanceKm(o, d)); }
   for (const [hubId, rs] of byAirport) {
     if (rs.length < 2) continue;
     const hub = airports.get(hubId);
@@ -182,25 +201,32 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
         if (direct.has(key)) continue;
         const a = airports.get(aId), b = airports.get(bId);
         if (!a || !b) continue;
-        cands.push({ hub, r1, r2, a, b, weekly: marketOnDay(a, b, day, cfg.market).weekly });
+        // Sensible (does not double back): same rule as isSensibleConnection, with the leg lengths already known.
+        if ((routeLen.get(r1.id) ?? 0) + (routeLen.get(r2.id) ?? 0) > CONNECTING_FLOOR.maxCircuity * distanceKm(a, b)) continue;
+        // Rank and cut on the cached annual-average market (no daily seasonality: it only decides which tier a market gets).
+        const weekly = pairMarket(a, b, cfg.market, day).baseWeekly;
+        if (weekly < NETWORK_LIMITS.minWeeklyDemand) continue;
+        cands.push({ hub, r1, r2, a, b, weekly });
       }
     }
   }
   if (cands.length === 0) return out;
   cands.sort((x, y) => y.weekly - x.weekly || (x.r1.id + x.r2.id < y.r1.id + y.r2.id ? -1 : 1));
-  // Network-wide cut (largest markets), plus every route's own largest markets so a small spoke is never left out.
+  // Full tier: each hub's largest markets. Every other market gets the fast tier below, so a small spoke is never left out.
   const chosen = new Set<Cand>();
-  for (const c of cands.slice(0, NETWORK_LIMITS.maxMarkets)) if (c.weekly >= NETWORK_LIMITS.minWeeklyDemand) chosen.add(c);
-  const byRoute = new Map<Id, Cand[]>();
+  const perHub = new Map<Id, number>();
   for (const c of cands) {
-    if (!isSensibleConnection(c.a, c.hub, c.b)) continue;
-    for (const r of [c.r1, c.r2]) byRoute.set(r.id, [...(byRoute.get(r.id) ?? []), c]);
+    const n = perHub.get(c.hub.id) ?? 0;
+    if (n < NETWORK_LIMITS.fullMarketsPerHub) { chosen.add(c); perHub.set(c.hub.id, n + 1); }
   }
-  for (const list of byRoute.values()) for (const c of list.slice(0, CONNECTING_FLOOR.guaranteedMarketsPerRoute)) chosen.add(c);
+  const byRoute = new Map<Id, Cand[]>();
+  for (const c of cands) for (const r of [c.r1, c.r2]) { const l = byRoute.get(r.id); if (l) l.push(c); else byRoute.set(r.id, [c]); }
 
   const reserved: Record<Id, number> = {};
   const acc: Record<Id, RouteConnecting> = {};
   const reports = new Map<Cand, ConnectingMarketReport>();
+  /** Leg lengths of each market (origin-hub, hub-destination), for prorating revenue to a route without recomputing distances. */
+  const legLens = new Map<ConnectingMarketReport, [number, number]>();
   const markdownOf = (c: Cand) => ((input.connectionMarkdown?.[c.r1.id] ?? 0) + (input.connectionMarkdown?.[c.r2.id] ?? 0)) / 2;
   const accOf = (id: Id) => (acc[id] ??= { passengersOneWay: 0, revenue: 0, cost: 0, markets: [] });
   for (const c of cands) {
@@ -223,6 +249,7 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
       throughFare: conn.throughFare, revenue: contrib.throughRevenue, share: conn.snapshot.playerShare,
     };
     reports.set(c, marketReport);
+    legLens.set(marketReport, [routeLen.get(c.r1.id) ?? 0, routeLen.get(c.r2.id) ?? 0]);
     contrib.legs.forEach((leg, k) => {
       const route = k === 0 ? c.r1 : c.r2;
       reserved[route.id] = (reserved[route.id] ?? 0) + conn.connectingPassengers;
@@ -230,6 +257,50 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
       cur.passengersOneWay += conn.connectingPassengers;
       cur.revenue += leg.connectingRevenue;
       cur.markets.push(marketReport);
+    });
+  }
+
+  // Fast tier (route/connectFast.ts): every other market, unconstrained demand from cached choice shares, then the legs' leftover
+  // seats shared out in proportion to what each market asks for (a leg never carries more than its free seats).
+  const fast = cands.filter((c) => !chosen.has(c));
+  if (fast.length > 0) {
+    const speedOf = (r: Route) => types.get(r.typeId)?.cruiseKmh ?? 840;
+    const legCache = new Map<Id, { frequency: number; speedKmh: number; sig: string }>();
+    const legOf = (r: Route) => {
+      let l = legCache.get(r.id);
+      if (!l) {
+        const frequency = r.weeklyFrequency * (input.operatedFraction[r.id] ?? 1), speedKmh = speedOf(r);
+        l = { frequency, speedKmh, sig: `${frequency.toFixed(2)}|${Math.round(speedKmh)}` };
+        legCache.set(r.id, l);
+      }
+      return l;
+    };
+    const fareOf = (c: Cand) => benchmarkFareFor(c.a, c.b) * THROUGH_FARE_FACTOR * (1 - markdownOf(c));
+    const req = fast.map((c) => fastConnectionDemand(c.a, c.hub, c.b, legOf(c.r1), legOf(c.r2), fareOf(c), day));
+    const asked = new Map<Id, number>();
+    fast.forEach((c, k) => { for (const r of [c.r1, c.r2]) asked.set(r.id, (asked.get(r.id) ?? 0) + req[k]!); });
+    const free = (id: Id) => Math.max(0, input.weeks[id]!.evaluation.seatsPerWeek / 2 - input.weeks[id]!.evaluation.passengersPerWeek / 2 - (reserved[id] ?? 0));
+    const ratio = new Map<Id, number>();
+    for (const [id, n] of asked) ratio.set(id, n > 0 ? Math.min(1, free(id) / n) : 0);
+    fast.forEach((c, k) => {
+      const x = req[k]! * Math.min(ratio.get(c.r1.id)!, ratio.get(c.r2.id)!);
+      if (x < 0.05) return;
+      const fare = fareOf(c);
+      const through = 2 * x * fare;
+      const d1 = routeLen.get(c.r1.id)!, d2 = routeLen.get(c.r2.id)!;
+      const rep: ConnectingMarketReport = {
+        origin: c.a.id, hub: c.hub.id, destination: c.b.id, passengersOneWay: x, throughFare: fare, revenue: through,
+        share: c.weekly > 0 ? Math.min(1, x / c.weekly) : 0,
+      };
+      reports.set(c, rep);
+      legLens.set(rep, [d1, d2]);
+      [c.r1, c.r2].forEach((leg, j) => {
+        reserved[leg.id] = (reserved[leg.id] ?? 0) + x;
+        const cur = accOf(leg.id);
+        cur.passengersOneWay += x;
+        cur.revenue += (through * (j === 0 ? d1 : d2)) / (d1 + d2);
+        cur.markets.push(rep);
+      });
     });
   }
 
@@ -263,6 +334,7 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
       } else {
         rep = { origin: c.a.id, hub: c.hub.id, destination: c.b.id, passengersOneWay: x, throughFare: fare, revenue: through, share: c.weekly > 0 ? Math.min(1, x / c.weekly) : 0 };
         reports.set(c, rep);
+        legLens.set(rep, [d1, d2]);
         accOf(c.r1.id).markets.push(rep);
         accOf(c.r2.id).markets.push(rep);
       }
@@ -274,6 +346,31 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
         cur.floorOneWay = (cur.floorOneWay ?? 0) + x;
         cur.revenue += (through * (k === 0 ? d1 : d2)) / (d1 + d2);
       });
+    }
+  }
+
+  // Per-hub totals over all markets, then list only each route's largest markets (reports stay small; totals stay exact).
+  const routeById = new Map(routes.map((r) => [r.id, r]));
+  for (const [routeId, cr] of Object.entries(acc)) {
+    const route = routeById.get(routeId)!;
+    const viaHub: NonNullable<RouteConnecting["viaHub"]> = {};
+    for (const m of cr.markets) {
+      // This route is one leg of the market; its share of the through revenue is its length over the two legs' length.
+      const lens = legLens.get(m);
+      const onFirst = route.origin === m.origin || route.destination === m.origin;
+      const mine = lens ? (onFirst ? lens[0] : lens[1]) : 0;
+      const other = lens ? (onFirst ? lens[1] : lens[0]) : 0;
+      const v = (viaHub[m.hub] ??= { passengersOneWay: 0, revenue: 0, markets: 0 });
+      v.passengersOneWay += m.passengersOneWay;
+      v.revenue += mine + other > 0 ? (m.revenue * mine) / (mine + other) : 0;
+      v.markets += 1;
+    }
+    cr.viaHub = viaHub;
+    if (cr.markets.length > NETWORK_LIMITS.listedMarketsPerRoute) {
+      const sorted = [...cr.markets].sort((x, y) => y.passengersOneWay - x.passengersOneWay || (x.origin + x.destination < y.origin + y.destination ? -1 : 1));
+      const rest = sorted.slice(NETWORK_LIMITS.listedMarketsPerRoute);
+      cr.markets = sorted.slice(0, NETWORK_LIMITS.listedMarketsPerRoute);
+      cr.otherMarkets = { count: rest.length, passengersOneWay: rest.reduce((t, m) => t + m.passengersOneWay, 0), revenue: rest.reduce((t, m) => t + m.revenue, 0) };
     }
   }
 
@@ -301,7 +398,7 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
       ...base.lines,
       {
         key: "connecting", label: "Connecting passengers (prorated through fares)", group: "revenue", weekly: cr.revenue,
-        formula: `${cr.markets.map((m) => `${m.origin}-${m.destination} via ${m.hub}: ${Math.round(m.passengersOneWay)}/wk each way at $${Math.round(m.throughFare)}`).join("; ")}; fare prorated by distance`,
+        formula: `${cr.markets.map((m) => `${m.origin}-${m.destination} via ${m.hub}: ${Math.round(m.passengersOneWay)}/wk each way at ${Math.round(m.throughFare)}`).join("; ")}${cr.otherMarkets ? `; plus ${cr.otherMarkets.count} smaller markets, ${Math.round(cr.otherMarkets.passengersOneWay)}/wk each way` : ""}; fare prorated by distance`,
       },
       {
         key: "connectingCost", label: "Cost of carrying connecting passengers", group: "cost", weekly: extraCost,

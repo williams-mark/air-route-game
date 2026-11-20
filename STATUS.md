@@ -1,6 +1,12 @@
 ## lane/categories-hub-filter (18 Nov 2026)
 - Fleet: the Aircraft categories panel is open by default, above the fleet list. The Hub filter now applies to it: aircraft counts and block hours (used / available) are for the chosen hub, like the type rows (sim `categoryBlockHours(state, id, hub)`, app `categoryCounts`). The category dropdown counts follow the hub too.
 - Test: `categoryCounts` in app `fleet/categories.test.ts`. Checked in the preview browser: panel open on arrival; LAX+SFO with 2 aircraft moved to SFO shows 2 aircraft, 133 h at SFO, matching the type table.
+## lane/connecting-scale (17 Nov 2026; no cap on connecting markets)
+- Every sensible through market (no double-back, at least 5 potential passengers a week) is now evaluated, so a hub's connecting traffic grows with its routes: each hub's 30 largest markets with the full model, every other one with a fast tier (`route/connectFast.ts`: same choice utilities, cached shares re-solved on a rolling weekly cycle, seats shared in proportion to demand). The network-wide cap of 12 and the per-route guarantee are gone. Details, calibration and cost in MODEL.md 9c.
+- DXB test hub, 14 a week per spoke: 20 destinations 13% of boardings connecting (12 ms per game day), 60 destinations 42% (27 ms), 150 destinations 58% (76 ms). Fast tier vs full model: 0.93-1.02 in total; single markets vary from about half to twice.
+- Route reports list their 25 largest markets plus `otherMarkets`; `viaHub` gives exact per-hub totals; the hub board uses them and says "And N smaller markets, included in the totals above". No contracts change.
+- Tests: `sim/src/route/connectFast.test.ts` (8), hub board `buildConnectingAnalysis` (2). Balance harness: identical to main.
+- Not verified: the hub board note in a browser; `pnpm perf` not run; the rivals ten-year timing test fails under the full parallel run (passes alone, 42 s), as before.
 
 ## lane/category-followups (18 Nov 2026)
 - Routes list shows a categorised route's category in the Aircraft column (with "(category)"; the planning type in the tooltip).

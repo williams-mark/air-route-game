@@ -134,6 +134,7 @@ export default function HubBoardView() {
                   </tbody>
                 </table>
               )}
+              {conn.marketCount > conn.markets.length && <p className="hb-note">And {(conn.marketCount - conn.markets.length).toLocaleString("en-US")} smaller markets, included in the totals above.</p>}
               <p className="hb-note">Passengers are counted both directions. Someone changing planes rides two of the hub's routes but is counted once here; the Connecting column above counts them on each route they ride.</p>
             </div>
           )}
