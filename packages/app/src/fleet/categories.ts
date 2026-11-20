@@ -30,4 +30,14 @@ export function seatSplit(layout: CabinLayout | undefined): string {
 }
 
 /** Natural A-Z order of type names ("A320ceo" before "A320neo" before "A321ceo", "737" before "1011"). */
-export const byName = (a: string, b: string): number => a.localeCompare(b, "en", { numeric: true, sensitivity: "base" });
+/** Aircraft per category among those based at `hub` ("all": every hub; no hub set means the home hub), like the type table. */
+export function categoryCounts(fleet: readonly { id: string; hub?: string }[], cats: ReadonlyMap<string, string>, hub: string, home?: string): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const a of fleet) {
+    const c = cats.get(a.id);
+    if (c && (hub === "all" || (a.hub ?? home) === hub)) m.set(c, (m.get(c) ?? 0) + 1);
+  }
+  return m;
+}
+
+export const byName =(a: string, b: string): number => a.localeCompare(b, "en", { numeric: true, sensitivity: "base" });

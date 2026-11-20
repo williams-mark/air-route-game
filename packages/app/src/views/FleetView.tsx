@@ -15,7 +15,7 @@ import type { FleetItem } from "../sim/bridge";
 import { bridge, useSim, useSimSelector } from "../sim/useSim";
 import { useUi } from "../store";
 import { CategoriesPanel } from "../fleet/CategoriesPanel";
-import { aircraftCategories, categoriesOf, inCategory, seatSplit, type CategoryFilter } from "../fleet/categories";
+import { aircraftCategories, categoriesOf, categoryCounts, inCategory, seatSplit, type CategoryFilter } from "../fleet/categories";
 
 /** "In check" only exists while the maintenance programme runs; otherwise the hangar holds cabin refits only. */
 const label = (st: FleetItem["status"]) => ({ active: "Active", maintenance: maintenanceEnabled() ? "In check" : "Cabin refit", delivery: "On order", stored: "Stored" })[st];
@@ -188,7 +188,8 @@ export default function FleetView() {
   const categories = useMemo(() => categoriesOf(sim), [sim, catVersion, day]); // eslint-disable-line react-hooks/exhaustive-deps
   const cats = useMemo(() => aircraftCategories(sim), [sim, catVersion, fleet, day]); // eslint-disable-line react-hooks/exhaustive-deps
   const catNames = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
-  const catCounts = useMemo(() => { const m = new Map<string, number>(); for (const c of cats.values()) m.set(c, (m.get(c) ?? 0) + 1); return m; }, [cats]);
+  // Aircraft per category, at the filtered hub (all hubs when the filter is off), like the type table.
+  const catCounts = useMemo(() => categoryCounts(fleet, cats, hub, home), [cats, fleet, hub, home]);
   const shownRows = useMemo(() => (catFilter === "all" ? typeRows : typeRows.filter((r) => fleet.some((a) => a.typeId === r.typeId && inCategory(a.id, catFilter, cats)))), [typeRows, catFilter, cats, fleet]);
   const ownedTypeIds = useMemo(() => [...new Set(fleet.map((a) => a.typeId))], [fleet]);
   const setCategory = (categoryId: string | null) => {
@@ -296,7 +297,7 @@ export default function FleetView() {
           <option value="none">No category</option>
         </select>
       </div>
-      <CategoriesPanel sim={sim} categories={categories} members={catCounts} ownedTypeIds={ownedTypeIds} onChanged={() => setCatVersion((n) => n + 1)} />
+      <CategoriesPanel sim={sim} hub={hub} categories={categories} members={catCounts} ownedTypeIds={ownedTypeIds} onChanged={() => setCatVersion((n) => n + 1)} />
       <div className="fleet-scroll">
         <TypeTable rows={shownRows} fleet={fleet} cats={cats} catNames={catNames} catFilter={catFilter} hub={hub} home={home} hubs={hubs} openType={openType} onOpen={changeOpen}
           selected={selected} onToggle={toggle} onToggleAll={toggleAll} bulk={bulk} onCabin={(a) => setRefitting([a])} onMove={move} onOrder={orderType} onDispose={(a) => openDispose([a], disposeOptions(a)?.action ?? "sell")} />
