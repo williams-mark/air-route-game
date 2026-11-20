@@ -201,7 +201,7 @@ export function evaluateMarket(ctx: RivalCtx, a: Airport, b: Airport, entries: E
     out.set(rt, {
       passengers: pax, revenue: ev.revenue, costs: ev.costs, profit: ev.profit, loadFactor: ev.loadFactor,
       seats: ev.seatsPerWeek,
-      ownership: aircraftEquivalentFor(dist, t, rt.frequency) * weeklyLease(t) + ev.revenue * spec.indirectCostPct,
+      ownership: aircraftEquivalentFor(dist, t, rt.frequency) * weeklyLease(t) + ev.revenue * indirectPct(air),
     });
   });
   return out;
@@ -318,6 +318,13 @@ function chooseType(ctx: RivalCtx, air: RivalAirline, a: Airport, b: Airport, ta
   // Long thick sectors go to widebodies; otherwise the archetype's preference order decides, owned types first.
   const wide = dist > 3200 ? good.filter((t) => t.widebody) : [];
   const pool = wide.length > 0 ? wide : good;
+  if (air.scope?.world) {
+    // World field: no stand-ins carry the rest of the market, so pick the smallest type that reaches the target within the
+    // archetype's entry frequency (else the largest), owned types first among equals.
+    const fitsFreq = pool.filter((t) => Math.ceil(targetSeats / seatsFor(spec, t)) <= spec.maxEntryFrequency);
+    const bySeats = (x: AircraftType, y: AircraftType) => seatsFor(spec, x) - seatsFor(spec, y) || Number(owned.has(y.id)) - Number(owned.has(x.id)) || cmp(x.id, y.id);
+    return fitsFreq.length > 0 ? fitsFreq.sort(bySeats)[0]! : pool.sort(bySeats)[pool.length - 1]!;
+  }
   const rank = (t: AircraftType) => prefs.indexOf(t.id);
   return pool.sort((x, y) => Number(owned.has(y.id)) - Number(owned.has(x.id)) || rank(x) - rank(y) || cmp(x.id, y.id))[0]!;
 }
@@ -361,7 +368,8 @@ function planEntry(ctx: RivalCtx, air: RivalAirline, all: Map<string, Entry[]>, 
   const spec = ARCHETYPES[air.archetype];
   const dist = distanceKm(a, b);
   const base = sizingDemand(ctx, a, b);
-  const target = (spec.entryShare * base) / RP.targetLoadFactor;
+  const share = air.scope?.world ? WORLD_FIELD.entryShare[air.archetype] : spec.entryShare;
+  const target = (share * base) / RP.targetLoadFactor;
   const t = chooseType(ctx, air, a, b, target);
   if (!t) return null;
   const seats = seatsFor(spec, t);
@@ -752,7 +760,7 @@ export function stepRivalsWeek(
     for (const rt of air.routes) {
       const r = results.get(rt);
       if (!r) continue;
-      routeProfit += r.profit - r.revenue * spec.indirectCostPct;
+      routeProfit += r.profit - r.revenue * indirectPct(air);
       const net = r.profit - r.ownership;
       rt.profitHist.push(net);
       if (rt.profitHist.length > 13) rt.profitHist.shift();
@@ -865,7 +873,7 @@ function updatePricing(ctx: RivalCtx, sink: Sink, air: RivalAirline, rt: RivalRo
     if (rt.profitHist.length >= 2) {
       if (lf > RP.yieldHighLF) rt.baseFare *= 1 + RP.yieldUp;
       else if (lf < RP.yieldLowLF) rt.baseFare *= 1 - RP.yieldDown;
-      rt.baseFare = Math.min(bench * spec.fareFactor * (air.fareLevel ?? 1) * RP.fareCeiling, Math.max(bench * spec.floorFareFactor * 1.05, rt.baseFare));
+      rt.baseFare = Math.min(bench * spec.fareFactor * (air.fareLevel ?? 1) * (air.scope?.world ? WORLD_FIELD.fareCeiling : RP.fareCeiling), Math.max(bench * spec.floorFareFactor * 1.05, rt.baseFare));
     }
     rt.fare = rt.fare < rt.baseFare ? Math.min(rt.baseFare, rt.fare * (1 + RP.relaxPerWeek)) : rt.baseFare;
   }
@@ -1012,6 +1020,11 @@ export function rivalItinerariesFor(
     }
   }
   return out;
+}
+
+/** Costs the route ledger does not carry, as a share of revenue: the archetype's, plus the world-field calibration add-on. */
+function indirectPct(air: RivalAirline): number {
+  return ARCHETYPES[air.archetype].indirectCostPct + (air.scope?.world ? WORLD_FIELD.extraIndirectPct[air.archetype] : 0);
 }
 
 // ---------------------------------------------------------------------------

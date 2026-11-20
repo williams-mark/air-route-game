@@ -14,7 +14,8 @@ import { canOrderNew, inProduction } from "./fleet/availability";
 import { jan1Day, START_YEAR } from "./time/calendar";
 import { startYearError } from "./time/startYear";
 import { startCampaign } from "./campaign/campaign";
-import { createRivals } from "./rivals";
+import { competitorItinerariesFor, createRivals } from "./rivals";
+import { simulateRouteWeek } from "./route/routeModel";
 import type { SimState } from "./state";
 
 /** Placeholder airline for the 2015 campaign. */
@@ -394,5 +395,36 @@ export function startingScenario(airports: Airport[], aircraftTypes: AircraftTyp
   const opts: StartOptions = { cash: STARTING_CASH_USD, fleet, routes, airlineName, baseAirport: hubId, day: startDay };
   const sim = newSim(seed, airports, aircraftTypes, options.pandemic === undefined ? { notionalFleet: false } : { notionalFleet: false, pandemic: options.pandemic }, opts);
   const campaign = startCampaign(startYear, options.campaignYears, STARTING_CASH_USD);
-  return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, sim.world.routes, startDay, options.rivalField), ...(campaign ? { campaign } : {}) };
+  const rivals = createRivals(airports, aircraftTypes, seed, sim.world.routes, startDay, options.rivalField);
+  const priced = rivals.field === "world" ? priceAgainstField({ ...sim, rivals }) : sim;
+  return { ...priced, rivals, ...(campaign ? { campaign } : {}) };
+}
+
+/** Local load factor the starting fares aim at in the world field (connections add some on top). Design choice. */
+export const WORLD_START_LOCAL_LF = 0.75;
+
+/**
+ * World field: the hand-tuned starting fares assumed the synthetic stand-in rivals. Against the real field a starting route may have
+ * no competitor at all and sell out, so each starting route is repriced once: the economy fare (premium cabins scaled with it) that
+ * fills WORLD_START_LOCAL_LF of the seats with local passengers, averaged over four days of the year, found by bisection between 0.6x
+ * and 1.4x the current fare (a monopoly route is not priced above 1.4x: the player sets fares from there).
+ */
+function priceAgainstField(state: SimState): SimState {
+  const airports = new Map(state.airports.map((a) => [a.id, a]));
+  const types = new Map(state.aircraftTypes.map((t) => [t.id, t]));
+  const days = [0, 91, 182, 273].map((d) => state.world.day + d);
+  const routes = state.world.routes.map((r) => {
+    const a = airports.get(r.origin), b = airports.get(r.destination);
+    if (!a || !b) return r;
+    const fleet = state.world.fleet.filter((ac) => ac.typeId === r.typeId && ac.status === "active");
+    const competitors = competitorItinerariesFor(state.rivals, a, b, types, airports) ?? [];
+    const scaled = (k: number): Route => ({ ...r, fares: Object.fromEntries(Object.entries(r.fares).map(([c, f]) => [c, Math.max(20, Math.round((f as number) * k))])) as unknown as Route["fares"] });
+    const lf = (k: number) => days.reduce((t, d) => t + (simulateRouteWeek(scaled(k), airports, types, d, { fleetAircraft: fleet, competitors, chargeOwnership: fleet.length === 0 })?.evaluation.loadFactor ?? 0), 0) / days.length;
+    let lo = 0.6, hi = 1.4;
+    if (lf(lo) <= WORLD_START_LOCAL_LF) return scaled(lo);
+    if (lf(hi) >= WORLD_START_LOCAL_LF) return scaled(hi);
+    for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (lf(mid) > WORLD_START_LOCAL_LF) lo = mid; else hi = mid; }
+    return scaled((lo + hi) / 2);
+  });
+  return { ...state, world: { ...state.world, routes } };
 }
