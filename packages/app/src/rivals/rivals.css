@@ -13,3 +13,23 @@
 .market-scroll { max-height: 22rem; overflow: auto; }
 .market-scroll thead th { position: sticky; top: 0; background: var(--panel); }
 .market-filter { width: 100%; margin: 0 0 .5rem; }
+
+/* Rivals screen tabs, airport view and route view. Colours from theme variables only (light and dark). */
+.rv-tabs { display: flex; gap: .25rem; margin: 0 0 .9rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.rv-tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: .45rem .8rem; color: var(--text-dim); font-weight: 600; box-shadow: none; }
+.rv-tabs button.on { color: var(--text); border-bottom-color: var(--accent); }
+.rv-airport-pick { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: flex-end; margin-bottom: .6rem; }
+.rv-chips { display: flex; flex-wrap: wrap; gap: .3rem; max-width: 100%; }
+.rv-chip { padding: .15rem .55rem; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: .85rem; box-shadow: none; }
+.rv-chip.base { font-weight: 700; }
+.rv-chip.on { border-color: var(--accent); background: var(--accent); color: var(--bg); }
+.rv-h2 { font-size: 1.1rem; text-transform: none; letter-spacing: 0; color: var(--text); margin: .4rem 0 .2rem; }
+.rv-role { display: inline-block; padding: .05rem .45rem; border-radius: 6px; font-size: .8rem; font-weight: 650; border: 1px solid var(--line); color: var(--text-dim); }
+.rv-role.hub { color: var(--accent); border-color: var(--accent); }
+.rv-role.outstation { color: var(--text); }
+.rv-dest.you { text-decoration: underline; text-underline-offset: 3px; }
+.rv-presence td, .rv-routes td { vertical-align: top; }
+.rv-news { margin-top: 1rem; }
+.rv-news h3 { margin: 0 0 .4rem; font-size: .95rem; }
+.rv-news ul { margin: 0; padding-left: 1rem; display: grid; gap: .2rem; }
+.rival-detail caption { text-align: left; font-weight: 650; padding: .5rem 0 .2rem; color: var(--text); }
