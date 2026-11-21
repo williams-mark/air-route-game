@@ -1,3 +1,6 @@
+## lane/half-speed (20 Nov 2026)
+- Every game speed runs at half its old rate (owner request, to leave room for a larger rival field): speeds 1-5 are now 0.25 / 0.5 / 1.5 / 3.5 / 15 game days per real second (sim `time/clock.ts DAYS_PER_SECOND`). The real bridge clamps a frame to 500 ms (was 250), so the top speed still steps up to 7 days per frame. Tests and the e2e rate check updated; e2e not run locally.
+
 ## lane/categories-hub-filter (18 Nov 2026)
 - Fleet: the Aircraft categories panel is open by default, above the fleet list. The Hub filter now applies to it: aircraft counts and block hours (used / available) are for the chosen hub, like the type rows (sim `categoryBlockHours(state, id, hub)`, app `categoryCounts`). The category dropdown counts follow the hub too.
 - Test: `categoryCounts` in app `fleet/categories.test.ts`. Checked in the preview browser: panel open on arrival; LAX+SFO with 2 aircraft moved to SFO shows 2 aircraft, 133 h at SFO, matching the type table.

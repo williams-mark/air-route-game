@@ -9,13 +9,13 @@ describe("clock", () => {
   });
 
   it("speed table matches the spec", () => {
-    expect(DAYS_PER_SECOND).toEqual({ 0: 0, 1: 0.5, 2: 1, 3: 3, 4: 7, 5: 30 });
+    expect(DAYS_PER_SECOND).toEqual({ 0: 0, 1: 0.25, 2: 0.5, 3: 1.5, 4: 3.5, 5: 15 });
   });
 
-  it("speed 1 gives one day per two seconds, accumulating across frames", () => {
+  it("speed 1 gives one day per four seconds, accumulating across frames", () => {
     const c = createClock({ speed: 1 });
     let days = 0;
-    for (let i = 0; i < 100; i++) days += c.advance(20); // 2 s in 20 ms frames
+    for (let i = 0; i < 200; i++) days += c.advance(20); // 4 s in 20 ms frames
     expect(days).toBe(1);
     expect(c.day).toBe(1);
   });
@@ -27,14 +27,14 @@ describe("clock", () => {
       for (let t = 0; t < 10_000; t += dt) days += c.advance(dt);
       return days;
     };
-    expect(run(16)).toBeGreaterThanOrEqual(29);
-    expect(run(16)).toBeLessThanOrEqual(30);
-    expect(run(250)).toBe(30);
+    expect(run(16)).toBeGreaterThanOrEqual(14);
+    expect(run(16)).toBeLessThanOrEqual(15);
+    expect(run(250)).toBe(15);
   });
 
   it("clamps huge frame gaps", () => {
     const c = createClock({ speed: 5 });
-    expect(c.advance(60_000)).toBe(30); // clamped to 1 s
+    expect(c.advance(60_000)).toBe(15); // clamped to 1 s
   });
 
   it("is deterministic", () => {
