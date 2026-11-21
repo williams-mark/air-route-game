@@ -221,6 +221,8 @@ export interface SimState {
   credit?: CreditState;
   /** Campaign end and review; absent = endless (see CampaignState). */
   campaign?: CampaignState;
+  /** Outstations the player opened (fleet/hubs.ts OUTSTATION_PARAMS); absent = none. Kept out of contracts like the planner. */
+  outstations?: Id[];
 
   /** Fleet commonality overhead charged so far; absent until first charged. */
   diversity?: DiversityState;

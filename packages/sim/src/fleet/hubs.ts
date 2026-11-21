@@ -30,6 +30,51 @@ export function isOwnedHub(state: Parameters<typeof ownedHubsOf>[0], airportId: 
   return ownedHubsOf(state).includes(airportId);
 }
 
+/**
+ * Outstations (owner, 20 Nov 2026): a cheaper base than a hub. Aircraft can be based there and routes can start there, like a
+ * hub, but the player's flights touching the airport (either end) may use at most `blockHoursPerWeek` a week. Hubs are unlimited.
+ * Game-design figures, not real-world data.
+ */
+export const OUTSTATION_PARAMS = { costUsd: 10_000_000, blockHoursPerWeek: 500 } as const;
+
+/** The player's outstations, sorted (an airport that has become a hub is no longer an outstation). */
+export function outstationsOf(state: Parameters<typeof ownedHubsOf>[0] & { outstations?: Id[] }): Id[] {
+  const hubs = new Set(ownedHubsOf(state));
+  return [...new Set(state.outstations ?? [])].filter((id) => !hubs.has(id)).sort();
+}
+
+/** Is the airport one of the player's outstations? */
+export function isOutstation(state: Parameters<typeof outstationsOf>[0], airportId: Id): boolean {
+  return outstationsOf(state).includes(airportId);
+}
+
+/** Airports where the player can base aircraft and start routes: hubs and outstations, sorted. */
+export function basesOf(state: Parameters<typeof outstationsOf>[0]): Id[] {
+  return [...new Set([...ownedHubsOf(state), ...outstationsOf(state)])].sort();
+}
+
+/** Is the airport a hub or an outstation of the player? */
+export function isBase(state: Parameters<typeof outstationsOf>[0], airportId: Id): boolean {
+  return basesOf(state).includes(airportId);
+}
+
+/**
+ * Weekly block hours of the player's routes touching an outstation (origin or destination), against its cap. Each route counts
+ * its round trips on its planning type. `excludeRouteId` leaves one route out (for editing it).
+ */
+export function outstationBlockHours(state: SimState, airportId: Id, excludeRouteId?: Id): HubBlockHours {
+  const airports = new Map(state.airports.map((a) => [a.id, a]));
+  const types = new Map(state.aircraftTypes.map((t) => [t.id, t]));
+  let used = 0;
+  for (const r of state.world.routes) {
+    if (r.id === excludeRouteId || (r.origin !== airportId && r.destination !== airportId)) continue;
+    const t = types.get(r.typeId), a = airports.get(r.origin), b = airports.get(r.destination);
+    if (t && a && b) used += r.weeklyFrequency * blockHoursPerFrequency(r, t, distanceKm(a, b));
+  }
+  const available = OUTSTATION_PARAMS.blockHoursPerWeek;
+  return { available, used, free: available - used };
+}
+
 /** Round-trip block hours per weekly frequency on a pair: 2 x one-way block hours. */
 export function blockHoursPerFrequency(_route: Pick<Route, "origin" | "destination">, type: AircraftType, distanceKm: number): number {
   return 2 * blockHours(distanceKm, type);

@@ -130,8 +130,8 @@ for (const theme of themes) {
     await page.keyboard.type("Go to Hubs");
     await page.keyboard.press("Enter");
     await heading(page, "Hubs");
-    // "Unlock a hub" is the searchable airport field (it was a 1,000-entry select): type the code, Enter, then unlock.
-    await page.getByRole("combobox", { name: "Unlock a hub" }).fill("sfo");
+    // "Open a hub or outstation" is the searchable airport field (it was a 1,000-entry select): type the code, Enter, then unlock.
+    await page.getByRole("combobox", { name: "Open a hub or outstation" }).fill("sfo");
     await page.keyboard.press("Enter");
     await page.getByRole("button", { name: /Unlock hub for/ }).click();
     await page.waitForTimeout(200);

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Id } from "@arg/contracts";
 import { aircraftTypes, airportById } from "@arg/data";
-import { COMMAND_PARAMS, ownedHubsOf, typeCanServe, weeklyCapacityHours } from "@arg/sim";
+import { basesOf, COMMAND_PARAMS, OUTSTATION_PARAMS, typeCanServe, weeklyCapacityHours } from "@arg/sim";
 import { bridge, useSim } from "../sim/useSim";
 import { usd } from "./fmt";
 import { hubCallout, moveCandidates, type HubCalloutState, type MoveCandidate } from "./hubMove";
@@ -9,13 +9,14 @@ import { useToasts } from "./store";
 
 /**
  * Explains why the origin cannot fly the draft (not a hub, no aircraft of the type based there, too few free block hours)
- * and fixes it in place: unlock the hub, or rebase idle aircraft to it. Uses the existing unlockHub / setAircraftHub commands.
+ * and fixes it in place: open an outstation or a hub there, or rebase idle aircraft to it (openOutstation / unlockHub / setAircraftHub).
  */
 export function HubMoveCallout({ originId, destinationId, typeId, available, needed, free }: { originId: Id; destinationId: Id; typeId: Id; available: number; needed: number; free: number }) {
   const { fleet, cash } = useSim();
   const push = useToasts((s) => s.push);
   const sim = bridge.getSim?.() ?? null;
-  const originOwned = sim ? ownedHubsOf(sim).includes(originId) : true;
+  // Hubs and outstations can both base aircraft and start routes.
+  const originOwned = sim ? basesOf(sim).includes(originId) : true;
   const state: HubCalloutState = sim ? hubCallout({ originOwned, typeId, available, needed, free }) : { kind: "none" };
   const [picked, setPicked] = useState<ReadonlySet<Id>>(new Set());
   const capacity = (t: Id) => { const ty = aircraftTypes.find((x) => x.id === t); return ty ? weeklyCapacityHours(ty) : 0; };
@@ -33,16 +34,16 @@ export function HubMoveCallout({ originId, destinationId, typeId, available, nee
   const code = originId;
 
   if (state.kind === "unlock") {
-    const cost = COMMAND_PARAMS.hubUnlockUsd;
-    const poor = cash < cost;
-    const unlock = () => {
-      const res = bridge.dispatch({ kind: "unlockHub", airportId: originId });
-      if (res && !res.ok) push("alert", res.error.message); else push("good", `${originId} is now one of your hubs.`);
+    const hubCost = COMMAND_PARAMS.hubUnlockUsd, stationCost = COMMAND_PARAMS.outstationUsd;
+    const run = (kind: "unlockHub" | "openOutstation", good: string) => {
+      const res = bridge.dispatch({ kind, airportId: originId });
+      if (res && !res.ok) push("alert", res.error.message); else push("good", good);
     };
     return (
       <div className="rc-callout" role="group" aria-label={`${code} is not a hub`}>
-        <p><b>{code} is not one of your hubs.</b> Aircraft can only fly routes from a hub, so unlock it first.</p>
-        <button type="button" className="primary" disabled={poor} title={poor ? "Not enough cash" : undefined} onClick={unlock}>Unlock hub for {usd(cost)}</button>
+        <p><b>{code} is not one of your hubs or outstations.</b> Aircraft can only fly routes from one. An outstation allows {OUTSTATION_PARAMS.blockHoursPerWeek} block hours a week through {code}; a hub has no limit.</p>
+        <button type="button" className="primary" disabled={cash < stationCost} title={cash < stationCost ? "Not enough cash" : undefined} onClick={() => run("openOutstation", `${originId} is now one of your outstations.`)}>Open outstation for {usd(stationCost)}</button>{" "}
+        <button type="button" disabled={cash < hubCost} title={cash < hubCost ? "Not enough cash" : undefined} onClick={() => run("unlockHub", `${originId} is now one of your hubs.`)}>Unlock hub for {usd(hubCost)}</button>
       </div>
     );
   }

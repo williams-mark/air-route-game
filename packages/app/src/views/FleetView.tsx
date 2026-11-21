@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { shortTypeLabel } from "../aircraft/names";
 import { aircraftTypes } from "@arg/data";
-import { homeHubOf, maintenanceEnabled, ownedHubsOf, refitQuote, typeBlockHours, type DisposalAction } from "@arg/sim";
+import { basesOf, homeHubOf, maintenanceEnabled, refitQuote, typeBlockHours, type DisposalAction } from "@arg/sim";
 import type { CabinLayout } from "@arg/contracts";
 import { CabinDialog } from "../cabin/CabinDialog";
 import { usd } from "../cabin/helpers";
@@ -178,8 +178,8 @@ export default function FleetView() {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const sim = bridge.getSim?.() ?? null;
   const home = sim ? homeHubOf(sim) : undefined;
-  // Aircraft can only be based at hubs the player owns; no sim (mock) falls back to the airline's hub.
-  const hubs = sim ? ownedHubChoices(ownedHubsOf(sim), home) : ownedHubChoices([bridge.getState().airline.hub], undefined);
+  // Aircraft can only be based at the player's hubs and outstations; no sim (mock) falls back to the airline's hub.
+  const hubs = sim ? ownedHubChoices(basesOf(sim), home) : ownedHubChoices([bridge.getState().airline.hub], undefined);
   const hubFilterOptions = hubOptions(fleet, home);
   const typeRows = useMemo(
     () => buildTypeRows(fleet, hub, (typeId, h) => (sim ? typeBlockHours(sim, typeId, h === "all" ? undefined : h) : { available: 0, used: 0, free: 0 }), home),
