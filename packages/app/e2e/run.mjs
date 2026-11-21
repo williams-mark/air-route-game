@@ -251,7 +251,8 @@ for (const theme of themes) {
     await page.keyboard.press("2");
     assert((await speedPressed(page)) === "Speed 2", "key 2 did not select speed 2");
     const d0 = await simDay(page);
-    await page.waitForTimeout(2500);
+    // Speed 2 is half a game day per second (halved 20 Nov 2026): wait long enough for at least one day to pass.
+    await page.waitForTimeout(4500);
     assert((await simDay(page)) > d0, "date did not advance while running");
     await page.keyboard.press("Space");
     await page.waitForTimeout(300);
@@ -260,7 +261,7 @@ for (const theme of themes) {
     await page.waitForTimeout(1500);
     assert((await simDay(page)) === d1, "date advanced while paused");
     await page.keyboard.press("Space");
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(4500);
     assert((await simDay(page)) > d1, "date did not advance after resume");
     await page.keyboard.press("Space");
   });
