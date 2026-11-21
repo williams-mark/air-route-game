@@ -275,7 +275,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
           </div>
           <ul className="seg-legend">{mix.map((m) => <li key={m}><i className={`seg-${m}`} />{SEG_LABEL[m]} {pct(market.shares[m])}</li>)}</ul>
           <p className="rc-note">
-            <b>Rival:</b> {rival.directFrequency}/wk, ~{rival.directSeats} seats, ~{usd(rival.fare)}
+            <b>Competitors:</b> {rival.directFrequency}/wk, ~{rival.directSeats} seats, ~{usd(rival.fare)}
             {rival.oneStop ? `; one-stop ~${usd(rival.oneStopFare ?? 0)}` : "; no one-stop"}.
           </p>
         </section>
@@ -293,7 +293,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
           </div>
           {ev && !ev.feasible && <p className="rp-err" role="alert">{ev.infeasibleReasons.join("; ")}</p>}
           {sweep.length > 0 && <FrequencyBars points={sweep} bestFreq={best?.frequency ?? null} current={hoursShort ? achievable : freq} onPick={setFreq} />}
-          {sweep.length > 0 && livePrev && <p className="rc-note">The chart shows the shape of profit by frequency on a standalone model; the headline and the button use your fleet and rivals.</p>}
+          {sweep.length > 0 && livePrev && <p className="rc-note">The chart shows the shape of profit by frequency on a standalone model; the headline and the button use your fleet and competitors.</p>}
           <div className="rp-actions">
             <button type="button" disabled={!useBest || useBest.frequency === freq} onClick={() => useBest && setFreq(useBest.frequency)}>
               {useBest ? `Use best: ${useBest.frequency}/wk (${usdSigned(useBest.profit)})` : best ? "This frequency is already the best" : "No feasible frequency"}

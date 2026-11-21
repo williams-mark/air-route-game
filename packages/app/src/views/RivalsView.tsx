@@ -41,8 +41,8 @@ export default function RivalsView() {
   if (rivals.list.length === 0) {
     return (
       <div className="page">
-        <header className="page-head"><h1>Rivals</h1></header>
-        <div className="empty-state"><h2>No competitors yet</h2><p>This scenario has no modelled rival airlines.</p></div>
+        <header className="page-head"><h1>Competitors</h1></header>
+        <div className="empty-state"><h2>No competitors yet</h2><p>This scenario has no modelled competing airlines.</p></div>
       </div>
     );
   }
@@ -50,10 +50,10 @@ export default function RivalsView() {
   return (
     <div className="page rivals-page">
       <header className="page-head">
-        <h1>Rivals</h1>
+        <h1>Competitors</h1>
         <p>{active} airlines flying. What anyone can see from their schedules: where they are based, where they fly, how often, on what, and at about what fare. Their finances are hidden.</p>
       </header>
-      <div className="rv-tabs" role="tablist" aria-label="Rivals views">
+      <div className="rv-tabs" role="tablist" aria-label="Competitors views">
         {([["airports", "By airport"], ["routes", "Your routes"], ["airlines", "Airlines"]] as const).map(([id, label]) => (
           <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? "on" : undefined} onClick={() => setTab(id)}>{label}</button>
         ))}

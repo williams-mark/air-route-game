@@ -14,7 +14,7 @@ const ALL_VIEWS: Array<{ id: ViewId; label: string; Icon: ComponentType<{ size?:
   { id: "planner", label: "Planner", Icon: IconPlanner, key: "4" },
   { id: "orders", label: "Orders / Offers", Icon: IconOrders, key: "5" },
   { id: "finance", label: "Finance", Icon: IconFinance, key: "6" },
-  { id: "rivals", label: "Rivals", Icon: IconRivals, key: "7" },
+  { id: "rivals", label: "Competitors", Icon: IconRivals, key: "7" },
   { id: "settings", label: "Settings", Icon: IconSettings, key: "8" },
   { id: "cabin", label: "Cabin designer", Icon: IconCabin, key: "9" },
   { id: "hubboard", label: "Hub board", Icon: IconHubBoard, key: "0" },
