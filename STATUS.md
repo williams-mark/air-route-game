@@ -2,6 +2,8 @@
 - Outstations: `openOutstation` (USD 10M, sim `fleet/hubs.ts OUTSTATION_PARAMS`). Like a hub, aircraft can be based and delivered there and routes start there; unlike a hub, the player's flights touching the airport (either end, round-trip block hours on the planning type) are capped at 500 a week (`outstationBlockHours`, refused with `outstation_full` on open or edit). Hubs stay unlimited; `unlockHub` on an outstation upgrades it (full USD 50M). Stored in `SimState.outstations` (not contracts; old saves have none). Game-design figures, not real data.
 - App: Hubs screen opens an outstation or a hub, and lists outstations with hours used / free, routes and "Make hub"; the new-route callout offers both; Fleet moves and Orders delivery list hubs and outstations.
 - Tests: `sim/src/fleet/outstations.test.ts` (9). Checked in the preview browser: opening SEA charges USD 10M and lists it at 0 / 500 h. Not done: rivals do not use outstations yet (next lane).
+## lane/half-speed (20 Nov 2026)
+- Every game speed runs at half its old rate (owner request, to leave room for a larger rival field): speeds 1-5 are now 0.25 / 0.5 / 1.5 / 3.5 / 15 game days per real second (sim `time/clock.ts DAYS_PER_SECOND`). The real bridge clamps a frame to 500 ms (was 250), so the top speed still steps up to 7 days per frame. Tests and the e2e rate check updated; e2e not run locally.
 
 ## lane/categories-hub-filter (18 Nov 2026)
 - Fleet: the Aircraft categories panel is open by default, above the fleet list. The Hub filter now applies to it: aircraft counts and block hours (used / available) are for the chosen hub, like the type rows (sim `categoryBlockHours(state, id, hub)`, app `categoryCounts`). The category dropdown counts follow the hub too.

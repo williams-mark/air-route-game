@@ -251,7 +251,8 @@ for (const theme of themes) {
     await page.keyboard.press("2");
     assert((await speedPressed(page)) === "Speed 2", "key 2 did not select speed 2");
     const d0 = await simDay(page);
-    await page.waitForTimeout(2500);
+    // Speed 2 is half a game day per second (halved 20 Nov 2026): wait long enough for at least one day to pass.
+    await page.waitForTimeout(4500);
     assert((await simDay(page)) > d0, "date did not advance while running");
     await page.keyboard.press("Space");
     await page.waitForTimeout(300);
@@ -260,7 +261,7 @@ for (const theme of themes) {
     await page.waitForTimeout(1500);
     assert((await simDay(page)) === d1, "date advanced while paused");
     await page.keyboard.press("Space");
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(4500);
     assert((await simDay(page)) > d1, "date did not advance after resume");
     await page.keyboard.press("Space");
   });
@@ -503,10 +504,10 @@ for (const theme of themes) {
       await nav(page, "Map");
       for (const b of await page.getByRole("button", { name: /^(Dismiss|Later|Snooze)/ }).all()) await b.click().catch(() => {});
       await page.keyboard.press(String(sp));
-      const rate = { 1: 0.5, 2: 1, 3: 3, 4: 7 }[sp];
+      const rate = { 1: 0.25, 2: 0.5, 3: 1.5, 4: 3.5 }[sp];
       const d0 = await simDay(page);
       const t0 = Date.now();
-      await page.waitForTimeout(sp === 1 ? 5000 : 3500);
+      await page.waitForTimeout(sp <= 2 ? 8000 : 3500);
       const secs = (Date.now() - t0) / 1000;
       const d1 = await simDay(page);
       const state = (await page.getByRole("button", { name: "Resume" }).count()) === 1 ? "game was paused (decision or alert)" : `speed ${await speedPressed(page)}`;
