@@ -186,7 +186,7 @@ export function StartScreen() {
           <input id="start-seed" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} aria-invalid={parsed === null} />
           <button type="submit" className="primary" disabled={fleetErr !== null}>New game</button>
         </form>
-        <p className="start-hint">The same seed always gives the same world and the same rivals.</p>
+        <p className="start-hint">The same seed always gives the same world and the same competitors.</p>
         <div className="start-row">
           <button aria-expanded={showLoad} onClick={() => setShowLoad((v) => !v)}>Load slot</button>
           <FileButtons importOnly onResult={begin} />
