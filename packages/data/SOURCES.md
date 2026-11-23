@@ -1372,3 +1372,46 @@ Overwater: unlimited (four engines), as for the other 747 rows. Cabin geometry (
 
 ## A300 seat limits (correction, 17 Nov 2026)
 `maxSeats` is the certified maximum (exit limit), and the cabin designer caps seats at min(maxSeats, what the cabin length fits). The A300B2 row had 281 (the B2-100 *typical* figure) and the A300B4-100 row had 336 (a type-level figure from aircraftworlddirectory). Both share the B4-200's fuselage, length (53.61 m) and door layout, and the Airbus_A300 specification table (https://en.wikipedia.org/wiki/Airbus_A300, read 2026-11-17) gives "max 345" for the B4-200 column, which covers the B2/B4 fuselage. Both rows are now 345, DERIVED from that column. The -600 and -600R stay at 345 (the table's -600R column also says "max 345", 3-3-3 economy); their A310-style rear fuselage adds about two rows of cabin, which only matters below the seat cap. The exit limit was not confirmed against the EASA/FAA type certificate data sheets.
+
+## New-generation types (lane/new-types, added 23 Nov 2026)
+
+Owner request, 23 Nov 2026: 777-9 (entering service about July 2027), A321LR and A321XLR with their real entry dates, E190-E2 and E195-E2. Pages fetched 23 Nov 2026: https://en.wikipedia.org/wiki/Boeing_777X, https://en.wikipedia.org/wiki/Airbus_A321neo, https://en.wikipedia.org/wiki/Embraer_E-Jet_E2_family. Status words as in the "Aircraft" section: verified = read on the page; derived = taken from a named sibling type; estimate = judgement.
+
+| Type | Field | Value | Status and source |
+|---|---|---|---|
+| E190-E2 | rangeKm | 5460 | verified: E-Jet E2 spec table (2,950 nmi) |
+| E190-E2 | maxSeats | 114 | verified: spec table; "up to 114 seats in a single class" |
+| E190-E2 | runwayNeededM | 1615 | verified: spec table, takeoff field length at MTOW, ISA, sea level |
+| E190-E2 | cruiseKmh | 833 | verified: family row, Mach 0.78 at 35,000 ft |
+| E190-E2 | listPriceUsdM | 53.6 | verified: 2013 unit cost |
+| E190-E2 | introYear | 2018 | verified: first delivery to Wideroe 4 Apr 2018, in service 24 Apr 2018 |
+| E190-E2 | endYear | null | no end of production on the page (backlog 50, Oct 2026) |
+| E190-E2 | fuelBurnKgPerKm | 1.9 | estimate: A220-100 burn per seat (2.2 / 133) x 114 seats |
+| E195-E2 | rangeKm | 5600 | verified: spec table (3,000 nmi) |
+| E195-E2 | maxSeats | 146 | verified: spec table (text also says "up to 150") |
+| E195-E2 | runwayNeededM | 1840 | verified: spec table |
+| E195-E2 | cruiseKmh | 833 | verified: family row |
+| E195-E2 | listPriceUsdM | 60.4 | verified: 2013 unit cost |
+| E195-E2 | introYear | 2019 | verified: first delivery to Azul 12 Sep 2019 |
+| E195-E2 | fuelBurnKgPerKm | 2.3 | estimate: A220-300 burn per seat (2.4 / 149) x 146 seats |
+| A321LR | rangeKm | 7410 | verified: spec table (4,000 nmi with 206 passengers) |
+| A321LR | introYear | 2018 | verified: first delivery to Arkia 13 Nov 2018 |
+| A321LR | maxSeats, runwayNeededM, fuelBurn, cruise, price | 244, 1988, 2.7, 840, 130 | derived: A321neo row (the page gives no LR exit limit, field length or price; the LR's higher 97 t MTOW means 1,988 m is optimistic at full weight) |
+| A321XLR | rangeKm | 8700 | verified: spec table (4,700 nmi) |
+| A321XLR | listPriceUsdM | 142 | verified: list price quoted for IAG, Paris Air Show 2019 |
+| A321XLR | introYear | 2024 | verified: delivered to Iberia 30 Oct 2024, first revenue flight 6 Nov 2024 |
+| A321XLR | maxSeats, runwayNeededM, cruise | 244, 1988, 840 | derived: A321neo row (not on the page) |
+| A321XLR | fuelBurnKgPerKm | 2.8 | estimate: A321neo 2.7 plus a little for the 101 t MTOW and extra centre tank |
+| B777-9 | rangeKm | 14816 | verified: lead and spec, 8,000 nmi |
+| B777-9 | introYear | 2027 | verified: "Boeing expects the first aircraft to be delivered in 2027" (Oct 2025), infobox introduction 2027; owner says about July 2027 (the sim works in years) |
+| B777-9 | maxSeats | 550 | derived: 777-300ER exit limit (no 777-9 exit limit on the readable part of the page) |
+| B777-9 | cruiseKmh, runwayNeededM | 905, 3050 | derived: 777-300ER row (no figures for the -9) |
+| B777-9 | fuelBurnKgPerKm | 7.4 | derived: 777-300ER 8.2 x 0.8 (page: 20% lower burn per seat) x 414 / 365 seats (page's two-class -9 vs 365-seat -300ER) |
+| B777-9 | listPriceUsdM | 426 | recalled: 2018 list price as summarised from the page body, not read verbatim |
+| B777-9 | length / span (visual not added) | 76.73 / 71.76 | recalled, page body summary only |
+
+Overwater: E190-E2 and E195-E2 120 minutes (page: family "ETOPS 120 approval", March 2024). A321LR 180 (page: joint FAA/EASA certification on 2 Oct 2018 "ETOPS up to 180 minutes"). A321XLR 180 (derived from the LR; not stated). 777-9 330 (derived from the 777-300ER).
+
+Cabin geometry (sim cabin/geometry.ts, estimates like the rest of that table): E190-E2 25.1 m and E195-E2 30.3 m (E175 20.5 m plus the fuselage stretch over the 31.68 m E175: 36.25 and 41.51 m long), same 2.74 m cross-section as the E175, 4 abreast. A321LR/XLR as the A321neo. 777-9 61.8 m (777-300ER 59.0 m plus the 2.8 m stretch), 777-300ER width 5.87 m (the 777X's slightly wider cabin is not sourced here).
+
+Not added: E175-E2 (not in service: the page says delayed past 2027 and has no orders). Photos: none added for the new types.

@@ -1,3 +1,7 @@
+## lane/new-types (23 Nov 2026)
+- New aircraft: Boeing 777-9 (2027), Airbus A321LR (2018) and A321XLR (2024), Embraer E190-E2 (2018) and E195-E2 (2019), with overwater limits and cabin geometry. Figures and which are derived or estimated: data SOURCES.md "New-generation types". No photos yet; rival fleets do not use them yet.
+- Related: lane/runway-sector (PR #25) gives every type the short-sector runway allowance (E175 into Salem).
+
 ## lane/outstations (20 Nov 2026)
 - Outstations: `openOutstation` (USD 10M, sim `fleet/hubs.ts OUTSTATION_PARAMS`). Like a hub, aircraft can be based and delivered there and routes start there; unlike a hub, the player's flights touching the airport (either end, round-trip block hours on the planning type) are capped at 500 a week (`outstationBlockHours`, refused with `outstation_full` on open or edit). Hubs stay unlimited; `unlockHub` on an outstation upgrades it (full USD 50M). Stored in `SimState.outstations` (not contracts; old saves have none). Game-design figures, not real data.
 - App: Hubs screen opens an outstation or a hub, and lists outstations with hours used / free, routes and "Make hub"; the new-route callout offers both; Fleet moves and Orders delivery list hubs and outstations.
