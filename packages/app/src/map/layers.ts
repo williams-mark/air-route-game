@@ -2,7 +2,7 @@ import { IconLayer, PathLayer, ScatterplotLayer, TextLayer, type TextLayerProps 
 import type { Layer } from "@deck.gl/core";
 import type { Airport } from "@arg/contracts";
 import type { MapColors } from "./colors";
-import { aircraftAt, type AggEdge, type MapModel, type RouteGeo } from "./model";
+import { aircraftAt, type MapModel, type RouteGeo } from "./model";
 import { routePath } from "./geo";
 import type { ProfitTier, Rgba } from "./types";
 
@@ -31,6 +31,8 @@ export interface LayerInput {
   band: ZoomBand;
   selectedRoute: string | null;
   selectedAirport: string | null;
+  /** Draw only the routes touching this airport (absent or null = every route). */
+  focusAirport?: string | null;
   dark: boolean;
   /** Airport ids whose label survived screen-space decluttering (null = show all). */
   labelIds: Set<string> | null;
@@ -51,55 +53,40 @@ export interface LayerInput {
  */
 const ON_TOP = { depthCompare: "always" } as const;
 
-const routeWidth = (freq: number) => Math.max(1.4, Math.min(7, 1 + Math.sqrt(freq) * 0.75));
-/** Above this many player routes the far band draws corridors between hub clusters instead of each route. */
-export const AGG_ROUTE_THRESHOLD = 30;
-const aggWidth = (freq: number) => Math.max(3, Math.min(18, 2 + Math.sqrt(freq) * 1.1));
+/**
+ * Route line width in pixels by weekly frequency: a third of the earlier width (owner, 23 Nov 2026), the same at every zoom. Every
+ * route is always drawn as itself; the far-zoom hub "corridors" that used to replace a big network are gone.
+ */
+export const routeWidth = (freq: number) => Math.max(0.6, Math.min(2.4, (1 + Math.sqrt(freq) * 0.75) / 3));
 
 /** Layers that only change with zoom band, data, theme or selection (not with simTime). */
 export function buildStaticLayers(inp: LayerInput): Layer[] {
-  const { model, colors: c, band, selectedRoute, selectedAirport, dark, labelIds, allAirports, markerIds } = inp;
+  const { model, colors: c, band, selectedRoute, selectedAirport, focusAirport, dark, labelIds, allAirports, markerIds } = inp;
   const layers: Layer[] = [];
   const alpha = dark ? 205 : 225;
   const far = band === "far";
-  // A small network is drawn as its real routes even when zoomed far out (LHR-ZRH must not look like LHR-FRA); big ones as hub corridors.
-  const aggregate = far && model.routes.length > AGG_ROUTE_THRESHOLD;
-  const routes = aggregate ? [] : clipPaths(model.routes, inp.visible);
-  const agg = aggregate ? clipPaths(model.agg, inp.visible) : [];
-
-  if (aggregate) {
-    layers.push(
-      new PathLayer<AggEdge>({
-        id: "agg-casing", parameters: ON_TOP, data: agg, getPath: (d) => d.path, getColor: c.casing, getWidth: (d) => aggWidth(d.freq) + 3,
-        widthUnits: "pixels", capRounded: true, jointRounded: true, pickable: false,
-      }),
-      new PathLayer<AggEdge>({
-        id: "agg-routes", parameters: ON_TOP, data: agg, getPath: (d) => d.path, getColor: (d) => withA(tierColor(c, d.tier), alpha),
-        getWidth: (d) => aggWidth(d.freq), widthUnits: "pixels", capRounded: true, jointRounded: true, pickable: true,
-        autoHighlight: true, highlightColor: [255, 255, 255, 70], updateTriggers: { getColor: [c, dark] },
-      }),
-    );
-  } else {
-    const sel = selectedRoute ? routes.filter((g) => g.route.id === selectedRoute) : [];
-    layers.push(
-      new PathLayer<RouteGeo>({
-        id: "route-casing", parameters: ON_TOP, data: routes, getPath: (d) => d.path, getColor: c.casing,
-        getWidth: (d) => routeWidth(d.route.weeklyFrequency) + 2.5, widthUnits: "pixels", capRounded: true, jointRounded: true,
-        pickable: false, updateTriggers: { getColor: [c] },
-      }),
-      new PathLayer<RouteGeo>({
-        id: "selected-route", parameters: ON_TOP, data: sel, getPath: (d) => d.path, getColor: withA(c.select, 255),
-        getWidth: (d) => routeWidth(d.route.weeklyFrequency) + 6, widthUnits: "pixels", capRounded: true, jointRounded: true,
-        pickable: false, updateTriggers: { getColor: [c] },
-      }),
-      new PathLayer<RouteGeo>({
-        id: "routes", parameters: ON_TOP, data: routes, getPath: (d) => d.path,
-        getColor: (d) => withA(tierColor(c, d.route.tier), d.route.tier === "planned" ? alpha - 40 : alpha),
-        getWidth: (d) => routeWidth(d.route.weeklyFrequency), widthUnits: "pixels", capRounded: true, jointRounded: true,
-        pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 80], updateTriggers: { getColor: [c, dark] },
-      }),
-    );
-  }
+  // With a city in focus only the routes touching it are drawn (owner, 23 Nov 2026).
+  const drawn = focusAirport ? model.routes.filter((g) => g.o.id === focusAirport || g.d.id === focusAirport) : model.routes;
+  const routes = clipPaths(drawn, inp.visible);
+  const sel = selectedRoute ? routes.filter((g) => g.route.id === selectedRoute) : [];
+  layers.push(
+    new PathLayer<RouteGeo>({
+      id: "route-casing", parameters: ON_TOP, data: routes, getPath: (d) => d.path, getColor: c.casing,
+      getWidth: (d) => routeWidth(d.route.weeklyFrequency) + 1.2, widthUnits: "pixels", capRounded: true, jointRounded: true,
+      pickable: false, updateTriggers: { getColor: [c] },
+    }),
+    new PathLayer<RouteGeo>({
+      id: "selected-route", parameters: ON_TOP, data: sel, getPath: (d) => d.path, getColor: withA(c.select, 255),
+      getWidth: (d) => routeWidth(d.route.weeklyFrequency) + 3, widthUnits: "pixels", capRounded: true, jointRounded: true,
+      pickable: false, updateTriggers: { getColor: [c] },
+    }),
+    new PathLayer<RouteGeo>({
+      id: "routes", parameters: ON_TOP, data: routes, getPath: (d) => d.path,
+      getColor: (d) => withA(tierColor(c, d.route.tier), d.route.tier === "planned" ? alpha - 40 : alpha),
+      getWidth: (d) => routeWidth(d.route.weeklyFrequency), widthUnits: "pixels", capRounded: true, jointRounded: true,
+      pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 80], updateTriggers: { getColor: [c, dark] },
+    }),
+  );
 
   const shown: Airport[] = markerIds ? model.airports.filter((a) => markerIds.has(a.id)) : far && !allAirports ? model.airports.filter((a) => model.hubs.has(a.id)) : model.airports;
   const selAp0 = selectedAirport ? model.byId.get(selectedAirport) : undefined;
@@ -153,8 +140,9 @@ export function buildStaticLayers(inp: LayerInput): Layer[] {
   return inp.domLabels ? layers.filter((l) => l.id !== "airport-labels") : layers;
 }
 
-export function buildAircraftLayer(model: MapModel, c: MapColors, band: ZoomBand, simTime: number, visible?: (lon: number, lat: number) => boolean): Layer {
-  const all = aircraftAt(model.routes, simTime, band === "far");
+export function buildAircraftLayer(model: MapModel, c: MapColors, band: ZoomBand, simTime: number, visible?: (lon: number, lat: number) => boolean, focusAirport?: string | null): Layer {
+  const geos = focusAirport ? model.routes.filter((g) => g.o.id === focusAirport || g.d.id === focusAirport) : model.routes;
+  const all = aircraftAt(geos, simTime, band === "far" && !focusAirport);
   const data = visible ? all.filter((d) => visible(d.position[0], d.position[1])) : all;
   // A disc, not the plane icon: icon layers do not draw on the globe (see buildStaticLayers).
   return new ScatterplotLayer<{ position: [number, number] }>({
@@ -243,7 +231,7 @@ export function buildRivalEdges(markets: Array<{ origin: string; destination: st
 export function buildRivalLayer(edges: RivalMapEdge[], c: MapColors, visible?: Visible): Layer {
   return new PathLayer<RivalMapEdge>({
     id: "rival-routes", parameters: ON_TOP, data: clipPaths(edges, visible), getPath: (d) => d.path, getColor: c.rival,
-    getWidth: (d) => Math.max(1.2, Math.min(4, 0.8 + Math.sqrt(d.seats / 400))), widthUnits: "pixels", capRounded: true, jointRounded: true,
+    getWidth: (d) => Math.max(0.5, Math.min(1.4, (0.8 + Math.sqrt(d.seats / 400)) / 3)), widthUnits: "pixels", capRounded: true, jointRounded: true,
     pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 60], updateTriggers: { getColor: [c] },
   });
 }

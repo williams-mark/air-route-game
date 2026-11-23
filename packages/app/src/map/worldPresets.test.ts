@@ -70,16 +70,6 @@ describe("map with the whole-globe airport set", () => {
     const conts = new Set(hubs.map((h) => continentOf(A.get(h)!.country)));
     for (const c of ["North America", "South America", "Europe", "Africa", "Asia", "Oceania"]) expect(conts.has(c as never), c).toBe(true);
   });
-  it("far-zoom hub corridors of a US/Europe network stay between US and European clusters", () => {
-    const routes = [["LAX", "JFK"], ["SFO", "ORD"], ["JFK", "LHR"], ["LHR", "FRA"], ["FRA", "MAD"], ["LAX", "HNL"]].map(([o, d], i) => ({
-      id: `r${i}`, origin: o!, destination: d!, weeklyFrequency: 7, tier: "profit" as const,
-    }));
-    const m = buildModel(airports, routes as never);
-    for (const e of m.agg) {
-      for (const x of [e.a, e.b]) expect(["North America", "Europe"], x.id).toContain(continentOf(x.country));
-    }
-    expect(m.agg.length).toBeLessThanOrEqual(routes.length);
-  });
   it("markers: every preset keeps a readable set within the zoom budget on 1,006 airports", () => {
     const model = buildModel(airports, []);
     const W = 1280, H = 720;

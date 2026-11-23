@@ -7,7 +7,7 @@ import { readMapColors } from "./colors";
 import { applyStyleColors, buildStyle } from "./style";
 import type { RivalMapEdge } from "./layers";
 import { bandOf, buildAircraftLayer, buildGhostLayers, buildRivalEdges, buildRivalLayer, buildStaticLayers, declutterLabels, labelText, type Ghost, type ZoomBand } from "./layers";
-import { buildModel, toDisplay, type AggEdge, type RouteGeo } from "./model";
+import { buildModel, toDisplay, type RouteGeo } from "./model";
 import { markerBudget, markerSpacing, selectMarkers } from "./lod";
 import { boundsFor, loadCamera, saveCamera } from "./presets";
 import type { CameraPresetId, MapRoute, Theme } from "./types";
@@ -28,6 +28,8 @@ export interface AirMapProps {
   presetNonce: number;
   selectedRouteId?: string | null;
   selectedAirportId?: string | null;
+  /** Draw only the routes (own and competitor) touching this airport; null = all. */
+  focusAirportId?: string | null;
   /** Right-side screen padding (px) so presets centre in the free area. */
   padding?: { top?: number; bottom?: number; left?: number; right?: number };
   /** Route-creation preview arc (dashed) and end markers. */
@@ -64,7 +66,7 @@ function fitCamera(map: MLMap, preset: CameraPresetId, airports: readonly Airpor
 const tierWord = { profit: "Profitable", marginal: "Marginal", loss: "Loss-making", planned: "Planned" } as const;
 
 export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(props, ref) {
-  const { airports, routes, simTime, theme, preset, presetNonce, selectedRouteId = null, selectedAirportId = null, ghost = null, showAllAirports = false, rivalMarkets } = props;
+  const { airports, routes, simTime, theme, preset, presetNonce, selectedRouteId = null, selectedAirportId = null, focusAirportId = null, ghost = null, showAllAirports = false, rivalMarkets } = props;
   const pad = useMemo(() => ({ top: 70, bottom: 60, left: 60, right: 60, ...props.padding }), [props.padding]);
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
@@ -122,7 +124,7 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
       interleaved: true, layers: [], pickingRadius: 6, // interleaved: deck.gl draws in the map's own context, which the globe projection needs
       getCursor: ({ isHovering }) => (isHovering ? "pointer" : "grab"),
       onHover: (info) => {
-        const o = info.object as (RouteGeo | AggEdge | Airport | undefined);
+        const o = info.object as (RouteGeo | Airport | undefined);
         if (!o || !info.layer) { setTip(null); return; }
         const id = info.layer.id;
         let text = "";
@@ -132,9 +134,6 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
         } else if (id === "rival-routes") {
           const g = o as unknown as RivalMapEdge;
           text = `${g.a.id} ⇄ ${g.b.id} · ${g.carriers.join(", ")} · ${g.seats.toLocaleString()} seats/wk (competitor)`;
-        } else if (id === "agg-routes") {
-          const g = o as AggEdge;
-          text = `${g.a.id} ⇄ ${g.b.id} corridor · ${g.routes} route${g.routes > 1 ? "s" : ""} · ${g.freq}/wk`;
         } else if (id === "airports" || id === "airport-glyph") {
           const a = o as Airport;
           text = `${a.id} · ${a.name}`;
@@ -146,10 +145,6 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
         const id = info.layer.id;
         if (id === "routes") cbRef.current.onSelectRoute?.((info.object as RouteGeo).route.id);
         else if (id === "airports" || id === "airport-glyph") cbRef.current.onSelectAirport?.((info.object as Airport).id);
-        else if (id === "agg-routes") {
-          const e = info.object as AggEdge;
-          mapRef.current?.easeTo({ center: [(e.a.lon + e.b.lon) / 2, (e.a.lat + e.b.lat) / 2], zoom: Math.max(mapRef.current.getZoom(), 4.9), duration: 600 });
-        }
       },
     });
     map.addControl(overlay as never);
@@ -262,20 +257,21 @@ export const AirMap = forwardRef<AirMapHandle, AirMapProps>(function AirMap(prop
   }, [colors, ready]);
 
   const staticLayers = useMemo(
-    () => buildStaticLayers({ model, colors, band, selectedRoute: selectedRouteId, selectedAirport: selectedAirportId, dark: theme === "dark", labelIds: lod?.labels ?? null, markerIds: lod?.markers ?? null, allAirports: showAllAirports, visible, domLabels: true }),
-    [model, colors, band, selectedRouteId, selectedAirportId, theme, lod, showAllAirports],
+    () => buildStaticLayers({ model, colors, band, selectedRoute: selectedRouteId, selectedAirport: selectedAirportId, dark: theme === "dark", labelIds: lod?.labels ?? null, markerIds: lod?.markers ?? null, allAirports: showAllAirports, visible, domLabels: true, focusAirport: focusAirportId }),
+    [model, colors, band, selectedRouteId, selectedAirportId, focusAirportId, theme, lod, showAllAirports],
   );
 
   const rivalLayer = useMemo(() => {
     if (!rivalMarkets || rivalMarkets.length === 0) return null;
-    return buildRivalLayer(buildRivalEdges(rivalMarkets, model.byId), colors, visible);
-  }, [rivalMarkets, model, colors, view]); // eslint-disable-line react-hooks/exhaustive-deps
+    const markets = focusAirportId ? rivalMarkets.filter((m) => m.origin === focusAirportId || m.destination === focusAirportId) : rivalMarkets;
+    return buildRivalLayer(buildRivalEdges(markets, model.byId), colors, visible);
+  }, [rivalMarkets, model, colors, view, focusAirportId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!ready) return;
     const ghostLayers = ghost ? buildGhostLayers({ a: ghost.a && toDisplay(ghost.a), b: ghost.b && toDisplay(ghost.b) }, colors, visible) : [];
-    overlayRef.current?.setProps({ layers: [...(rivalLayer ? [rivalLayer] : []), ...staticLayers, ...ghostLayers, buildAircraftLayer(model, colors, band, simTime, visible)] });
-  }, [ready, staticLayers, rivalLayer, model, colors, band, simTime, ghost, view]); // eslint-disable-line react-hooks/exhaustive-deps
+    overlayRef.current?.setProps({ layers: [...(rivalLayer ? [rivalLayer] : []), ...staticLayers, ...ghostLayers, buildAircraftLayer(model, colors, band, simTime, visible, focusAirportId)] });
+  }, [ready, staticLayers, rivalLayer, model, colors, band, simTime, ghost, view, focusAirportId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
