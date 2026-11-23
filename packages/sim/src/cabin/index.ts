@@ -1,6 +1,7 @@
 export { cabinGeometry, type CabinGeometry, type BodyClass } from "./geometry";
+export { upperDeckOf, deckOf, hasUpperDeckSections, sectionsOnDeck, type Deck, type UpperDeckSpec } from "./decks";
 export {
-  validateLayout as validateCabinLayout, allowedAcross, rowsFitting, layoutLengthM, sectionSeats, totalSeats as cabinSeats,
+  validateLayout as validateCabinLayout, allowedAcross, deckLengths, rowsFitting, layoutLengthM, sectionSeats, totalSeats as cabinSeats,
   pitchLimits, CABIN_CLASSES, CLASS_NAME, PITCH_LIMITS, SECTION_DIVIDER_M,
   type AcrossOption, type LayoutIssue, type LayoutValidation,
 } from "./rules";

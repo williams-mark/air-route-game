@@ -2,11 +2,11 @@ import { useId, useMemo, useState } from "react";
 import type { AircraftType, CabinClass, CabinLayout } from "@arg/contracts";
 import { aircraftTypes, airports } from "@arg/data";
 import {
-  allowedAcross, CABIN_CLASSES, cabinGeometry, defaultLayout, layoutEffects, pitchLimits, suggestLayouts,
-  validateCabinLayout,
+  allowedAcross, CABIN_CLASSES, cabinGeometry, defaultLayout, hasUpperDeckSections, layoutEffects, pitchLimits, suggestLayouts, upperDeckOf,
+  validateCabinLayout, type Deck,
 } from "@arg/sim";
 import {
-  CLASS_LABEL, fillEconomy, lengthShares, maxRowsFor, newSection, projectRoute, sectionOf, setSection, signed, usd,
+  CLASS_LABEL, fillEconomy, maxRowsFor, newSection, projectRoute, sectionLengthShare, sectionOf, setSection, signed, usd,
 } from "./helpers";
 import { SeatMap } from "./SeatMap";
 import "./cabin.css";
@@ -47,8 +47,14 @@ export function CabinEditor({ type, layout, onChange, day, defaultRoute }: Props
   // Both projections use the airline's service levels, so the comparison isolates the layout change.
   const proj = useMemo(() => (origin && destination ? projectRoute(type, layout, origin, destination, airports, aircraftTypes, day, serviceLevels) : null), [type, layout, origin, destination, day, serviceLevels]);
   const refProj = useMemo(() => (origin && destination ? projectRoute(type, defaultLayout(type), origin, destination, airports, aircraftTypes, day, serviceLevels) : null), [type, origin, destination, day, serviceLevels]);
-  const shares = lengthShares(layout);
   const used = v.lengthUsedM / v.lengthAvailableM;
+  // 747 and A380: one group of class sections per deck, each deck with its own seats-across rules (sim cabin/decks.ts).
+  const upperDeck = upperDeckOf(type);
+  const decks: Deck[] = upperDeck ? ["upper", "main"] : ["main"];
+  const legacyTwoDeck = !!upperDeck && !hasUpperDeckSections(layout) && layout.sections.length > 0;
+  const deckTitle = (d: Deck) => d === "upper"
+    ? `Upper deck (${upperDeck!.aisles === 2 ? "twin aisle" : "single aisle"})`
+    : "Main deck";
 
   return (
     <div className="cabin-editor">
@@ -70,53 +76,63 @@ export function CabinEditor({ type, layout, onChange, day, defaultRoute }: Props
 
       <div className="cabin-grid">
         <section className="cabin-controls" aria-label="Cabin sections">
-          {CABIN_CLASSES.map((cls) => {
-            const opts = allowedAcross(type, cls);
-            if (opts.length === 0) return null;
-            const s = sectionOf(layout, cls);
-            const [lo, hi] = pitchLimits(cls, geo);
-            const id = `${uid}-${cls}`;
-            return (
-              <fieldset key={cls} className={`sec sec-${cls}`}>
-                <legend>
-                  <label className="sec-toggle">
-                    <input
-                      type="checkbox" checked={!!s} aria-label={`Include ${CLASS_LABEL[cls]}`}
-                      onChange={(e) => {
-                        if (!e.target.checked) { onChange(setSection(layout, cls, null)); return; }
-                        const ns = newSection(type, cls);
-                        if (ns) onChange(setSection(layout, cls, ns, type));
-                      }}
-                    />
-                    <i className={`sw seat-${cls}`} /> {CLASS_LABEL[cls]}
-                  </label>
-                  {s && <span className="sec-n">{s.rows * s.seatsAcross} seats, {(shares[cls] * 100).toFixed(0)}% of length</span>}
-                </legend>
-                {s ? (
-                  <div className="sec-body">
-                    <label htmlFor={`${id}-rows`}>Rows <output>{s.rows}</output></label>
-                    <input
-                      id={`${id}-rows`} type="range" min={1} max={Math.max(s.rows, maxRowsFor(type, layout, cls), 1)} value={s.rows}
-                      aria-valuetext={`${s.rows} rows, ${s.rows * s.seatsAcross} seats`}
-                      onChange={(e) => onChange(setSection(layout, cls, { rows: Number(e.target.value) }))}
-                    />
-                    <label htmlFor={`${id}-across`}>Seats across</label>
-                    <select id={`${id}-across`} value={s.seatsAcross} onChange={(e) => onChange(setSection(layout, cls, { seatsAcross: Number(e.target.value) }))}>
-                      {opts.map((o) => <option key={o.across} value={o.across}>{o.across} abreast ({o.label})</option>)}
-                      {!opts.some((o) => o.across === s.seatsAcross) && <option value={s.seatsAcross}>{s.seatsAcross} (not allowed)</option>}
-                    </select>
-                    <label htmlFor={`${id}-pitch`}>Pitch <output>{s.pitchIn} in</output></label>
-                    <input
-                      id={`${id}-pitch`} type="range" min={lo} max={hi} step={1} value={Math.min(hi, Math.max(lo, s.pitchIn))}
-                      aria-valuetext={`${s.pitchIn} inches`}
-                      onChange={(e) => onChange(setSection(layout, cls, { pitchIn: Number(e.target.value) }))}
-                    />
-                    {cls === "Y" && <button type="button" className="fill" onClick={() => onChange(fillEconomy(type, layout))}>Fill rest of cabin with economy</button>}
-                  </div>
-                ) : <p className="sec-off">Not fitted.</p>}
-              </fieldset>
-            );
-          })}
+          {legacyTwoDeck && (
+            <p className="sec-note" role="note">This cabin predates upper-deck seating: every row counts as one long main deck. Pick a preset above, or switch on a class on the upper deck to set it up.</p>
+          )}
+          {decks.map((deck) => (
+            <div key={deck} className="deck-group" role="group" aria-label={upperDeck ? deckTitle(deck) : "Cabin"}>
+              {upperDeck && <h4 className="deck-h">{deckTitle(deck)}{v.decks ? <span className="sec-n"> {v.decks[deck].usedM.toFixed(1)} of {v.decks[deck].availableM.toFixed(1)} m</span> : null}</h4>}
+              {CABIN_CLASSES.map((cls) => {
+                const opts = allowedAcross(type, cls, deck);
+                if (opts.length === 0) return null;
+                const s = sectionOf(layout, cls, deck);
+                const [lo, hi] = pitchLimits(cls, geo);
+                const id = `${uid}-${deck}-${cls}`;
+                const name = `${CLASS_LABEL[cls]}${upperDeck ? (deck === "upper" ? " (upper deck)" : " (main deck)") : ""}`;
+                const set = (patch: Parameters<typeof setSection>[2]) => onChange(setSection(layout, cls, patch, type, deck));
+                return (
+                  <fieldset key={cls} className={`sec sec-${cls}`}>
+                    <legend>
+                      <label className="sec-toggle">
+                        <input
+                          type="checkbox" checked={!!s} aria-label={`Include ${name}`}
+                          onChange={(e) => {
+                            if (!e.target.checked) { set(null); return; }
+                            const ns = newSection(type, cls, deck);
+                            if (ns) set(ns);
+                          }}
+                        />
+                        <i className={`sw seat-${cls}`} /> {CLASS_LABEL[cls]}
+                      </label>
+                      {s && <span className="sec-n">{s.rows * s.seatsAcross} seats, {(sectionLengthShare(layout, s) * 100).toFixed(0)}% of {upperDeck ? "the deck" : "length"}</span>}
+                    </legend>
+                    {s ? (
+                      <div className="sec-body">
+                        <label htmlFor={`${id}-rows`}>Rows <output>{s.rows}</output></label>
+                        <input
+                          id={`${id}-rows`} type="range" min={1} max={Math.max(s.rows, maxRowsFor(type, layout, cls, deck), 1)} value={s.rows}
+                          aria-valuetext={`${s.rows} rows, ${s.rows * s.seatsAcross} seats`}
+                          onChange={(e) => set({ rows: Number(e.target.value) })}
+                        />
+                        <label htmlFor={`${id}-across`}>Seats across</label>
+                        <select id={`${id}-across`} value={s.seatsAcross} onChange={(e) => set({ seatsAcross: Number(e.target.value) })}>
+                          {opts.map((o) => <option key={o.across} value={o.across}>{o.across} abreast ({o.label})</option>)}
+                          {!opts.some((o) => o.across === s.seatsAcross) && <option value={s.seatsAcross}>{s.seatsAcross} (not allowed)</option>}
+                        </select>
+                        <label htmlFor={`${id}-pitch`}>Pitch <output>{s.pitchIn} in</output></label>
+                        <input
+                          id={`${id}-pitch`} type="range" min={lo} max={hi} step={1} value={Math.min(hi, Math.max(lo, s.pitchIn))}
+                          aria-valuetext={`${s.pitchIn} inches`}
+                          onChange={(e) => set({ pitchIn: Number(e.target.value) })}
+                        />
+                        {cls === "Y" && <button type="button" className="fill" onClick={() => onChange(fillEconomy(type, layout, deck))}>Fill rest of {upperDeck ? "this deck" : "cabin"} with economy</button>}
+                      </div>
+                    ) : <p className="sec-off">Not fitted.</p>}
+                  </fieldset>
+                );
+              })}
+            </div>
+          ))}
         </section>
 
         <section className="cabin-readout" aria-label="Effects of this layout" aria-live="polite">

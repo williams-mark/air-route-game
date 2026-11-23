@@ -1,5 +1,6 @@
 import type { AircraftType, CabinLayout, CabinSection } from "@arg/contracts";
-import { allowedAcross, validateLayout as validateCabinRules } from "../cabin/rules";
+import { allowedAcross, deckLengths, validateLayout as validateCabinRules } from "../cabin/rules";
+import { fillDeckSection, upperDeckOf } from "../cabin/decks";
 
 /** Fraction of the type's maximum (high-density) seat count that a default full-service layout keeps. */
 export const DEFAULT_LAYOUT_FRACTION = { narrow: 0.86, wide: 0.78 } as const;
@@ -16,6 +17,8 @@ export function layoutSeats(layout: CabinLayout): number {
  */
 export function defaultLayout(type: AircraftType): CabinLayout {
   const target = Math.floor(type.maxSeats * (type.widebody ? DEFAULT_LAYOUT_FRACTION.wide : DEFAULT_LAYOUT_FRACTION.narrow));
+  const twoDeck = twoDeckDefault(type, target);
+  if (twoDeck) return twoDeck;
   const sections: CabinSection[] = [];
   let used = 0;
   if (type.widebody) {
@@ -38,7 +41,30 @@ export function defaultLayout(type: AircraftType): CabinLayout {
   return { sections };
 }
 
-export type LayoutError = "empty_layout" | "bad_section" | "too_many_seats" | "duplicate_class" | "class_unavailable" | "bad_across" | "bad_pitch" | "too_long";
+/**
+ * Default cabin of a 747 or A380, with the upper deck set up (cabin/decks.ts): business upstairs (2-2 on the 747; 1-2-1 on the
+ * A380, with economy 2-4-2 behind it as on several operators), premium economy 2-3-2 and economy ten across on the main deck.
+ * Seats stay within `target`. Not sourced data. Null for single-deck types.
+ */
+function twoDeckDefault(type: AircraftType, target: number): CabinLayout | null {
+  const up = upperDeckOf(type), lengths = deckLengths(type);
+  if (!up || !lengths) return null;
+  const a380 = up.aisles === 2;
+  const upper: CabinSection[] = [];
+  const j = fillDeckSection(upper, lengths.upper, "J", 4, 60, "upper", a380 ? 10 : Infinity);
+  if (j) upper.push(j);
+  if (a380) { const uy = fillDeckSection(upper, lengths.upper, "Y", 8, 31, "upper"); if (uy) upper.push(uy); }
+  const main: CabinSection[] = [];
+  let used = upper.reduce((n, s) => n + s.rows * s.seatsAcross, 0);
+  if (!a380 && type.maxSeats >= 380) { main.push({ cls: "W", rows: 4, seatsAcross: 7, pitchIn: 38 }); used += 28; }
+  const yAcross = allowedAcross(type, "Y").map((o) => o.across).filter((n) => n <= 10).pop() ?? 10;
+  const y = fillDeckSection(main, lengths.main, "Y", yAcross, 31, "main", Infinity, Math.max(yAcross, target - used));
+  if (y) main.push(y);
+  // Front to back: premium cabins first (upper deck listed first, then the main deck).
+  return { sections: [...upper, ...main] };
+}
+
+export type LayoutError = "empty_layout" | "bad_section" | "too_many_seats" | "duplicate_class" | "class_unavailable" | "bad_across" | "bad_pitch" | "too_long" | "no_upper_deck";
 
 /**
  * Returns an error code and message, or null when the layout is legal for the type. This is the single rule set

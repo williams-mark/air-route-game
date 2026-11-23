@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CabinLayout } from "@arg/contracts";
-import { deckSpecFor, splitLayout } from "./decks";
+import { deckSpecFor, layoutByDeck, splitLayout } from "./decks";
 
 const seats = (l: CabinLayout) => l.sections.reduce((n, s) => n + s.rows * s.seatsAcross, 0);
 const layout: CabinLayout = { sections: [
@@ -25,5 +25,23 @@ describe("two-deck seat map split", () => {
     expect(main.sections[main.sections.length - 1]!.cls).toBe("Y");
     expect(splitLayout(layout, 0).upper.sections).toEqual([]);
     expect(splitLayout(layout, 500).main.sections).toEqual([]);
+  });
+});
+
+describe("layout by deck", () => {
+  it("draws upper-deck sections upstairs and an older single-list layout entirely on the main deck", () => {
+    const explicit: CabinLayout = { sections: [{ cls: "J", rows: 6, seatsAcross: 4, pitchIn: 60, deck: "upper" }, { cls: "Y", rows: 40, seatsAcross: 10, pitchIn: 31 }] };
+    const e = layoutByDeck(explicit);
+    expect(e.legacy).toBe(false);
+    expect(e.upper.sections.map((s) => s.cls)).toEqual(["J"]);
+    expect(e.main.sections.map((s) => s.cls)).toEqual(["Y"]);
+    const old = layoutByDeck(layout);
+    expect(old.legacy).toBe(true);
+    expect(old.upper.sections).toEqual([]);
+    expect(seats(old.main)).toBe(seats(layout));
+  });
+  it("the 747 upper deck is drawn narrower than the A380 upper deck", () => {
+    expect(deckSpecFor("B747-400")!.upperWidth).toBeLessThan(deckSpecFor("A380-800")!.upperWidth);
+    expect(deckSpecFor("B747-400")!.upperWidth).toBeLessThan(0.7);
   });
 });
