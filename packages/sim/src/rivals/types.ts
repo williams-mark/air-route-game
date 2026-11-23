@@ -73,6 +73,8 @@ export interface RivalOrder {
 export interface RivalAirline {
   id: Id;
   name: string;
+  /** World field: added to the airline's indirect cost share (WorldIntensity.overheadDelta). Absent = 0. */
+  overheadDelta?: number;
   archetype: Archetype;
   bases: Id[];
   /** Home region and market search area (older saves: derived from the bases). */
@@ -153,6 +155,8 @@ export interface RivalsState {
    * with these airlines (no synthetic stand-in rivals). Absent or "classic": the original named field plus the synthetic stand-ins.
    */
   field?: "classic" | "world";
+  /** World field: how hard it competes (rivals/config.ts DIFFICULTY). Absent = medium. */
+  intensity?: import("./config").WorldIntensity;
 }
 
 /** Fleet released by a bankrupt airline, for the offers lane (distressed lots). */

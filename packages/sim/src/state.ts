@@ -83,6 +83,8 @@ export interface SimParams {
    * It follows the calendar, so a game that starts after 2020 is unaffected either way.
    */
   pandemic?: boolean;
+  /** Difficulty chosen at the start (rivals/config.ts DIFFICULTY). Absent = medium. */
+  difficulty?: "easy" | "hard" | "medium";
 }
 
 export const DEFAULT_SIM_PARAMS: SimParams = {

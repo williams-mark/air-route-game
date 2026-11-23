@@ -15,7 +15,7 @@ import { carriedShare } from "../route/rivalSizing";
 import { dayToDate } from "../time/calendar";
 import {
   ARCHETYPES, ENTRANT_NAME_POOL, RIVAL_PARAMS as RP, SCHEDULED_ENTRANTS, SCOPES, STARTING_RIVALS,
-  EUROPE_LCC_TYPES, WORLD_FIELD, WORLD_NAME_FIRST, WORLD_NAME_SECOND,
+  EUROPE_LCC_TYPES, DIFFICULTY, WORLD_FIELD, type WorldIntensity, WORLD_NAME_FIRST, WORLD_NAME_SECOND,
   type ArchetypeSpec, type EntrantSpec,
 } from "./config";
 import type {
@@ -87,6 +87,8 @@ export interface RivalCtx {
   demandFactor?: (a: Airport, b: Airport) => number;
   /** The generated world field (RivalsState.field "world"): no synthetic one-stop rival, orders, outstations, fare policy. */
   world?: boolean;
+  /** World field intensity (difficulty); absent = medium. */
+  intensity?: WorldIntensity;
 }
 
 /** Stricter of the data package's feasibility (`canFlyRoute`) and the ledger's own range/runway test. */
@@ -368,7 +370,7 @@ function planEntry(ctx: RivalCtx, air: RivalAirline, all: Map<string, Entry[]>, 
   const spec = ARCHETYPES[air.archetype];
   const dist = distanceKm(a, b);
   const base = sizingDemand(ctx, a, b);
-  const share = air.scope?.world ? WORLD_FIELD.entryShare[air.archetype] : spec.entryShare;
+  const share = air.scope?.world ? WORLD_FIELD.entryShare[air.archetype] * (ctx.intensity ?? DIFFICULTY.medium.intensity).entryShareScale : spec.entryShare;
   const target = (share * base) / RP.targetLoadFactor;
   const t = chooseType(ctx, air, a, b, target);
   if (!t) return null;
@@ -558,12 +560,16 @@ export function makeContext(
   return { airports, types, day, year: dayToDate(day).year, rng, player, demandFactor };
 }
 
+/** World field options at creation: difficulty intensity and the player's home hub (for WorldIntensity.homeRivals). */
+export interface WorldOptions { intensity?: WorldIntensity; homeHub?: Id }
+
 /** Build the 2015 field. Deterministic in `seed`. */
 export function createRivals(
   airports: readonly Airport[], types: readonly AircraftType[], seed: number, playerRoutes: readonly Route[] = [], day: Day = 0,
   field: "classic" | "world" = "classic",
+  world: WorldOptions = {},
 ): RivalsState {
-  if (field === "world") return createWorldRivals(airports, types, seed, playerRoutes, day);
+  if (field === "world") return createWorldRivals(airports, types, seed, playerRoutes, day, world);
   const ctx = makeContext(new Map(airports.map((a) => [a.id, a])), new Map(types.map((t) => [t.id, t])), day, makeRng(mixSeed(seed, 0x21fa15)), playerRoutes);
   const state: RivalsState = { airlines: [], news: [], launchedEntrants: [], nextAirline: 0, originDay: day };
   for (const spec of STARTING_RIVALS) {
@@ -783,11 +789,11 @@ export function stepRivalsWeek(
     if (ctx.world) {
       receiveDeliveries(ctx, sink, air, rivals);
       // All decisions on the airline's own week of the cycle (assigned at set-up), so only a few airlines decide in any week.
-      if (week > 0 && week % WORLD_FIELD.decisionCycleWeeks === (air.decisionWeek ?? 0)) {
+      if (week > 0 && week % (ctx.intensity ?? DIFFICULTY.medium.intensity).decisionCycleWeeks === (air.decisionWeek ?? 0)) {
         air.lastDecisionDay = ctx.day;
         monthly(ctx, sink, air, spec);
         quarterlyExits(ctx, sink, air, rivals, spec);
-        if (air.cash > 0) considerEntries(ctx, air, rivals, sink, WORLD_FIELD.entriesPerDecision, air.routes.length < 2);
+        if (air.cash > 0) considerEntries(ctx, air, rivals, sink, (ctx.intensity ?? DIFFICULTY.medium.intensity).entriesPerDecision, air.routes.length < 2);
         considerOutstation(ctx, sink, air);
         reviewFarePolicy(ctx, sink, air);
         if (ctx.day - (air.lastFleetDay ?? 0) >= 364) { air.lastFleetDay = ctx.day; annualFleet(ctx, sink, air, spec); }
@@ -1024,7 +1030,7 @@ export function rivalItinerariesFor(
 
 /** Costs the route ledger does not carry, as a share of revenue: the archetype's, plus the world-field calibration add-on. */
 function indirectPct(air: RivalAirline): number {
-  return ARCHETYPES[air.archetype].indirectCostPct + (air.scope?.world ? WORLD_FIELD.extraIndirectPct[air.archetype] : 0);
+  return ARCHETYPES[air.archetype].indirectCostPct + (air.scope?.world ? WORLD_FIELD.extraIndirectPct[air.archetype] + (air.overheadDelta ?? 0) : 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -1218,7 +1224,8 @@ export function worldName(rng: () => number, used: ReadonlySet<string>): string 
 
 /** World-field state of a new airline: no outstations or orders yet, standard fares, its decision week. */
 function worldify(air: RivalAirline, ctx: RivalCtx, decisionWeek: number) {
-  Object.assign(air, { outstations: [], decisionWeek, lastDecisionDay: ctx.day, orders: [], pending: [], fareLevel: 1, lastFleetDay: ctx.day });
+  const overheadDelta = (ctx.intensity ?? DIFFICULTY.medium.intensity).overheadDelta;
+  Object.assign(air, { outstations: [], decisionWeek, lastDecisionDay: ctx.day, orders: [], pending: [], fareLevel: 1, lastFleetDay: ctx.day, ...(overheadDelta ? { overheadDelta } : {}) });
 }
 
 /**
@@ -1226,12 +1233,22 @@ function worldify(air: RivalAirline, ctx: RivalCtx, decisionWeek: number) {
  * (random, seeded), a random archetype, a starting network built from its hub (`seedNetwork`: only routes the true economics say pay)
  * and a decision week of the cycle (spread evenly). Deterministic in `seed`.
  */
-function createWorldRivals(airports: readonly Airport[], types: readonly AircraftType[], seed: number, playerRoutes: readonly Route[], day: Day): RivalsState {
+function createWorldRivals(airports: readonly Airport[], types: readonly AircraftType[], seed: number, playerRoutes: readonly Route[], day: Day, opts: WorldOptions = {}): RivalsState {
   const ctx = makeContext(new Map(airports.map((a) => [a.id, a])), new Map(types.map((t) => [t.id, t])), day, makeRng(mixSeed(seed, 0x30e1d)), playerRoutes);
   ctx.world = true;
-  const state: RivalsState = { airlines: [], news: [], launchedEntrants: [], nextAirline: 0, originDay: day, field: "world" };
-  const hubs = shuffled(topAirportsByDemand(ctx.airports, WORLD_FIELD.topAirports, day), ctx.rng).slice(0, WORLD_FIELD.airlines);
-  const weeks = shuffled(hubs.map((_, i) => i % WORLD_FIELD.decisionCycleWeeks), ctx.rng);
+  const intensity = opts.intensity ?? DIFFICULTY.medium.intensity;
+  ctx.intensity = intensity;
+  const state: RivalsState = { airlines: [], news: [], launchedEntrants: [], nextAirline: 0, originDay: day, field: "world", ...(opts.intensity ? { intensity } : {}) };
+  const top = topAirportsByDemand(ctx.airports, WORLD_FIELD.topAirports, day);
+  // Difficulty: the player's home hub (if a top airport) and the top airports nearest to it get airlines first, so the player's
+  // own markets are contested; the rest of the field is spread at random as before.
+  const home = opts.homeHub ? ctx.airports.get(opts.homeHub) : undefined;
+  const near = home && intensity.homeRivals > 0
+    ? [...top].sort((x, y) => distanceKm(home, x) - distanceKm(home, y) || (x.id < y.id ? -1 : 1)).slice(0, intensity.homeRivals)
+    : [];
+  const nearIds = new Set(near.map((a) => a.id));
+  const hubs = [...near, ...shuffled(top.filter((a) => !nearIds.has(a.id)), ctx.rng)].slice(0, intensity.airlines);
+  const weeks = shuffled(hubs.map((_, i) => i % intensity.decisionCycleWeeks), ctx.rng);
   const used = new Set<string>();
   hubs.forEach((hub, i) => {
     const archetype = pickArchetype(ctx.rng);
@@ -1260,7 +1277,7 @@ function createWorldRivals(airports: readonly Airport[], types: readonly Aircraf
 function worldStartups(ctx: RivalCtx, rivals: RivalsState, sink: Sink, week: number) {
   if (week <= 0 || week % RP.yearWeeks !== 0) return;
   const active = rivals.airlines.filter((a) => a.status === "active");
-  if (active.length >= WORLD_FIELD.airlines || ctx.rng() >= WORLD_FIELD.startupChancePerYear) return;
+  if (active.length >= (ctx.intensity ?? DIFFICULTY.medium.intensity).airlines || ctx.rng() >= WORLD_FIELD.startupChancePerYear) return;
   const top = topAirportsByDemand(ctx.airports, WORLD_FIELD.topAirports, ctx.day);
   if (top.length === 0) return;
   const hub = top[Math.floor(ctx.rng() * top.length)]!;
@@ -1268,7 +1285,7 @@ function worldStartups(ctx: RivalCtx, rivals: RivalsState, sink: Sink, week: num
   const [lo, hi] = WORLD_FIELD.startupCash;
   const name = worldName(ctx.rng, new Set(rivals.airlines.map((a) => a.name)));
   // The least busy decision week, so the cycle stays balanced.
-  const load = new Array<number>(WORLD_FIELD.decisionCycleWeeks).fill(0);
+  const load = new Array<number>((ctx.intensity ?? DIFFICULTY.medium.intensity).decisionCycleWeeks).fill(0);
   for (const a of active) load[a.decisionWeek ?? 0]!++;
   const slot = load.indexOf(Math.min(...load));
   const id = `w${rivals.nextAirline}`;

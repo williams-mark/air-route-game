@@ -172,7 +172,7 @@ export class RealSimBridge implements SimBridge {
   }
 
   /** Start a fresh game with `seed`, optionally at another home airport and under another airline name (see sim `startingScenario`). */
-  newGame(seed: number, options: { hub?: string; name?: string; startYear?: number; presentYear?: number; campaignYears?: number | null; startFleet?: ReadonlyArray<readonly [string, number]>; rivalField?: "classic" | "world" } = {}): void {
+  newGame(seed: number, options: { hub?: string; name?: string; startYear?: number; presentYear?: number; campaignYears?: number | null; startFleet?: ReadonlyArray<readonly [string, number]>; rivalField?: "classic" | "world"; difficulty?: "easy" | "medium" | "hard" } = {}): void {
     // New games use the generated world field of rival airlines (sim rivals/world; owner design of 20 Nov 2026).
     options = { rivalField: "world", ...options };
     this.reset(startingScenario(dataAirports, dataTypes, seed, options), 1, true);
