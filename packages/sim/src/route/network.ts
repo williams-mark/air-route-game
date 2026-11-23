@@ -7,6 +7,7 @@ import {
   DEFAULT_ROUTE_MODEL_CONFIG, evaluateWithFleet, fleetGroups, evaluateHubConnection, networkContribution, type RouteWeek,
 } from "./routeModel";
 import { fastConnectionDemand } from "./connectFast";
+import type { Itinerary } from "../demand/choice";
 
 /** One through market served by two of the player's routes (e.g. SAN-HNL via LAX). Weekly figures. */
 export interface ConnectingMarketReport {
@@ -45,6 +46,8 @@ export interface RouteConnecting {
 }
 
 export interface NetworkInput {
+  /** World field: competing itineraries per through market (replace the synthetic rivals). Absent = synthetic rivals. */
+  competitorsFor?: (a: Airport, b: Airport) => Itinerary[] | undefined;
   routes: readonly Route[];
   airports: ReadonlyMap<string, Airport>;
   types: ReadonlyMap<string, AircraftType>;
@@ -64,12 +67,23 @@ export interface NetworkInput {
   connectionMarkdown?: Readonly<Record<Id, number | undefined>>;
   /** The airline's service level per cabin (absent = standard); passed to every cabin-dependent evaluation. */
   serviceLevels?: Readonly<Partial<Record<CabinClass, ServiceLevel>>>;
+  /**
+   * Target load factor per route (fare policy or the route's own). Connecting passengers may fill a leg only up to this share of
+   * its seats, as an airline's revenue management holds back seats (owner, 22 Nov 2026: a route with an 85% target must not sit at
+   * 100% because connections fill it). Local passengers are not limited. Absent = no limit.
+   */
+  loadCap?: Readonly<Record<Id, number | undefined>>;
 }
 
 export interface NetworkResult {
   /** Adjusted evaluation per route that carries connecting traffic (others are absent). */
   evaluations: Record<Id, RouteEvaluation>;
   connecting: Record<Id, RouteConnecting>;
+  /**
+   * One-way weekly connecting passengers who wanted each leg before the seat and target limits (fast tier asked, plus the full
+   * tier's carried). The fare solve uses it to see demand above a target the load cap hides. Absent for legs nobody connects over.
+   */
+  askedOneWay: Record<Id, number>;
   /** Change in weekly revenue and costs across the network. */
   deltaRevenue: number;
   deltaCosts: number;
@@ -142,8 +156,15 @@ export function onwardConnectionStatus(
 
 /** Default through fare as a share of the benchmark fare (same constant as evaluateHubConnection). */
 const THROUGH_FARE_FACTOR = 0.92;
+/**
+ * Through fares follow the airline's own fare level on the legs (owner, 22 Nov 2026): a leg priced at 1.3x the benchmark sells its
+ * connections at about 1.3x too (geometric mean of the two legs). Before, through fares ignored the leg fares, so a fare-policy
+ * target could never bring a hub route below 100%: every local seat a higher fare freed was taken by a connecting passenger at the
+ * unchanged benchmark fare. Clamped so one mispriced leg cannot zero or explode its connections.
+ */
+export const THROUGH_FARE_LEVEL_BOUNDS = { min: 0.5, max: 2.5 } as const;
 const P = LEDGER_PARAMS;
-const empty = (): NetworkResult => ({ evaluations: {}, connecting: {}, deltaRevenue: 0, deltaCosts: 0 });
+const empty = (): NetworkResult => ({ evaluations: {}, connecting: {}, askedOneWay: {}, deltaRevenue: 0, deltaCosts: 0 });
 
 /**
  * Connecting passengers added to a route's cabins. They are spread over the cabins in proportion to the empty seats each has, so
@@ -182,6 +203,19 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
   }
 
   interface Cand { hub: Airport; r1: Route; r2: Route; a: Airport; b: Airport; weekly: number }
+  // Fare level of a leg: its economy fare over the benchmark for its distance (see THROUGH_FARE_LEVEL_BOUNDS).
+  const levelCache = new Map<Id, number>();
+  const levelOf = (r: Route): number => {
+    let v = levelCache.get(r.id);
+    if (v === undefined) {
+      const o = airports.get(r.origin), d = airports.get(r.destination);
+      const bench = o && d ? benchmarkFareFor(o, d) : 0;
+      v = bench > 0 && r.fares.Y > 0 ? Math.min(THROUGH_FARE_LEVEL_BOUNDS.max, Math.max(THROUGH_FARE_LEVEL_BOUNDS.min, r.fares.Y / bench)) : 1;
+      levelCache.set(r.id, v);
+    }
+    return v;
+  };
+  const throughFare = (c: Cand) => benchmarkFareFor(c.a, c.b) * THROUGH_FARE_FACTOR * (1 - markdownOf(c)) * Math.sqrt(levelOf(c.r1) * levelOf(c.r2));
   const cands: Cand[] = [];
   const cfg = DEFAULT_ROUTE_MODEL_CONFIG;
   // Each route's length (= the distance from the far end to the hub), computed once rather than for every pair it is part of.
@@ -223,6 +257,13 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
   for (const c of cands) for (const r of [c.r1, c.r2]) { const l = byRoute.get(r.id); if (l) l.push(c); else byRoute.set(r.id, [c]); }
 
   const reserved: Record<Id, number> = {};
+  // Load cap: the seats above the target load factor are held back from connecting passengers (reserved from the start).
+  const heldBack = (id: Id): number => {
+    const cap = input.loadCap?.[id], w = input.weeks[id];
+    return cap !== undefined && w ? Math.max(0, (w.evaluation.seatsPerWeek / 2) * (1 - cap)) : 0;
+  };
+  for (const r of routes) { const h = heldBack(r.id); if (h > 0) reserved[r.id] = h; }
+  const askedOneWay: Record<Id, number> = {};
   const acc: Record<Id, RouteConnecting> = {};
   const reports = new Map<Cand, ConnectingMarketReport>();
   /** Leg lengths of each market (origin-hub, hub-destination), for prorating revenue to a route without recomputing distances. */
@@ -233,7 +274,8 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
     if (!chosen.has(c)) continue;
     const md = markdownOf(c);
     const conn = evaluateHubConnection({
-      connectingFare: md > 0 ? benchmarkFareFor(c.a, c.b) * THROUGH_FARE_FACTOR * (1 - md) : undefined,
+      // Same through fare as the fast tier: benchmark x factor x (1 - markdown) x the legs' fare level (undefined = the default fare).
+      connectingFare: md > 0 || Math.abs(levelOf(c.r1) * levelOf(c.r2) - 1) > 1e-9 ? throughFare(c) : undefined,
       origin: c.a, hub: c.hub, destination: c.b, leg1: c.r1, leg2: c.r2, types, day,
       fleet1: input.fleet[c.r1.id], fleet2: input.fleet[c.r2.id],
       flights1: input.flights?.[c.r1.id], flights2: input.flights?.[c.r2.id],
@@ -241,6 +283,7 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
       week1: input.weeks[c.r1.id], week2: input.weeks[c.r2.id],
       reservedSeats1: reserved[c.r1.id] ?? 0, reservedSeats2: reserved[c.r2.id] ?? 0,
       serviceLevels: input.serviceLevels,
+      competitors: input.competitorsFor?.(c.a, c.b),
     });
     if (!conn || conn.connectingPassengers < 0.5) continue;
     const contrib = networkContribution(conn);
@@ -253,6 +296,7 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
     contrib.legs.forEach((leg, k) => {
       const route = k === 0 ? c.r1 : c.r2;
       reserved[route.id] = (reserved[route.id] ?? 0) + conn.connectingPassengers;
+      askedOneWay[route.id] = (askedOneWay[route.id] ?? 0) + conn.connectingPassengers;
       const cur = accOf(route.id);
       cur.passengersOneWay += conn.connectingPassengers;
       cur.revenue += leg.connectingRevenue;
@@ -275,10 +319,11 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
       }
       return l;
     };
-    const fareOf = (c: Cand) => benchmarkFareFor(c.a, c.b) * THROUGH_FARE_FACTOR * (1 - markdownOf(c));
-    const req = fast.map((c) => fastConnectionDemand(c.a, c.hub, c.b, legOf(c.r1), legOf(c.r2), fareOf(c), day));
+    const fareOf = (c: Cand) => throughFare(c);
+    const req = fast.map((c) => fastConnectionDemand(c.a, c.hub, c.b, legOf(c.r1), legOf(c.r2), fareOf(c), day, input.competitorsFor?.(c.a, c.b)));
     const asked = new Map<Id, number>();
     fast.forEach((c, k) => { for (const r of [c.r1, c.r2]) asked.set(r.id, (asked.get(r.id) ?? 0) + req[k]!); });
+    for (const [id, n] of asked) askedOneWay[id] = (askedOneWay[id] ?? 0) + n;
     const free = (id: Id) => Math.max(0, input.weeks[id]!.evaluation.seatsPerWeek / 2 - input.weeks[id]!.evaluation.passengersPerWeek / 2 - (reserved[id] ?? 0));
     const ratio = new Map<Id, number>();
     for (const [id, n] of asked) ratio.set(id, n > 0 ? Math.min(1, free(id) / n) : 0);
@@ -308,7 +353,7 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
   const F = CONNECTING_FLOOR;
   const localOneWay = (id: Id) => input.weeks[id]!.evaluation.passengersPerWeek / 2;
   /** One-way seats still open to connecting passengers on a leg: all seats less the connecting passengers already aboard. */
-  const roomFor = (id: Id) => Math.max(0, input.weeks[id]!.evaluation.seatsPerWeek / 2 - (acc[id]?.passengersOneWay ?? 0));
+  const roomFor = (id: Id) => Math.max(0, input.weeks[id]!.evaluation.seatsPerWeek / 2 - (acc[id]?.passengersOneWay ?? 0) - heldBack(id));
   for (const r of routes) {
     const list = byRoute.get(r.id);
     if (!list) continue;
@@ -323,7 +368,7 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
       const x = Math.min(need, roomFor(c.r1.id), roomFor(c.r2.id));
       if (x <= 1e-9) continue;
       need -= x;
-      const fare = benchmarkFareFor(c.a, c.b) * THROUGH_FARE_FACTOR * (1 - markdownOf(c));
+      const fare = throughFare(c);
       const through = 2 * x * fare;
       const d1 = distanceKm(c.a, c.hub), d2 = distanceKm(c.hub, c.b);
       let rep = reports.get(c);
@@ -434,5 +479,6 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
     out.deltaCosts += extraCost;
   }
   out.connecting = acc;
+  out.askedOneWay = askedOneWay;
   return out;
 }

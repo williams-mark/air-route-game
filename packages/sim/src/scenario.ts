@@ -14,7 +14,8 @@ import { canOrderNew, inProduction } from "./fleet/availability";
 import { jan1Day, START_YEAR } from "./time/calendar";
 import { startYearError } from "./time/startYear";
 import { startCampaign } from "./campaign/campaign";
-import { createRivals } from "./rivals";
+import { competitorItinerariesFor, createRivals, DIFFICULTY, type Difficulty } from "./rivals";
+import { simulateRouteWeek } from "./route/routeModel";
 import type { SimState } from "./state";
 
 /** Placeholder airline for the 2015 campaign. */
@@ -70,6 +71,16 @@ export interface ScenarioOptions {
    * Checked by `startFleetError`.
    */
   startFleet?: ReadonlyArray<readonly [typeId: string, count: number]>;
+  /**
+   * Rival field: "world" = the generated 50-airline field with no synthetic stand-in rivals (rivals/world, what new games use);
+   * "classic" = the original named field (default, so calibration tests keep their reference world).
+   */
+  rivalField?: "classic" | "world";
+  /**
+   * Difficulty (rivals/config.ts DIFFICULTY): starting cash, and in the world field how many rival airlines there are, how often
+   * and how hard they enter markets, their overheads, and how many are based at or near the home hub. Default "medium".
+   */
+  difficulty?: Difficulty;
 }
 
 /** List-price budget for a player-chosen starting fleet. */
@@ -293,10 +304,19 @@ function settleRoutes(airports: Airport[], aircraftTypes: AircraftType[], fleet:
  * function throws if the supplied aircraft data lacks one of the starting types or airports.
  * `options.hub` picks another home airport: the routes are then derived (`deriveHubRoutes`) and the fleet is trimmed to what they need.
  */
+/** Record the chosen difficulty on the game (SimParams.difficulty) so the UI can show it; medium (the default) is left absent. */
+function withDifficulty(sim: SimState, difficulty: Difficulty | undefined): SimState {
+  return difficulty && difficulty !== "medium" ? { ...sim, params: { ...sim.params, difficulty } } : sim;
+}
+
 export function startingScenario(airports: Airport[], aircraftTypes: AircraftType[], seed = 2015, options: ScenarioOptions = {}): SimState {
   const typeById = new Map(aircraftTypes.map((t) => [t.id, t]));
   const apById = new Map(airports.map((a) => [a.id, a]));
   const hubId = options.hub ?? DEFAULT_HUB;
+  // Difficulty: starting cash, and the world field's intensity with the home hub (for the airlines placed near it).
+  const difficulty = DIFFICULTY[options.difficulty ?? "medium"];
+  const startCash = difficulty.startingCashUsd;
+  const worldOpts = { intensity: options.difficulty && options.difficulty !== "medium" ? difficulty.intensity : undefined, homeHub: hubId };
   const hub = apById.get(hubId);
   if (!hub) throw new Error(`startingScenario: hub airport ${hubId} not in data`);
   const airlineName = (options.name ?? "").trim().slice(0, 40) || STARTING_AIRLINE;
@@ -321,11 +341,11 @@ export function startingScenario(airports: Airport[], aircraftTypes: AircraftTyp
         fleet.push({ id: `ac-${n}`, typeId, tailNumber: tailFor(n, hub), layout: defaultLayout(type), status: "active", ageDays: 0, hoursSinceCheck: { A: 0, B: 0, C: 0, D: 0 } });
       }
     }
-    const opts: StartOptions = { cash: STARTING_CASH_USD, fleet, routes: [], airlineName, baseAirport: hubId, day: startDay };
-    const sim = newSim(seed, airports, aircraftTypes, options.pandemic === undefined ? { notionalFleet: false } : { notionalFleet: false, pandemic: options.pandemic }, opts);
+    const opts: StartOptions = { cash: startCash, fleet, routes: [], airlineName, baseAirport: hubId, day: startDay };
+    const sim = withDifficulty(newSim(seed, airports, aircraftTypes, options.pandemic === undefined ? { notionalFleet: false } : { notionalFleet: false, pandemic: options.pandemic }, opts), options.difficulty);
     // The campaign grade is a multiple of what the airline started with; here that includes the fleet it was given.
-    const campaign = startCampaign(startYear, options.campaignYears, STARTING_CASH_USD + startFleetValueUsd(aircraftTypes, options.startFleet));
-    return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, [], startDay), ...(campaign ? { campaign: { ...campaign, peakCashUsd: STARTING_CASH_USD } } : {}) };
+    const campaign = startCampaign(startYear, options.campaignYears, startCash + startFleetValueUsd(aircraftTypes, options.startFleet));
+    return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, [], startDay, options.rivalField, worldOpts), ...(campaign ? { campaign: { ...campaign, peakCashUsd: startCash } } : {}) };
   }
 
   const buildFleet = (counts: ReadonlyMap<string, number>): Aircraft[] => {
@@ -386,8 +406,39 @@ export function startingScenario(airports: Airport[], aircraftTypes: AircraftTyp
     fleet = buildFleet(keep);
     routes = settleRoutes(airports, aircraftTypes, fleet, first.routes, seed, hub, startDay).routes;
   }
-  const opts: StartOptions = { cash: STARTING_CASH_USD, fleet, routes, airlineName, baseAirport: hubId, day: startDay };
-  const sim = newSim(seed, airports, aircraftTypes, options.pandemic === undefined ? { notionalFleet: false } : { notionalFleet: false, pandemic: options.pandemic }, opts);
-  const campaign = startCampaign(startYear, options.campaignYears, STARTING_CASH_USD);
-  return { ...sim, rivals: createRivals(airports, aircraftTypes, seed, sim.world.routes, startDay), ...(campaign ? { campaign } : {}) };
+  const opts: StartOptions = { cash: startCash, fleet, routes, airlineName, baseAirport: hubId, day: startDay };
+  const sim = withDifficulty(newSim(seed, airports, aircraftTypes, options.pandemic === undefined ? { notionalFleet: false } : { notionalFleet: false, pandemic: options.pandemic }, opts), options.difficulty);
+  const campaign = startCampaign(startYear, options.campaignYears, startCash);
+  const rivals = createRivals(airports, aircraftTypes, seed, sim.world.routes, startDay, options.rivalField, worldOpts);
+  const priced = rivals.field === "world" ? priceAgainstField({ ...sim, rivals }) : sim;
+  return { ...priced, rivals, ...(campaign ? { campaign } : {}) };
+}
+
+/** Local load factor the starting fares aim at in the world field (connections add some on top). Design choice. */
+export const WORLD_START_LOCAL_LF = 0.75;
+
+/**
+ * World field: the hand-tuned starting fares assumed the synthetic stand-in rivals. Against the real field a starting route may have
+ * no competitor at all and sell out, so each starting route is repriced once: the economy fare (premium cabins scaled with it) that
+ * fills WORLD_START_LOCAL_LF of the seats with local passengers, averaged over four days of the year, found by bisection between 0.6x
+ * and 1.4x the current fare (a monopoly route is not priced above 1.4x: the player sets fares from there).
+ */
+function priceAgainstField(state: SimState): SimState {
+  const airports = new Map(state.airports.map((a) => [a.id, a]));
+  const types = new Map(state.aircraftTypes.map((t) => [t.id, t]));
+  const days = [0, 91, 182, 273].map((d) => state.world.day + d);
+  const routes = state.world.routes.map((r) => {
+    const a = airports.get(r.origin), b = airports.get(r.destination);
+    if (!a || !b) return r;
+    const fleet = state.world.fleet.filter((ac) => ac.typeId === r.typeId && ac.status === "active");
+    const competitors = competitorItinerariesFor(state.rivals, a, b, types, airports) ?? [];
+    const scaled = (k: number): Route => ({ ...r, fares: Object.fromEntries(Object.entries(r.fares).map(([c, f]) => [c, Math.max(20, Math.round((f as number) * k))])) as unknown as Route["fares"] });
+    const lf = (k: number) => days.reduce((t, d) => t + (simulateRouteWeek(scaled(k), airports, types, d, { fleetAircraft: fleet, competitors, chargeOwnership: fleet.length === 0 })?.evaluation.loadFactor ?? 0), 0) / days.length;
+    let lo = 0.6, hi = 1.4;
+    if (lf(lo) <= WORLD_START_LOCAL_LF) return scaled(lo);
+    if (lf(hi) >= WORLD_START_LOCAL_LF) return scaled(hi);
+    for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (lf(mid) > WORLD_START_LOCAL_LF) lo = mid; else hi = mid; }
+    return scaled((lo + hi) / 2);
+  });
+  return { ...state, world: { ...state.world, routes } };
 }

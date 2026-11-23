@@ -263,6 +263,11 @@ export interface RouteWeekOptions {
   chargeOwnership?: boolean;
   /** Modelled rival itineraries for this pair (rivals lane). When non-empty they replace the synthetic direct rivals; the synthetic one-stop stays. */
   rivalItineraries?: Itinerary[];
+  /**
+   * The world field (rivals/world): every competing itinerary in the market, nonstop and one-stop. When present (even empty) it
+   * replaces all synthetic rivals; an empty list means the player competes only with the outside option (driving, not travelling).
+   */
+  competitors?: Itinerary[];
   /** The airline's service level per cabin (absent = standard). Drives the premium fare multipliers. */
   serviceLevels?: Partial<Record<CabinClass, ServiceLevel>>;
 }
@@ -333,10 +338,12 @@ export function simulateRouteWeek(
     marketDistanceKm: dist,
   };
 
-  const synthetic = buildRivals(a, b, dist, rivalSizingMarket(a, b, dist, market, demand, cfg.choice, (m) => buildRivals(a, b, dist, m, cfg)), cfg);
-  const rivals = opts.rivalItineraries && opts.rivalItineraries.length > 0
-    ? [...opts.rivalItineraries, ...synthetic.filter((i) => i.id.startsWith("conn:"))]
-    : synthetic;
+  const rivals = opts.competitors ?? (() => {
+    const synthetic = buildRivals(a, b, dist, rivalSizingMarket(a, b, dist, market, demand, cfg.choice, (m) => buildRivals(a, b, dist, m, cfg)), cfg);
+    return opts.rivalItineraries && opts.rivalItineraries.length > 0
+      ? [...opts.rivalItineraries, ...synthetic.filter((i) => i.id.startsWith("conn:"))]
+      : synthetic;
+  })();
 
   const choice = runChoice({
     demand,
@@ -424,6 +431,20 @@ export const FARE_SOLVER_PARAMS = {
   floorBreakEvenFraction: 0.9,
   /** Backstop for routes whose costs cannot be covered at any fare: no cut below this fraction of benchmarkFare(distance). */
   floorBenchmarkFraction: 0.5,
+  /**
+   * Whole-flight correction (owner, 22 Nov 2026: "fares should rise until load factor falls to the target"). The solve models local
+   * passengers only, and hub connecting passengers filled the seats afterwards, so hub routes sat at 100% under an 85% target.
+   * Two parts: connecting passengers may fill a leg only up to its target (NetworkInput.loadCap), and the solve aims local
+   * passengers below the target by a bias that follows (gain per week) the share of seats connecting passengers asked for, so
+   * fares rise to make room for them. Chosen by a 2015 LAX run with an 85% all-routes policy (every route settled at 83-87%):
+   * aiming below by the whole connecting share at once, without the cap, overshot (local load fell to 30% while connections
+   * refilled the seats). biasMax 0.25 keeps a monopoly connection (huge asked share) from pricing locals out for lower-yield
+   * connecting passengers. Built from connecting demand, not the carried load, so daily demand noise does not move fares.
+   */
+  biasGain: 0.5,
+  biasMax: 0.25,
+  /** Lowest local load factor the solve aims for, however large the bias. */
+  minLocalTarget: 0.3,
 } as const;
 
 /** Every fare class multiplied by `scale` (premium fares keep their ratio to economy). */
@@ -528,6 +549,8 @@ export interface HubConnectionInput {
   reservedSeats2?: number;
   /** The airline's service level per cabin (absent = standard). */
   serviceLevels?: Partial<Record<CabinClass, ServiceLevel>>;
+  /** World field: the competing itineraries in the through market (replace the synthetic rivals; see RouteWeekOptions.competitors). */
+  competitors?: Itinerary[];
 }
 
 export interface HubLegLoad {
@@ -628,7 +651,7 @@ export function evaluateHubConnection(input: HubConnectionInput): HubConnection 
       mk(`player:${leg2.id}`, h.id, b.id, d2, grp2, leg2, f2, left2),
     ],
   };
-  const rivals = buildRivals(a, b, dist, rivalSizingMarket(a, b, dist, market, demand, cfg.choice, (m) => buildRivals(a, b, dist, m, cfg)), cfg);
+  const rivals = input.competitors ?? buildRivals(a, b, dist, rivalSizingMarket(a, b, dist, market, demand, cfg.choice, (m) => buildRivals(a, b, dist, m, cfg)), cfg);
   const choice = runChoice({
     demand,
     itineraries: [player, ...rivals],

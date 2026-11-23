@@ -1,5 +1,5 @@
 import type { AircraftType, Airport } from "@arg/contracts";
-import { canFlyRoute, distanceKm, USABLE_RANGE_FRACTION } from "@arg/data";
+import { canFlyRoute, distanceKm, isOverwaterRoute, runwayRequiredM, USABLE_RANGE_FRACTION } from "@arg/data";
 import { canOrderNew, COMMAND_PARAMS, LEDGER_PARAMS, defaultLayout, layoutSeats, maxRouteKm, RECENT_OUT_OF_PRODUCTION_YEARS } from "@arg/sim";
 
 export type Availability = "future" | "current" | "ended";
@@ -41,7 +41,11 @@ export function routeBlock(t: AircraftType, a: Airport, b: Airport, year: number
   if (!canFlyRoute(t, a, b)) {
     const km = distanceKm(a, b);
     if (km > usableRangeKm(t)) return `Range too short: route is ${Math.round(km).toLocaleString()} km, usable range ${usableRangeKm(t).toLocaleString()} km (nominal ${t.rangeKm.toLocaleString()} km)`;
-    return "Runway or overwater limits";
+    const need = Math.ceil(runwayRequiredM(t, km));
+    const short = [a, b].filter((x) => x.runwayM < need);
+    if (short.length > 0) return `Runway too short: needs about ${need.toLocaleString()} m on this sector; ${short.map((x) => `${x.id} has ${x.runwayM.toLocaleString()} m`).join(", ")}`;
+    if (isOverwaterRoute(a, b)) return "Overwater: too far from a diversion airport for this type";
+    return "Cannot fly this route";
   }
   const av = availabilityOf(t, year);
   if (av === "future") return `Not built until ${t.introYear}`;

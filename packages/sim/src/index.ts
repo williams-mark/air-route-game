@@ -3,6 +3,7 @@ import type {
 } from "@arg/contracts";
 import { campaignOf, campaignReviewDue, markCampaignReview, recordCampaignDay } from "./campaign/campaign";
 import { monthlyOwnershipUsd } from "./finance/ledger";
+import { playerIndirectUsd } from "./finance/indirect";
 import { simulateRouteWeek } from "./route/routeModel";
 import { evaluateLiveRoutes } from "./route/liveModel";
 import { makeRng, mixSeed } from "./rng";
@@ -35,6 +36,7 @@ export * from "./world/closures";
 export * from "./finance/ledger";
 export * from "./finance/fuel";
 export * from "./finance/credit";
+export * from "./finance/indirect";
 export * from "./time/clock";
 export * from "./time/calendar";
 export { distanceKm, haversineKm } from "./geo";
@@ -252,6 +254,8 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     solveFares: day % 7 === 0,
     farePolicies: world.farePolicies,
     hubs: playerHubs(state),
+    // The solve corrects for how far the whole flight (connections included) ended from the target last time (see liveModel).
+    previousReports: state.routeReports,
   });
   const { schedule, reports } = live;
   // Fare floor and "full route" bookkeeping on the reports (weekly values carried through the other days of the week).
@@ -338,7 +342,9 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   fleetCost += diversity.dailyUsd;
   // Overdraft interest on the cash balance at the start of the day (credit line, finance/credit.ts); a company-level cost.
   const interest = overdraftInterestUsd(world.cash);
-  const costs = routeCosts + fleetCost + interest;
+  // World field: HQ, sales and other indirect costs as a share of revenue, like the rivals (finance/indirect.ts).
+  const indirect = playerIndirectUsd(state, revenue);
+  const costs = routeCosts + fleetCost + interest + indirect;
   const profit = revenue - costs;
   const cash = world.cash + profit + cashAdjust;
   const snapshot: FinanceSnapshot = { day, cash, revenue, costs, profit };

@@ -59,11 +59,22 @@ export interface RivalScope {
   states?: string[];
   countries?: string[];
   transatlantic?: boolean;
+  /** Whole world (the generated field): no regional limit, and aircraft types follow the year (rivals/world.ts). */
+  world?: boolean;
+}
+
+/** Aircraft ordered by a rival, arriving on `deliveryDay` (deposit paid at order). */
+export interface RivalOrder {
+  typeId: Id;
+  count: number;
+  deliveryDay: Day;
 }
 
 export interface RivalAirline {
   id: Id;
   name: string;
+  /** World field: added to the airline's indirect cost share (WorldIntensity.overheadDelta). Absent = 0. */
+  overheadDelta?: number;
   archetype: Archetype;
   bases: Id[];
   /** Home region and market search area (older saves: derived from the bases). */
@@ -95,9 +106,24 @@ export interface RivalAirline {
   profit52: number[];
   nextAircraft: number;
   nextRoute: number;
+  // --- Generated world field only (rivals/world.ts); absent on the classic field and in older saves. ---
+  /** Outstations: bases beyond the hub (`bases[0]`) where its flights may use at most WORLD_FIELD.outstationBlockHours a week. */
+  outstations?: Id[];
+  /** Week of the decision cycle (0 to WORLD_FIELD.decisionCycleWeeks - 1) on which the airline makes its decisions. */
+  decisionWeek?: number;
+  /** Last day it made its decisions. */
+  lastDecisionDay?: Day;
+  /** Aircraft on order. */
+  orders?: RivalOrder[];
+  /** Routes waiting for ordered aircraft; they open when the aircraft arrive. */
+  pending?: RivalRoute[];
+  /** Fare policy: multiple of its archetype fare on every route (1 = standard). */
+  fareLevel?: number;
+  /** Last annual fleet review. */
+  lastFleetDay?: Day;
 }
 
-export type RivalNewsKind = "launch" | "enter" | "exit" | "fareCut" | "frequency" | "shrink" | "bankrupt";
+export type RivalNewsKind = "launch" | "enter" | "exit" | "fareCut" | "frequency" | "shrink" | "bankrupt" | "order" | "outstation" | "farePolicy";
 
 /** Structured news for decision cards. `playerMarket` is true when the player flies the same airport pair. */
 export interface RivalNewsItem {
@@ -124,6 +150,13 @@ export interface RivalsState {
   nextAirline: number;
   /** Campaign day the field was founded (the game's start). Scheduled entrants launch relative to it. Absent in older saves = day 0. */
   originDay?: number;
+  /**
+   * "world": the generated field of WORLD_FIELD.airlines airlines at the top airports (rivals/world.ts). The player then competes only
+   * with these airlines (no synthetic stand-in rivals). Absent or "classic": the original named field plus the synthetic stand-ins.
+   */
+  field?: "classic" | "world";
+  /** World field: how hard it competes (rivals/config.ts DIFFICULTY). Absent = medium. */
+  intensity?: import("./config").WorldIntensity;
 }
 
 /** Fleet released by a bankrupt airline, for the offers lane (distressed lots). */

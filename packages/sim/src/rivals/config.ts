@@ -275,3 +275,106 @@ export const RIVAL_PARAMS = {
   randomEntrantChancePerYear: 0.1, randomEntrantFromYear: 2018, maxActive: 20, entrantCash: 70_000_000,
   newsLimit: 900,
 } as const;
+
+/**
+ * The generated world field (owner, 20 Nov 2026; rivals/world.ts). Every figure here is a game-design choice, not real-world data:
+ * 50 airlines with hubs at 50 different airports of the top 100 by the model's own demand, the same hub and outstation rules as the
+ * player (fleet/hubs.ts OUTSTATION_PARAMS), and decisions spread over an 8-week cycle so only about 6 airlines decide in any week.
+ */
+/** How hard the world field competes (owner, 22 Nov 2026: easy / medium / hard at game start). Medium is the field as tuned before. */
+export interface WorldIntensity {
+  /** Airlines in the field (and the startup target). */
+  airlines: number;
+  /** Weeks between an airline's decisions (each still decides on its own week). */
+  decisionCycleWeeks: number;
+  /** New markets an airline may enter at each decision. */
+  entriesPerDecision: number;
+  /** Multiplier on WORLD_FIELD.entryShare: how much of a market a new route is sized for. */
+  entryShareScale: number;
+  /** Added to every world airline's indirect cost share: positive = weaker airlines that fail sooner, negative = leaner ones. */
+  overheadDelta: number;
+  /** Airlines placed at the player's home hub and the nearest top airports to it, so the player's own markets are contested. */
+  homeRivals: number;
+  /**
+   * Share of each of the player's starting markets that rival incumbents already cover on day one (seats for that share of the carried
+   * demand at the rivals' 80% target load; rivals/engine.ts seedIncumbents). Without them the starting routes face only the outside
+   * option and a passive start earns about 45% net margin (balance probe, 22 Nov 2026). Absent in saves from before it existed (only
+   * read when a game is created).
+   */
+  startCoverage?: number;
+}
+
+export type Difficulty = "easy" | "medium" | "hard";
+
+/**
+ * Difficulty presets: starting cash and world-field intensity. Game-design values, not data. Medium is the game as calibrated on
+ * 20 Nov 2026 (50 airlines, 8-week cycle, two entries per decision, USD 150M). Easy: more cash, fewer and slower rivals that size
+ * routes smaller and carry more overhead, none placed at the player's hub. Hard: less cash, more and faster rivals, bigger entries,
+ * leaner costs, and three airlines based at or near the player's hub, so the starting routes have competition from day one.
+ */
+export const DIFFICULTY: Record<Difficulty, { startingCashUsd: number; intensity: WorldIntensity }> = {
+  easy: { startingCashUsd: 250_000_000, intensity: { airlines: 35, decisionCycleWeeks: 10, entriesPerDecision: 1, entryShareScale: 0.8, overheadDelta: 0.03, homeRivals: 0, startCoverage: 0.65 } },
+  medium: { startingCashUsd: 150_000_000, intensity: { airlines: 50, decisionCycleWeeks: 8, entriesPerDecision: 2, entryShareScale: 1, overheadDelta: 0, homeRivals: 1, startCoverage: 0.8 } },
+  hard: { startingCashUsd: 90_000_000, intensity: { airlines: 65, decisionCycleWeeks: 6, entriesPerDecision: 3, entryShareScale: 1.2, overheadDelta: -0.03, homeRivals: 3, startCoverage: 1 } },
+};
+
+/** Intensity of a rival state (absent in older saves and the classic field: medium). */
+export const intensityOf = (rivals: { intensity?: WorldIntensity } | null | undefined): WorldIntensity => rivals?.intensity ?? DIFFICULTY.medium.intensity;
+
+export const WORLD_FIELD = {
+  airlines: 50,
+  topAirports: 100,
+  /** Each airline decides once per cycle, in its own week (assigned at the start so every week has about the same number). */
+  decisionCycleWeeks: 8,
+  /** Archetype mix of the generated airlines (interisland is not generated). */
+  mix: [["legacy", 0.35], ["lcc", 0.4], ["regional", 0.25]] as ReadonlyArray<readonly [Archetype, number]>,
+  /** Starting network size per archetype: [min, max] routes. */
+  seedRoutes: { legacy: [12, 22], lcc: [10, 18], regional: [6, 12], interisland: [6, 10] } as Record<Archetype, readonly [number, number]>,
+  /** Opening cash per starting route (USD). */
+  cashPerRoute: { legacy: 30_000_000, lcc: 16_000_000, regional: 9_000_000, interisland: 9_000_000 } as Record<Archetype, number>,
+  maxRoutes: { legacy: 60, lcc: 48, regional: 30, interisland: 24 } as Record<Archetype, number>,
+  /** Legacy carriers may fly long-haul from their bases up to this distance (widebodies; feasibility from the aircraft data). */
+  legacyMaxKm: 12_000,
+  entriesPerDecision: 2,
+  /** Outstations: at most this many per airline; considered once it flies this many routes; chance per decision. */
+  maxOutstations: 4, outstationMinRoutes: 8, outstationChance: 0.2,
+  /** Order lead time in months (from order to delivery), uniform in the range. Shorter than the player's factory slots: rivals also use lessors. */
+  leadMonths: { narrow: [4, 12], wide: [8, 18] } as Record<"narrow" | "wide", readonly [number, number]>,
+  /** Routes waiting for aircraft are dropped after this many days. */
+  pendingMaxDays: 730,
+  maxPending: 4,
+  /** Fare policy review: network load factor above `highLF` raises the fare level by `step`, below `lowLF` lowers it. */
+  fareLevel: { step: 0.03, min: 0.85, max: 1.2, highLF: 0.82, lowLF: 0.72 },
+  /**
+   * Yield-management ceiling (multiple of the archetype fare x fare level); the classic field uses RIVAL_PARAMS.fareCeiling 1.12.
+   * Higher here because no stand-in rivals absorb demand, so sold-out markets must be able to price up (balance probe, 20 Nov 2026).
+   */
+  fareCeiling: 1.2,
+  /**
+   * Share of the carried market a new route is sized for (seats at 80% load). The classic field uses ARCHETYPES entryShare
+   * (0.17-0.45) because the stand-in rivals carry the rest; here nobody does (balance probe, 20 Nov 2026).
+   */
+  entryShare: { legacy: 0.6, lcc: 0.5, regional: 0.7, interisland: 0.6 } as Record<Archetype, number>,
+  /** Extra indirect cost share of revenue on top of the archetype's, calibrated so median margins land near the 5-15% band. */
+  extraIndirectPct: { legacy: 0.13, lcc: 0.12, regional: 0.02, interisland: 0.02 } as Record<Archetype, number>,
+  /** Most rival airlines placed on one of the player's starting markets at creation (WorldIntensity.startCoverage). Design choice. */
+  maxStartIncumbents: 4,
+  /** At most this many of the player's starting markets per incumbent airline, so one exit does not uncover several. Design choice. */
+  maxStartMarketsPerAirline: 2,
+  /** Starting markets at least this long (km) take network (legacy) incumbents first. Design choice. */
+  incumbentLongHaulKm: 3000,
+  /** Seats of a rival leg offered to connecting passengers on its one-stop itineraries (share of the leg's seats). Assumption. */
+  connectingSeatShare: 0.3,
+  /** A new startup each year while fewer than `airlines` are active, with this chance. */
+  startupChancePerYear: 0.6,
+  startupCash: [60_000_000, 160_000_000] as readonly [number, number],
+} as const;
+
+/** Word lists for generated airline names (fictional combinations; checked not to spell a real airline in the tests' list). */
+export const WORLD_NAME_FIRST = [
+  "Amber", "Azure", "Basalt", "Birch", "Bramble", "Cedar", "Cinder", "Cobalt", "Copper", "Coral", "Crimson", "Dune", "Ember", "Fable",
+  "Fern", "Flint", "Garnet", "Glacier", "Granite", "Harbor", "Hazel", "Indigo", "Ivory", "Jade", "Juniper", "Lantern", "Larch", "Linden",
+  "Maple", "Marble", "Mistral", "Nimbus", "Obsidian", "Ochre", "Onyx", "Opal", "Orchid", "Pebble", "Quartz", "Quill", "Rowan", "Russet",
+  "Saffron", "Sable", "Slate", "Sorrel", "Tamarind", "Thistle", "Topaz", "Umber", "Velvet", "Willow", "Zephyr",
+];
+export const WORLD_NAME_SECOND = ["Air", "Airways", "Jet", "Wings", "Express", "Connect", "Aviation", "Skies"];

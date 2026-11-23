@@ -23,10 +23,11 @@ const CATEGORY: Record<string, CostKey | undefined> = {
 
 /**
  * Break a day's FinanceSnapshot down by cost category using the route reports of that day; `interest` is the overdraft interest and
- * `diversity` the fleet commonality overhead (extra aircraft types), both inside `snap.costs`.
+ * `diversity` the fleet commonality overhead (extra aircraft types) and `indirect` the world field's indirect costs (sim
+ * `playerIndirectUsd`: HQ, sales, labour above crew, booked under sales), all inside `snap.costs`.
  */
-export function dayRecord(snap: FinanceSnapshot, reports: Record<Id, RouteReport>, interest = 0, diversity = 0): DayRecord {
-  const by: Record<CostKey, number> = { fuel: 0, crew: 0, maintenance: 0, fees: 0, sales: 0, fleet: 0, interest, diversity };
+export function dayRecord(snap: FinanceSnapshot, reports: Record<Id, RouteReport>, interest = 0, diversity = 0, indirect = 0): DayRecord {
+  const by: Record<CostKey, number> = { fuel: 0, crew: 0, maintenance: 0, fees: 0, sales: indirect, fleet: 0, interest, diversity };
   let routeCosts = 0;
   for (const rep of Object.values(reports)) {
     for (const line of rep.evaluation.lines) {
@@ -37,7 +38,7 @@ export function dayRecord(snap: FinanceSnapshot, reports: Record<Id, RouteReport
     }
   }
   // Lease, corporate overhead and maintenance checks are charged at fleet level: whatever the routes do not explain.
-  by.fleet += snap.costs - routeCosts - interest - diversity;
+  by.fleet += snap.costs - routeCosts - interest - diversity - indirect;
   return { day: snap.day, cash: snap.cash, revenue: snap.revenue, costs: snap.costs, profit: snap.profit, by };
 }
 

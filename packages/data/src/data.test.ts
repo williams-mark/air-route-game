@@ -183,6 +183,13 @@ describe("runwayRequiredM (stage-length rule)", () => {
     expect(can("B787-9", "LAX", "OGG")).toBe(true);
     expect(can("B777-200ER", "LAX", "OGG")).toBe(false);
   });
+  it("narrowbodies get the short-sector allowance too: E175 and 737-800 into Salem, still no 737 at Kalaupapa", () => {
+    expect(can("E175", "SEA", "SLE")).toBe(true);
+    expect(can("B737-800", "SEA", "SLE")).toBe(true);
+    expect(can("B737-800", "LAS", "SLE")).toBe(true); // Avelo has flown 737-800s on this sector
+    expect(can("B737-800", "HNL", "LUP")).toBe(false);
+    expect(can("ATR72-600", "HNL", "LUP")).toBe(false);
+  });
 });
 
 describe("landmass convention and world routes", () => {
@@ -356,8 +363,8 @@ describe("metros", () => {
   });
   it("keeps the shares used by the sim for LA, SF and Seattle", () => {
     const sh = (id: string) => Object.fromEntries(metros.find((m) => m.id === id)!.members.map((x) => [x.airport, x.share]));
-    expect(sh("LA")).toEqual({ LAX: 0.78, SNA: 0.1, ONT: 0.044, BUR: 0.042, LGB: 0.034 });
-    expect(sh("SF")).toEqual({ SFO: 0.7, OAK: 0.16, SJC: 0.14 });
+    expect(sh("LA")).toEqual({ LAX: 0.775, SNA: 0.1, ONT: 0.044, BUR: 0.042, LGB: 0.034, SBD: 0.005 });
+    expect(sh("SF")).toEqual({ SFO: 0.7, OAK: 0.16, SJC: 0.135, CCR: 0.005 });
     expect(sh("SEA")).toEqual({ SEA: 0.88, PAE: 0.08, BFI: 0.04 });
   });
 });

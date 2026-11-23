@@ -10,11 +10,12 @@ import { categoriesOf } from "../fleet/categories";
 import { ownedOrOrderedTypeIds } from "../fleet/typeTable";
 import { useUi } from "../store";
 import { bridge, useSim } from "../sim/useSim";
+import { routeCompetitors } from "../rivals/helpers";
 import { AirportField } from "./AirportField";
 import { FrequencyBars } from "./charts";
 import { FareFields, FrequencyField, Stat, useDebounced } from "./editor";
 import {
-  bestFrequency, bestType, eligibleTypes, faresToText, frequencySweep, marketFares, marketInfo, parseFares, projectRoute, rivalPresence, routeName,
+  bestFrequency, bestType, eligibleTypes, faresToText, frequencySweep, marketFares, marketInfo, parseFares, projectRoute, rivalPresence, routeName, isWorldField,
   openingFares, OPENING_FARE_LOAD_FACTOR, operatingMix, parseTargetLf, previewNewRoute, substitutionText, TARGET_LF_MESSAGE, validateRouteDraft, type RouteDraft,
 } from "./helpers";
 import { pct, usd, usdSigned } from "./fmt";
@@ -71,6 +72,10 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const year = dayToDate(wkDay);
   const market = useMemo(() => marketInfo(a, b), [a, b]);
   const rival = useMemo(() => rivalPresence(a, b), [a, b]);
+  // World field: the airlines that really fly this trip (same as the Competitors screen), not the classic stand-in.
+  const rivalsView = useSim().rivals;
+  const world = isWorldField();
+  const real = useMemo(() => (world ? routeCompetitors(rivalsView, a.id, b.id) : null), [world, rivalsView, a.id, b.id]);
   const types = useMemo(() => eligibleTypes(a, b, year.year), [a, b, year.year]);
   const existing = routes.find((r) => (r.origin === originId && r.destination === destinationId) || (r.origin === destinationId && r.destination === originId));
   const mf = useMemo(() => marketFares(market.distanceKm, a, b), [market.distanceKm, a, b]);
@@ -274,10 +279,18 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
             {mix.map((m) => <span key={m} className={`seg-${m}`} style={{ flexGrow: market.shares[m] }} />)}
           </div>
           <ul className="seg-legend">{mix.map((m) => <li key={m}><i className={`seg-${m}`} />{SEG_LABEL[m]} {pct(market.shares[m])}</li>)}</ul>
-          <p className="rc-note">
-            <b>Rival:</b> {rival.directFrequency}/wk, ~{rival.directSeats} seats, ~{usd(rival.fare)}
-            {rival.oneStop ? `; one-stop ~${usd(rival.oneStopFare ?? 0)}` : "; no one-stop"}.
-          </p>
+          {real ? (
+            <p className="rc-note" data-testid="rc-competitors">
+              <b>Competitors:</b>{" "}
+              {real.nonstop.length === 0 ? "no nonstop" : real.nonstop.map((c) => `${c.name} ${c.weeklyFrequency}/wk ${c.typeId} ${usd(c.fareBand.low)}–${usd(c.fareBand.high)}`).join("; ")}
+              {real.oneStop.length === 0 ? "; no one-stop" : `; one-stop: ${real.oneStop.slice(0, 3).map((o) => `${o.name} via ${o.via} ${o.weeklyFrequency}/wk`).join(", ")}${real.oneStop.length > 3 ? ` +${real.oneStop.length - 3} more` : ""}`}.
+            </p>
+          ) : (
+            <p className="rc-note">
+              <b>Competitors:</b> {rival.directFrequency}/wk, ~{rival.directSeats} seats, ~{usd(rival.fare)}
+              {rival.oneStop ? `; one-stop ~${usd(rival.oneStopFare ?? 0)}` : "; no one-stop"}.
+            </p>
+          )}
         </section>
 
         <section className="rc-sec rc-proj" aria-labelledby="rp-proj">
@@ -293,7 +306,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
           </div>
           {ev && !ev.feasible && <p className="rp-err" role="alert">{ev.infeasibleReasons.join("; ")}</p>}
           {sweep.length > 0 && <FrequencyBars points={sweep} bestFreq={best?.frequency ?? null} current={hoursShort ? achievable : freq} onPick={setFreq} />}
-          {sweep.length > 0 && livePrev && <p className="rc-note">The chart shows the shape of profit by frequency on a standalone model; the headline and the button use your fleet and rivals.</p>}
+          {sweep.length > 0 && livePrev && <p className="rc-note">The chart shows the shape of profit by frequency on a standalone model; the headline and the button use your fleet and competitors.</p>}
           <div className="rp-actions">
             <button type="button" disabled={!useBest || useBest.frequency === freq} onClick={() => useBest && setFreq(useBest.frequency)}>
               {useBest ? `Use best: ${useBest.frequency}/wk (${usdSigned(useBest.profit)})` : best ? "This frequency is already the best" : "No feasible frequency"}

@@ -14,6 +14,13 @@ import { ALL_SLOTS, getStore, MANUAL_SLOTS, type SlotId, type SlotMeta } from ".
 import { Modal } from "../shell/Modal";
 import "./save.css";
 
+/** What each difficulty changes (sim rivals/config.ts DIFFICULTY). */
+const DIFFICULTY_HINT: Record<"easy" | "medium" | "hard", string> = {
+  easy: "$250M to start. 35 competing airlines that expand slowly, size routes small and carry high overheads; none starts at your hub.",
+  medium: "$150M to start. 50 competing airlines, one of them based at your hub.",
+  hard: "$90M to start. 65 lean competing airlines that expand fast with bigger routes; three are based at or near your hub.",
+};
+
 function useSlots() {
   const [metas, setMetas] = useState<SlotMeta[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -120,6 +127,8 @@ export function StartScreen() {
   const [yearText, setYearText] = useState("2015");
   // Campaign length: the review is due on 1 January of the year it ends. Endless has no review.
   const [campaign, setCampaign] = useState("15");
+  // Difficulty (sim rivals/config.ts DIFFICULTY): starting cash and how hard the competing airlines play.
+  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const yearNum = yearText.trim() === "" ? NaN : Number(yearText);
   const yearErr = Number.isNaN(yearNum) ? "Start year must be a whole number." : startYearError(yearNum, presentYear, aircraftTypes);
   const [hub, setHub] = useState("LAX");
@@ -149,7 +158,7 @@ export function StartScreen() {
             <span>{latest.airline} {"·"} {formatDate(latest.day)} {"·"} {slotName(latest.slot)}</span>
           </button>
         ) : (<p className="start-none">{metas === null ? "Looking for saved games…" : "No saved game yet."}</p>)}
-        <form className="start-new" onSubmit={(e) => { e.preventDefault(); if (parsed === null) { setMsg({ ok: false, message: "Seed must be a whole number from 0 to 999999999." }); return; } if (yearErr) { setMsg({ ok: false, message: yearErr }); return; } if (fleetErr) { setMsg({ ok: false, message: fleetErr }); return; } bridge.newGame?.(parsed, { hub, name: airline, startYear: yearNum, presentYear, campaignYears: campaign === "endless" ? null : Number(campaign), ...(fleetMode === "custom" ? { startFleet: shownPicks } : {}) }); bridge.setSpeed(0); const home = airports.find((x) => x.id === hub); if (home && hub !== "LAX") useUi.getState().flyTo(presetForAirport(home)); begin({ ok: true, message: `New game, seed ${parsed}, ${yearNum}, ${airline.trim() || STARTING_AIRLINE} at ${hub}. Paused: press Space to start.` }); }}>
+        <form className="start-new" onSubmit={(e) => { e.preventDefault(); if (parsed === null) { setMsg({ ok: false, message: "Seed must be a whole number from 0 to 999999999." }); return; } if (yearErr) { setMsg({ ok: false, message: yearErr }); return; } if (fleetErr) { setMsg({ ok: false, message: fleetErr }); return; } bridge.newGame?.(parsed, { hub, name: airline, startYear: yearNum, presentYear, campaignYears: campaign === "endless" ? null : Number(campaign), difficulty, ...(fleetMode === "custom" ? { startFleet: shownPicks } : {}) }); bridge.setSpeed(0); const home = airports.find((x) => x.id === hub); if (home && hub !== "LAX") useUi.getState().flyTo(presetForAirport(home)); begin({ ok: true, message: `New game (${difficulty}), seed ${parsed}, ${yearNum}, ${airline.trim() || STARTING_AIRLINE} at ${hub}. Paused: press Space to start.` }); }}>
           <label htmlFor="start-airline">Airline name</label>
           <input id="start-airline" className="wide" maxLength={40} value={airline} placeholder={STARTING_AIRLINE} onChange={(e) => setAirline(e.target.value)} />
           <label htmlFor="start-hub">Home airport</label>
@@ -173,6 +182,13 @@ export function StartScreen() {
             <option value="endless">Endless</option>
           </select>
           <p id="start-campaign-hint" className="start-hint">At the end date the game pauses for a campaign review. Endless never does.</p>
+          <label htmlFor="start-difficulty">Difficulty</label>
+          <select id="start-difficulty" value={difficulty} onChange={(e) => setDifficulty(e.target.value as "easy" | "medium" | "hard")} aria-describedby="start-difficulty-hint">
+            <option value="easy">Easy</option>
+            <option value="medium">Medium (default)</option>
+            <option value="hard">Hard</option>
+          </select>
+          <p id="start-difficulty-hint" className="start-hint">{DIFFICULTY_HINT[difficulty]}</p>
           <label htmlFor="start-fleet-mode">Starting fleet</label>
           <select id="start-fleet-mode" value={fleetMode} onChange={(e) => setFleetMode(e.target.value as "standard" | "custom")} aria-describedby="start-fleet-hint">
             <option value="standard">Standard fleet and routes</option>
@@ -186,7 +202,7 @@ export function StartScreen() {
           <input id="start-seed" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} aria-invalid={parsed === null} />
           <button type="submit" className="primary" disabled={fleetErr !== null}>New game</button>
         </form>
-        <p className="start-hint">The same seed always gives the same world and the same rivals.</p>
+        <p className="start-hint">The same seed always gives the same world and the same competitors.</p>
         <div className="start-row">
           <button aria-expanded={showLoad} onClick={() => setShowLoad((v) => !v)}>Load slot</button>
           <FileButtons importOnly onResult={begin} />

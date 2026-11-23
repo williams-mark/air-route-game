@@ -18,8 +18,15 @@ const m = (id: string, name: string, shares: Record<string, number>): MetroGroup
 
 export const metros: MetroGroup[] = [
   // United States
-  m("LA", "Los Angeles", { LAX: 0.78, SNA: 0.1, ONT: 0.044, BUR: 0.042, LGB: 0.034 }),
-  m("SF", "San Francisco Bay Area", { SFO: 0.7, OAK: 0.16, SJC: 0.14 }),
+  m("LA", "Los Angeles", { LAX: 0.775, SNA: 0.1, ONT: 0.044, BUR: 0.042, LGB: 0.034, SBD: 0.005 }),
+  m("SF", "San Francisco Bay Area", { SFO: 0.7, OAK: 0.16, SJC: 0.135, CCR: 0.005 }),
+  // Secondary airports that counted a whole metro on their own (owner, 22 Nov 2026: secondary airports had unrealistic demand). SBD
+  // sits in the Riverside-San Bernardino MSA that ONT already anchors, CLD in San Diego County, CCR in the SF Bay Area, JRF on Oahu;
+  // none had meaningful scheduled service in 2015, so they get a small latent share of their metro (taken from the primary airport):
+  // a limited opportunity, not a second LAX. Hampton Roads, Warsaw and Tenerife: two airports carried the same population.
+  m("SAN", "San Diego", { SAN: 0.99, CLD: 0.01 }),
+  m("HNL", "Honolulu (Oahu)", { HNL: 0.995, JRF: 0.005 }),
+  m("HRV", "Hampton Roads (Norfolk-Newport News)", { ORF: 0.86, PHF: 0.14 }),
   m("SEA", "Seattle", { SEA: 0.88, PAE: 0.08, BFI: 0.04 }),
   m("NYC", "New York", { JFK: 0.455, LGA: 0.216, EWR: 0.302, HPN: 0.018, ISP: 0.009 }),
   m("WAS", "Washington-Baltimore", { IAD: 0.311, DCA: 0.334, BWI: 0.355 }),
@@ -38,6 +45,8 @@ export const metros: MetroGroup[] = [
   m("ROM", "Rome", { FCO: 0.882, CIA: 0.118 }),
   // BER opened 2020-10-31 (sim world/closures.ts); shares of open members are renormalised, so before opening TXL:SXF stays 0.742:0.258 and after TXL/SXF close BER carries all of Berlin.
   m("BER", "Berlin (2015: Tegel and Schonefeld; from 2020 Brandenburg)", { TXL: 0.5194, SXF: 0.1806, BER: 0.3 }),
+  m("WAW", "Warsaw", { WAW: 0.82, WMI: 0.18 }),
+  m("TCI", "Tenerife", { TFS: 0.71, TFN: 0.29 }),
   m("STO", "Stockholm", { ARN: 0.863, BMA: 0.061, NYO: 0.076 }),
   m("OSL", "Oslo", { OSL: 0.88, TRF: 0.065, RYG: 0.055 }),
   m("BRU", "Brussels", { BRU: 0.772, CRL: 0.228 }),
