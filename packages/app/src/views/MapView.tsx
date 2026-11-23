@@ -3,11 +3,11 @@ import { AirMap, type AirMapHandle } from "../map/AirMap";
 import type { MapRoute } from "../map/types";
 import { uiAirports } from "../dev/airportSource";
 import { stressRoutes } from "../dev/fixtures";
-import { countryName, regionName } from "../routes/geoNames";
 import { useCreation } from "../routes/store";
 import { toMapRoutes, useRouteSummaries } from "../routes/useRoutes";
 import { useUi } from "../store";
-import { useSimSelector } from "../sim/useSim";
+import { bridge, useSimSelector } from "../sim/useSim";
+import { basesOf, homeHubOf } from "@arg/sim";
 
 const SIM_MIN_PER_SEC = 20;
 const TIER_VAR = { profit: "--route-profit", marginal: "--route-marginal", loss: "--route-loss", planned: "--route-planned" } as const;
@@ -52,21 +52,31 @@ export function MapView() {
 
   const sel = ui.selection;
   const selRoute = sel?.kind === "route" ? routes.find((r) => r.id === sel.id) : undefined;
-  const panelOpen = creation.open || !!selRoute;
-  const selAirport = sel?.kind === "airport" ? airports.find((a) => a.id === sel.id) : undefined;
   const padding = useMemo(() => ({ top: 70, left: 70, right: window.innerWidth > 900 ? 360 : 40, bottom: 210 }), []);
   const dot = (tier: keyof typeof TIER_VAR) => ({ background: `var(${TIER_VAR[tier]})` });
+  // Clicking a city opens a new route there (owner, 22 Nov 2026; the airport information panel is gone). One of the player's hubs
+  // or outstations becomes the origin; any other city becomes the destination from the home hub. With the creator open, a click
+  // fills the end being picked, as before.
+  const openRouteAt = (id: string) => {
+    if (creation.open) { creation.assign(id); return; }
+    const sim = bridge.getSim?.() ?? null;
+    const home = sim ? homeHubOf(sim) : bridge.getState().airline.hub;
+    const bases = sim ? basesOf(sim) : [home];
+    if (bases.includes(id)) { creation.begin(id); return; }
+    creation.begin(home);
+    useCreation.getState().assign(id, "destination");
+  };
 
   return (
     <div className="map-view">
       <AirMap
         ref={mapRef} airports={airports} routes={routes} simTime={simTime} theme={ui.theme}
         preset={ui.preset} presetNonce={ui.presetNonce} padding={padding}
-        selectedRouteId={selRoute?.id ?? null} selectedAirportId={selAirport?.id ?? null}
+        selectedRouteId={selRoute?.id ?? null} selectedAirportId={null}
         rivalMarkets={ui.showCompetitors ? rivalMarkets : undefined}
         ghost={ghost} showAllAirports={creation.open}
         onSelectRoute={(id) => { if (!creation.open) ui.select({ kind: "route", id }); }}
-        onSelectAirport={(id) => { if (creation.open) creation.assign(id); else ui.select({ kind: "airport", id }); }}
+        onSelectAirport={openRouteAt}
       />
 
       <div className="map-tools">
@@ -85,23 +95,6 @@ export function MapView() {
         <button aria-label="Zoom out" onClick={() => mapRef.current?.zoomBy(-0.8)}>{"−"}</button>
       </div>
 
-      {!panelOpen && selAirport && (<aside className="hud side" aria-label="Selection details">
-        <h2>Airport</h2>
-        <div className="big">{selAirport.id}</div>
-        <div>{selAirport.name}</div>
-        <dl>
-          <dt>City</dt><dd>{selAirport.city}</dd>
-          <dt>Region</dt><dd>{[regionName(selAirport), countryName(selAirport.country)].filter((x, i, arr) => arr.indexOf(x) === i).join(", ")}</dd>
-          <dt>Longest runway</dt><dd>{selAirport.runwayM.toLocaleString()} m</dd>
-          <dt>Metro population</dt><dd>{selAirport.metroPopulation.toLocaleString()}</dd>
-          <dt>Slots / hour</dt><dd>{selAirport.slotsPerHour}</dd>
-          <dt>Routes served</dt><dd>{routes.filter((r) => r.origin === selAirport.id || r.destination === selAirport.id).length}</dd>
-        </dl>
-        <div className="side-actions">
-          <button onClick={() => creation.begin(selAirport.id)}>New route from {selAirport.id}</button>
-          <button onClick={() => ui.select(null)}>Clear</button>
-        </div>
-      </aside>)}
       <div className="credit">Geometry: US Census (us-atlas) and Natural Earth (world-atlas). Demo data, not final.</div>
     </div>
   );
