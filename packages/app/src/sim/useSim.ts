@@ -2,8 +2,11 @@ import { useSyncExternalStore } from "react";
 import type { SimBridge, SimSnapshot, Speed } from "./bridge";
 import { createBridge } from "./create";
 import { useUi } from "../store";
+import { setLiveRivalsSource } from "../routes/helpers";
 
 export const bridge: SimBridge = createBridge();
+// Standalone route projections price against the running game's airlines (see projectRoute).
+setLiveRivalsSource(() => bridge.getSim?.()?.rivals);
 
 
 /** Subscribe to a slice of the snapshot; re-renders only when the selected value changes (compare with ===). */

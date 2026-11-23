@@ -3,7 +3,7 @@
 import type { AircraftType, Airport, CabinClass, Day, FarePolicy, Fares, Id, Route, ServiceLevel } from "@arg/contracts";
 import { aircraftTypes, airports, canFlyRoute, distanceKm } from "@arg/data";
 import {
-  benchmarkFare, benchmarkFareFor, fareScaleForTargetLoadFactor, scaleFares, matchingPolicy, routeFeasibilityError, daysInMonth, dayToDate, pairMarket, previewNewRoute, previewRoutePatch, seasonalRouteProfit, simulateRouteWeek,
+  benchmarkFare, benchmarkFareFor, competitorItinerariesFor, type RivalsState, fareScaleForTargetLoadFactor, scaleFares, matchingPolicy, routeFeasibilityError, daysInMonth, dayToDate, pairMarket, previewNewRoute, previewRoutePatch, seasonalRouteProfit, simulateRouteWeek,
   type OnwardStatus, type RoutePatch, type RoutePreview, type RouteReport, type RouteWeek, type SimState,
 } from "@arg/sim";
 import type { ProfitTier } from "../map/types";
@@ -29,9 +29,26 @@ export const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "A
 
 export const routeName = (r: Pick<Route, "origin" | "destination">) => `${r.origin}–${r.destination}`;
 
+/**
+ * Where standalone projections read the running game's airlines from (the bridge registers it; tests and the mock bridge leave it
+ * empty). In the world field the sim has no stand-in rival, so a projection without the real competitors would price against one
+ * that does not exist (and the route creator listed it as a competitor).
+ */
+let liveRivals: () => RivalsState | null | undefined = () => null;
+export function setLiveRivalsSource(fn: () => RivalsState | null | undefined): void { liveRivals = fn; }
+
+/** The world field's competing itineraries on a pair (undefined outside the world field: the sim's stand-in rival applies). */
+export function liveCompetitors(origin: Id, destination: Id, world: World = dataWorld) {
+  const a = world.airports.get(origin), b = world.airports.get(destination);
+  return a && b ? competitorItinerariesFor(liveRivals(), a, b, world.types, world.airports) : undefined;
+}
+
+/** True when the running game uses the world field (50 generated airlines, no stand-in rival). */
+export const isWorldField = (): boolean => liveRivals()?.field === "world";
+
 /** Full weekly picture for a route on `day`, or null for unknown airports/types. */
 export function projectRoute(route: Route, day: Day, world: World = dataWorld, serviceLevels?: Partial<Record<CabinClass, ServiceLevel>>): RouteWeek | null {
-  return simulateRouteWeek(route, world.airports, world.types, day, { serviceLevels });
+  return simulateRouteWeek(route, world.airports, world.types, day, { serviceLevels, competitors: liveCompetitors(route.origin, route.destination, world) });
 }
 
 // --- Live forecasts --------------------------------------------------------
@@ -308,7 +325,7 @@ export interface RivalInfo {
   oneStop: boolean;
   oneStopFare: number | null;
 }
-/** The synthetic rival the sim places on every pair (see simulateRouteWeek): sized to the market at 80% load. */
+/** The synthetic rival the sim places on every pair in the classic field (see simulateRouteWeek): sized to the market at 80% load. Not used in the world field. */
 export function rivalPresence(a: Airport, b: Airport): RivalInfo {
   const km = distanceKm(a, b);
   const seats = km > 3000 ? 250 : km > 1200 ? 180 : 140;
