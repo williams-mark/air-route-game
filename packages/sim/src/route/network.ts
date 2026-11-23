@@ -7,6 +7,7 @@ import {
   DEFAULT_ROUTE_MODEL_CONFIG, evaluateWithFleet, fleetGroups, evaluateHubConnection, networkContribution, type RouteWeek,
 } from "./routeModel";
 import { fastConnectionDemand } from "./connectFast";
+import type { Itinerary } from "../demand/choice";
 
 /** One through market served by two of the player's routes (e.g. SAN-HNL via LAX). Weekly figures. */
 export interface ConnectingMarketReport {
@@ -45,6 +46,8 @@ export interface RouteConnecting {
 }
 
 export interface NetworkInput {
+  /** World field: competing itineraries per through market (replace the synthetic rivals). Absent = synthetic rivals. */
+  competitorsFor?: (a: Airport, b: Airport) => Itinerary[] | undefined;
   routes: readonly Route[];
   airports: ReadonlyMap<string, Airport>;
   types: ReadonlyMap<string, AircraftType>;
@@ -241,6 +244,7 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
       week1: input.weeks[c.r1.id], week2: input.weeks[c.r2.id],
       reservedSeats1: reserved[c.r1.id] ?? 0, reservedSeats2: reserved[c.r2.id] ?? 0,
       serviceLevels: input.serviceLevels,
+      competitors: input.competitorsFor?.(c.a, c.b),
     });
     if (!conn || conn.connectingPassengers < 0.5) continue;
     const contrib = networkContribution(conn);
@@ -276,7 +280,7 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
       return l;
     };
     const fareOf = (c: Cand) => benchmarkFareFor(c.a, c.b) * THROUGH_FARE_FACTOR * (1 - markdownOf(c));
-    const req = fast.map((c) => fastConnectionDemand(c.a, c.hub, c.b, legOf(c.r1), legOf(c.r2), fareOf(c), day));
+    const req = fast.map((c) => fastConnectionDemand(c.a, c.hub, c.b, legOf(c.r1), legOf(c.r2), fareOf(c), day, input.competitorsFor?.(c.a, c.b)));
     const asked = new Map<Id, number>();
     fast.forEach((c, k) => { for (const r of [c.r1, c.r2]) asked.set(r.id, (asked.get(r.id) ?? 0) + req[k]!); });
     const free = (id: Id) => Math.max(0, input.weeks[id]!.evaluation.seatsPerWeek / 2 - input.weeks[id]!.evaluation.passengersPerWeek / 2 - (reserved[id] ?? 0));

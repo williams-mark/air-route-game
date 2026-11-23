@@ -51,11 +51,13 @@ function leg(id: string, o: string, d: string, dist: number, speedKmh: number, f
  * Unconstrained connection shares for the market a-hub-b, cached for the market's current week. `day` picks the week (rolling:
  * the market's refresh day is fixed by a hash of its airports).
  */
-export function fastConnectionShares(a: Airport, hub: Airport, b: Airport, leg1: FastLeg, leg2: FastLeg, throughFare: number, day: Day): SegmentShares {
+export function fastConnectionShares(a: Airport, hub: Airport, b: Airport, leg1: FastLeg, leg2: FastLeg, throughFare: number, day: Day, competitors?: Itinerary[]): SegmentShares {
   const key0 = `${a.id}|${hub.id}|${b.id}`;
   const week = Math.floor((day + (hash(key0) % 7)) / 7);
   const sig = (l: FastLeg) => l.sig ?? `${l.frequency.toFixed(2)}|${Math.round(l.speedKmh)}`;
-  const key = `${key0}|${week}|${sig(leg1)}|${sig(leg2)}|${Math.round(throughFare * 100)}`;
+  // World field: the competitors are part of the key (they change at most weekly, with the rivals' step).
+  const comp = competitors ? `|c${competitors.map((c) => `${c.id}:${Math.round(c.fare)}:${c.legs.map((l) => l.weeklyFrequency.toFixed(1)).join("/")}`).join(",")}` : "";
+  const key = `${key0}|${week}|${sig(leg1)}|${sig(leg2)}|${Math.round(throughFare * 100)}${comp}`;
   const hit = CACHE.get(key);
   if (hit) return hit;
 
@@ -69,7 +71,7 @@ export function fastConnectionShares(a: Airport, hub: Airport, b: Airport, leg1:
     id: `fast:${key0}`, carrier: "player", fare: throughFare, quality: 0.5, marketDistanceKm: dist,
     legs: [leg("p1", a.id, hub.id, distanceKm(a, hub), leg1.speedKmh, leg1.frequency), leg("p2", hub.id, b.id, distanceKm(hub, b), leg2.speedKmh, leg2.frequency)],
   };
-  const rivals = buildRivals(a, b, dist, market, cfg);
+  const rivals = competitors ?? buildRivals(a, b, dist, market, cfg);
   const outside = outsideFor(a, b, dist);
   const out = {} as SegmentShares;
   for (const s of SEGMENTS) {
@@ -84,8 +86,8 @@ export function fastConnectionShares(a: Airport, hub: Airport, b: Airport, leg1:
 }
 
 /** One-way weekly passengers who would choose the connection on `day` (seasonal market x cached shares), before seat limits. */
-export function fastConnectionDemand(a: Airport, hub: Airport, b: Airport, leg1: FastLeg, leg2: FastLeg, throughFare: number, day: Day): number {
-  const shares = fastConnectionShares(a, hub, b, leg1, leg2, throughFare, day);
+export function fastConnectionDemand(a: Airport, hub: Airport, b: Airport, leg1: FastLeg, leg2: FastLeg, throughFare: number, day: Day, competitors?: Itinerary[]): number {
+  const shares = fastConnectionShares(a, hub, b, leg1, leg2, throughFare, day, competitors);
   const market = marketOnDay(a, b, day, DEFAULT_ROUTE_MODEL_CONFIG.market);
   let pax = 0;
   for (const s of SEGMENTS) pax += market.bySegment[s] * shares[s];

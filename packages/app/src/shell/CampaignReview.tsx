@@ -80,11 +80,11 @@ export function CampaignReviewCard() {
       </section>
 
       {r.rivals && (
-        <section aria-label="Rivals">
-          <h2>Against the rivals</h2>
+        <section aria-label="Competitors">
+          <h2>Against the competitors</h2>
           <dl className="mini">
-            <dt>Still flying</dt><dd>{r.rivals.active} of {r.rivals.active + r.rivals.bankrupt} rivals ({r.rivals.bankrupt} failed)</dd>
-            <dt>Median rival</dt><dd>{r.rivals.medianFleet} aircraft, {r.rivals.medianRoutes} routes, {signed(r.rivals.medianCashUsd)} cash</dd>
+            <dt>Still flying</dt><dd>{r.rivals.active} of {r.rivals.active + r.rivals.bankrupt} competitors ({r.rivals.bankrupt} failed)</dd>
+            <dt>Median competitor</dt><dd>{r.rivals.medianFleet} aircraft, {r.rivals.medianRoutes} routes, {signed(r.rivals.medianCashUsd)} cash</dd>
             <dt>Your rank</dt><dd>#{r.rivals.fleetRank} by fleet, #{r.rivals.routeRank} by routes</dd>
           </dl>
         </section>

@@ -103,7 +103,7 @@ export function RouteAircraft({ route }: { route: Route }) {
                 <div className="k">Seats / flight</div><div>{cur ? Math.round(cur.seatsPerFlight) : "–"}</div><div>{proj ? Math.round(proj.seatsPerFlight) : "–"}</div>
                 <div className="k">Aircraft needed</div><div>{cur ? cur.aircraftEquivalent.toFixed(1) : "–"}</div><div>{proj ? proj.aircraftEquivalent.toFixed(1) : "–"}</div>
               </div>
-              <p className="rp-note">At {route.weeklyFrequency} per week, {preview ? "from the live route model with only the type changed (your aircraft, rivals, hub traffic)." : "projected from the route model."}
+              <p className="rp-note">At {route.weeklyFrequency} per week, {preview ? "from the live route model with only the type changed (your aircraft, competitors, hub traffic)." : "projected from the route model."}
                 {own ? ` You own ${own.total} ${newId}, ${own.free} free (${own.total - own.free} assigned).` : ""}</p>
               {none && (
                 <div className="rp-alert" role="alert"><IconAlert size={16} /><div>

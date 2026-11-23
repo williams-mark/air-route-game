@@ -229,7 +229,7 @@ export function RouteInspector({ route }: { route: Route }) {
         </section>
 
         <section aria-labelledby="rp-season" className="rp-sec">
-          <h3 id="rp-season">Seasonal route profit, {year.year} <span className="hint">(per month{live ? "; today's fleet, rivals and costs, no daily noise" : ""})</span></h3>
+          <h3 id="rp-season">Seasonal route profit, {year.year} <span className="hint">(per month{live ? "; today's fleet, competitors and costs, no daily noise" : ""})</span></h3>
           <MonthBars months={months} label={`Monthly profit for ${routeName(route)} in ${year.year}.`} />
         </section>
 

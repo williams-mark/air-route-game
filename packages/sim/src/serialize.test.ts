@@ -61,7 +61,7 @@ describe("validateSimState / parseSave on damaged saves", () => {
     ["home airport that does not exist", (s) => { s.baseAirport = "ZZZ"; }, /home airport/],
     ["invalid speed", (s) => { s.speed = 9; }, /speed/],
     ["route report for a missing route", (s) => { s.routeReports["ghost"] = {}; }, /missing route/],
-    ["rivals of the wrong shape", (s) => { s.rivals = { airlines: 3 }; }, /rivals/],
+    ["rivals of the wrong shape", (s) => { s.rivals = { airlines: 3 }; }, /competitors/],
     ["null state", () => {}, /./],
   ];
   for (const [name, mutate, msg] of cases) {
