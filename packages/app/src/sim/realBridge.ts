@@ -7,7 +7,7 @@ import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as rawAirports, terminalsFor } from "@arg/data";
 import {
   applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, LIFECYCLE_PARAMS, dayToDate, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay, campaignReview, campaignReviewDue, type CampaignReview, type CampaignCommand, type CategoryRouteCommand,
-  validateSimState, type Clock, type SimState, type HubCommand, type FinanceCommand, homeHubOf, creditStatus, isBankrupt, fleetDiversity, holdingOf,
+  validateSimState, type Clock, type SimState, type HubCommand, type FinanceCommand, homeHubOf, creditStatus, isBankrupt, fleetDiversity, holdingOf, playerIndirectUsd,
 } from "@arg/sim";
 
 import type {
@@ -221,7 +221,7 @@ export class RealSimBridge implements SimBridge {
     if (this.frozen()) { this.clock.setSpeed(0); return; }
     this.sim = stepDay(this.sim);
     const snap = this.sim.events.find((e): e is Extract<SimEvent, { kind: "finance" }> => e.kind === "finance");
-    if (snap) this.ledger.push(dayRecord(snap.snapshot, this.sim.routeReports, this.sim.credit?.lastInterestUsd ?? 0, this.sim.diversity?.lastUsd ?? 0));
+    if (snap) this.ledger.push(dayRecord(snap.snapshot, this.sim.routeReports, this.sim.credit?.lastInterestUsd ?? 0, this.sim.diversity?.lastUsd ?? 0, playerIndirectUsd(this.sim, snap.snapshot.revenue)));
     if (this.frozen()) this.clock.setSpeed(0); // the sim has paused itself (bankruptcy or the campaign review); keep the clock in step
     const raised = this.engine.onDay(this.sim, this.pending);
     if (raised.length) this.pending = [...this.pending, ...raised];

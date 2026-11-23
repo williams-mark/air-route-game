@@ -1269,8 +1269,82 @@ function createWorldRivals(airports: readonly Airport[], types: readonly Aircraf
     }
     for (const r of air.routes) air.memory[marketKey(r.origin, r.destination)] ??= quietMemory(ctx, "self");
   });
+  seedIncumbents(ctx, state, playerRoutes, intensity.startCoverage ?? 0);
   state.nextAirline = state.airlines.length;
   return state;
+}
+
+/**
+ * Incumbents on the player's starting markets (WorldIntensity.startCoverage). The generated field rarely flies the player's own
+ * starting routes, which then compete only with the outside option, sell out at the repricing cap and earn about 60% route margin
+ * (balance probe, 22 Nov 2026). Here rival airlines already fly each starting market on day one, as the real markets had (LAX-SFO and
+ * LAX-HNL each had several carriers in 2015), until their nonstop seats cover `coverage` of the market's carried demand
+ * (`sizingDemand`) at the rivals' target load factor: the same rule as the classic field's synthetic stand-ins
+ * (DEFAULT_ROUTE_MODEL_CONFIG.rivalMarketCoverage 0.8), which the original passive-start calibration assumed. Airlines based at an
+ * end of the market go first (in field order), then the airlines whose hub is nearest to either end, which open an outstation at
+ * that end. Each incumbent route uses the entry's aircraft and fare (`planEntry`), at the frequency that fills the remaining gap
+ * (within the archetype's entry limits), and must pay on the true economics, else it is tried at half that frequency, else the next
+ * airline is tried. At most WORLD_FIELD.maxStartIncumbents airlines per market. Deterministic; draws from the creation rng only for
+ * the new aircraft's ages.
+ */
+function seedIncumbents(ctx: RivalCtx, state: RivalsState, playerRoutes: readonly Route[], coverage: number) {
+  if (coverage <= 0) return;
+  const done = new Set<string>();
+  const started = new Map<RivalAirline, number>();
+  for (const pr of playerRoutes) {
+    const a = ctx.airports.get(pr.origin), b = ctx.airports.get(pr.destination);
+    const k = marketKey(pr.origin, pr.destination);
+    if (!a || !b || done.has(k)) continue;
+    done.add(k);
+    const all = marketIndex(state);
+    const target = (coverage * sizingDemand(ctx, a, b)) / RP.targetLoadFactor;
+    const seats = () => (all.get(k) ?? []).reduce((s, e) => s + e.route.frequency * e.route.seatsPerFlight, 0);
+    const flying = () => new Set((all.get(k) ?? []).map((e) => e.air));
+    const dist = distanceKm(a, b);
+    const isBased = (x: RivalAirline) => x.bases.includes(a.id) || x.bases.includes(b.id);
+    const near = (x: RivalAirline) => {
+      const h = ctx.airports.get(x.bases[0]!);
+      if (!h) return { km: Infinity, end: a };
+      const da = distanceKm(h, a), db = distanceKm(h, b);
+      return da <= db ? { km: da, end: a } : { km: db, end: b };
+    };
+    // Order: on long-haul markets network carriers first (low-cost single-aisle incumbents lose money there and leave within a
+    // year: balance probe, 22 Nov 2026); then airlines already based at an end; then by distance from their hub.
+    const rank = (x: RivalAirline) => (dist >= WORLD_FIELD.incumbentLongHaulKm && x.archetype !== "legacy" ? 2 : 0) + (isBased(x) ? 0 : 1);
+    const pool = state.airlines
+      .filter((x) => x.status === "active" && x.bases.length > 0 && (started.get(x) ?? 0) < WORLD_FIELD.maxStartMarketsPerAirline)
+      .sort((x, y) => rank(x) - rank(y) || near(x).km - near(y).km || cmp(x.id, y.id));
+    for (const air of pool) {
+      const gap = target - seats();
+      if (flying().size >= WORLD_FIELD.maxStartIncumbents) break;
+      if (flying().has(air) || air.routes.length >= (air.maxRoutes ?? ARCHETYPES[air.archetype].maxRoutes)) continue;
+      const station = isBased(air) ? null : near(air).end;
+      if (station && (air.outstations ?? []).length >= WORLD_FIELD.maxOutstations) continue;
+      const plan = planEntry(ctx, air, all, a, b);
+      if (!plan) continue;
+      const spec = ARCHETYPES[air.archetype];
+      const per = seatsFor(spec, plan.t);
+      if (gap < (spec.minFrequency * per) / 2) continue; // a smaller airline (regional) may still fit the remainder
+      const freq = Math.min(spec.maxEntryFrequency, Math.max(spec.minFrequency, Math.round(gap / per)));
+      let placed: RivalRoute | null = null;
+      for (const f of [freq, Math.max(spec.minFrequency, Math.ceil(freq / 2))]) {
+        const route = makeRoute(ctx, air, a, b, plan.t, f, plan.fare);
+        air.nextRoute--;
+        // Outstations (an existing one, or the one this route would open) keep within OUTSTATION_PARAMS.blockHoursPerWeek.
+        const capped = [...(air.outstations ?? []), ...(station ? [station.id] : [])].filter((o) => o === a.id || o === b.id);
+        if (capped.some((o) => stationHours(air, ctx, o, route) > OUTSTATION_PARAMS.blockHoursPerWeek + 1e-9)) continue;
+        const res = evaluateMarket(ctx, a, b, [...(all.get(k) ?? []), { air, route }]).get(route);
+        if (res && res.profit > 0) { air.nextRoute++; placed = route; break; }
+      }
+      if (!placed) continue;
+      if (station) { air.bases = [...air.bases, station.id]; (air.outstations ??= []).push(station.id); }
+      started.set(air, (started.get(air) ?? 0) + 1);
+      air.routes.push(placed);
+      (all.get(k) ?? all.set(k, []).get(k)!).push({ air, route: placed });
+      acquireForSetup(air, ctx);
+      air.memory[k] = quietMemory(ctx, "self");
+    }
+  }
 }
 
 /** Yearly: while fewer than WORLD_FIELD.airlines are flying, a new low-cost or regional startup may launch at a top airport. */

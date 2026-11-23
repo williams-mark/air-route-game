@@ -295,6 +295,13 @@ export interface WorldIntensity {
   overheadDelta: number;
   /** Airlines placed at the player's home hub and the nearest top airports to it, so the player's own markets are contested. */
   homeRivals: number;
+  /**
+   * Share of each of the player's starting markets that rival incumbents already cover on day one (seats for that share of the carried
+   * demand at the rivals' 80% target load; rivals/engine.ts seedIncumbents). Without them the starting routes face only the outside
+   * option and a passive start earns about 45% net margin (balance probe, 22 Nov 2026). Absent in saves from before it existed (only
+   * read when a game is created).
+   */
+  startCoverage?: number;
 }
 
 export type Difficulty = "easy" | "medium" | "hard";
@@ -306,9 +313,9 @@ export type Difficulty = "easy" | "medium" | "hard";
  * leaner costs, and three airlines based at or near the player's hub, so the starting routes have competition from day one.
  */
 export const DIFFICULTY: Record<Difficulty, { startingCashUsd: number; intensity: WorldIntensity }> = {
-  easy: { startingCashUsd: 250_000_000, intensity: { airlines: 35, decisionCycleWeeks: 10, entriesPerDecision: 1, entryShareScale: 0.8, overheadDelta: 0.03, homeRivals: 0 } },
-  medium: { startingCashUsd: 150_000_000, intensity: { airlines: 50, decisionCycleWeeks: 8, entriesPerDecision: 2, entryShareScale: 1, overheadDelta: 0, homeRivals: 1 } },
-  hard: { startingCashUsd: 90_000_000, intensity: { airlines: 65, decisionCycleWeeks: 6, entriesPerDecision: 3, entryShareScale: 1.2, overheadDelta: -0.03, homeRivals: 3 } },
+  easy: { startingCashUsd: 250_000_000, intensity: { airlines: 35, decisionCycleWeeks: 10, entriesPerDecision: 1, entryShareScale: 0.8, overheadDelta: 0.03, homeRivals: 0, startCoverage: 0.65 } },
+  medium: { startingCashUsd: 150_000_000, intensity: { airlines: 50, decisionCycleWeeks: 8, entriesPerDecision: 2, entryShareScale: 1, overheadDelta: 0, homeRivals: 1, startCoverage: 0.8 } },
+  hard: { startingCashUsd: 90_000_000, intensity: { airlines: 65, decisionCycleWeeks: 6, entriesPerDecision: 3, entryShareScale: 1.2, overheadDelta: -0.03, homeRivals: 3, startCoverage: 1 } },
 };
 
 /** Intensity of a rival state (absent in older saves and the classic field: medium). */
@@ -350,6 +357,12 @@ export const WORLD_FIELD = {
   entryShare: { legacy: 0.6, lcc: 0.5, regional: 0.7, interisland: 0.6 } as Record<Archetype, number>,
   /** Extra indirect cost share of revenue on top of the archetype's, calibrated so median margins land near the 5-15% band. */
   extraIndirectPct: { legacy: 0.13, lcc: 0.12, regional: 0.02, interisland: 0.02 } as Record<Archetype, number>,
+  /** Most rival airlines placed on one of the player's starting markets at creation (WorldIntensity.startCoverage). Design choice. */
+  maxStartIncumbents: 4,
+  /** At most this many of the player's starting markets per incumbent airline, so one exit does not uncover several. Design choice. */
+  maxStartMarketsPerAirline: 2,
+  /** Starting markets at least this long (km) take network (legacy) incumbents first. Design choice. */
+  incumbentLongHaulKm: 3000,
   /** Seats of a rival leg offered to connecting passengers on its one-stop itineraries (share of the leg's seats). Assumption. */
   connectingSeatShare: 0.3,
   /** A new startup each year while fewer than `airlines` are active, with this chance. */
