@@ -660,12 +660,13 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
     case "setAircraftHub": {
       const ac = state.world.fleet.find((x) => x.id === cmd.aircraftId);
       if (!ac) return { state, result: fail("unknown_aircraft", `No aircraft "${cmd.aircraftId}".`) };
-      if (ac.status !== "active") return { state, result: fail("aircraft_unavailable", `${ac.tailNumber} is ${ac.status}; only active aircraft can be based at a hub.`) };
+      // Aircraft on order may change the hub they are delivered to.
+      if (ac.status !== "active" && ac.status !== "delivery") return { state, result: fail("aircraft_unavailable", `${ac.tailNumber} is ${ac.status}; only active aircraft and aircraft on order can change hub.`) };
       if (!state.airports.some((x) => x.id === cmd.hubId)) return { state, result: fail("unknown_airport", `Unknown hub airport "${cmd.hubId}".`) };
       if (!isBase(state, cmd.hubId)) return { state, result: fail("not_a_hub", `${cmd.hubId} is not one of your hubs or outstations. Open an outstation (${usdM(COMMAND_PARAMS.outstationUsd)}) or a hub (${usdM(COMMAND_PARAMS.hubUnlockUsd)}) there first.`) };
       const fleet = state.world.fleet.map((x) => (x.id === ac.id ? { ...x, hubId: cmd.hubId } : x));
       return {
-        state: pushEvents({ ...state, world: { ...state.world, fleet } }, [notice(state, `${ac.tailNumber} now based at ${cmd.hubId}.`)]),
+        state: pushEvents({ ...state, world: { ...state.world, fleet } }, [notice(state, ac.status === "delivery" ? `${ac.tailNumber} will now be delivered to ${cmd.hubId}.` : `${ac.tailNumber} now based at ${cmd.hubId}.`)]),
         result: { ok: true, kind: "setAircraftHub", aircraftId: ac.id, hubId: cmd.hubId },
       };
     }
