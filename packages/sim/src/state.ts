@@ -32,6 +32,18 @@ export interface RouteReport {
   routeId: Id;
   day: number;
   evaluation: RouteEvaluation;
+  /** Load factor of the route's own (local) passengers, before hub connecting traffic is added (`evaluation.loadFactor` includes it). */
+  localLoadFactor?: number;
+  /**
+   * Load factor points the weekly fare solve aims the local passengers below the target, learnt from how far the whole flight
+   * (connections included) ended above it (FARE_SOLVER_PARAMS.bias...). 0 or absent = none.
+   */
+  fareSolveBias?: number;
+  /**
+   * Load factor the flight would have if every passenger who wanted it flew: local passengers plus connecting passengers asked,
+   * before the target's load cap (see NetworkInput.loadCap). Above the target, the fare solve raises fares. Absent = loadFactor.
+   */
+  demandLoadFactor?: number;
   market: MarketSnapshot;
   operatedFraction: number;
   /** True when the player owns no aircraft of the route's type, so ownership is notionally leased. */

@@ -431,6 +431,20 @@ export const FARE_SOLVER_PARAMS = {
   floorBreakEvenFraction: 0.9,
   /** Backstop for routes whose costs cannot be covered at any fare: no cut below this fraction of benchmarkFare(distance). */
   floorBenchmarkFraction: 0.5,
+  /**
+   * Whole-flight correction (owner, 22 Nov 2026: "fares should rise until load factor falls to the target"). The solve models local
+   * passengers only, and hub connecting passengers filled the seats afterwards, so hub routes sat at 100% under an 85% target.
+   * Two parts: connecting passengers may fill a leg only up to its target (NetworkInput.loadCap), and the solve aims local
+   * passengers below the target by a bias that follows (gain per week) the share of seats connecting passengers asked for, so
+   * fares rise to make room for them. Chosen by a 2015 LAX run with an 85% all-routes policy (every route settled at 83-87%):
+   * aiming below by the whole connecting share at once, without the cap, overshot (local load fell to 30% while connections
+   * refilled the seats). biasMax 0.25 keeps a monopoly connection (huge asked share) from pricing locals out for lower-yield
+   * connecting passengers. Built from connecting demand, not the carried load, so daily demand noise does not move fares.
+   */
+  biasGain: 0.5,
+  biasMax: 0.25,
+  /** Lowest local load factor the solve aims for, however large the bias. */
+  minLocalTarget: 0.3,
 } as const;
 
 /** Every fare class multiplied by `scale` (premium fares keep their ratio to economy). */

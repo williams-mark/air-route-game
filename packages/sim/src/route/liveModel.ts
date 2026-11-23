@@ -33,6 +33,12 @@ export interface LiveModelInput {
   solveFares?: boolean;
   /** Fare policies (WorldState.farePolicies): effective targets for the weekly solve and connection markdown. Absent = none. */
   farePolicies?: readonly FarePolicy[];
+  /**
+   * The routes' latest reports (SimState.routeReports). The fare solve models local passengers only; hub connecting passengers
+   * are added afterwards, so the solve learns from the last report how far the whole flight ended from the target
+   * (see FARE_SOLVER_PARAMS.bias...). Absent = no correction.
+   */
+  previousReports?: Readonly<Record<Id, RouteReport>>;
   /** Player hub airport ids, for the "hub-spoke" policy category (see playerHubs). */
   hubs?: readonly Id[];
   /** The airline's service level per cabin (WorldState.serviceLevels). Absent = standard. */
@@ -94,6 +100,8 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
     };
     const weekAt = (r: Route) => (a && b ? simulateRouteWeek(r, airports, types, day, weekOpts) : null);
     let priced = route;
+    // Carried on non-solve days; replaced on the weekly solve.
+    let bias = inp.previousReports?.[route.id]?.fareSolveBias ?? 0;
     const target = inp.solveFares && a && b ? effectiveTargetLoadFactor(route, inp.farePolicies, airports, inp.hubs) : undefined;
     if (target !== undefined && a && b) {
       // Solve against expected demand (no noise), with the seasonal part of it only partly followed, then move a capped step.
@@ -107,7 +115,17 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
       // Demand the fare is solved for: the annual mean plus `seasonalFollow` of the way to today's seasonal demand (geometric).
       const level = now > 0 && yearSum > 0 ? Math.pow(now / (yearSum / yearSamples), seasonalFollow) * (yearSum / yearSamples) / now : 1;
       const solveOpts: RouteWeekOptions = { ...weekOpts, demandScale: level };
-      const solution = fareScaleForTargetLoadFactor(route.fares, target, (f) => {
+      // The target is for the whole flight, connections included, but the solve sees local passengers only. Integrate the last
+      // report's error into a bias and aim the local passengers that far below the target (a slow integral term, so connecting
+      // traffic that refills freed seats does not make it overshoot).
+      const prev = inp.previousReports?.[route.id];
+      // Connecting passengers asked for last time, as a share of seats (demand above what the load cap lets fly; no local demand
+      // noise in it). The bias follows it with a lag, so the solve aims local passengers that far below the target and fares rise.
+      const asked = prev ? Math.max(0, (prev.demandLoadFactor ?? prev.evaluation.loadFactor) - (prev.localLoadFactor ?? prev.evaluation.loadFactor)) : 0;
+      const prevBias = prev?.fareSolveBias ?? 0;
+      bias = Math.min(FARE_SOLVER_PARAMS.biasMax, Math.max(0, prevBias + FARE_SOLVER_PARAMS.biasGain * (asked - prevBias)));
+      const localTarget = Math.max(FARE_SOLVER_PARAMS.minLocalTarget, target - bias);
+      const solution = fareScaleForTargetLoadFactor(route.fares, localTarget, (f) => {
         const w = simulateRouteWeek({ ...route, fares: f }, airports, types, probeDay, solveOpts);
         return w && w.evaluation.feasible ? w.evaluation.loadFactor : null;
       }, iterations);
@@ -147,6 +165,8 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
       scheduling: notional ? null : sched ?? null,
       experience: week.experience,
       demandOneWay: week.choice.itineraries[0]?.unconstrained ?? week.playerPassengersOneWay,
+      localLoadFactor: week.evaluation.loadFactor,
+      ...(bias > 0 ? { fareSolveBias: bias } : {}),
     };
   }
   // Hub connecting passengers (SAN-HNL via LAX ...): extra revenue and cost on the legs, load factors updated.
@@ -156,12 +176,23 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
     for (const r of routes) markdown[r.id] = effectiveConnectionMarkdown(r, inp.farePolicies, airports, inp.hubs);
   }
   const competitorsFor = inp.rivals?.field === "world" ? (x: Airport, y: Airport) => competitorItinerariesFor(inp.rivals, x, y, types, airports) : undefined;
-  const net = evaluateNetwork({ competitorsFor, connectionMarkdown: markdown, routes: pricedRoutes, airports, types, day, weeks, fleet: routeFleet, flights: routeFlights, operatedFraction: routeFraction, serviceLevels: inp.serviceLevels });
+  // Routes with a target load factor hold seats above it back from connecting passengers (NetworkInput.loadCap).
+  let loadCap: Record<Id, number> | undefined;
+  for (const r of routes) {
+    const t = effectiveTargetLoadFactor(r, inp.farePolicies, airports, inp.hubs);
+    if (t !== undefined) (loadCap ??= {})[r.id] = t;
+  }
+  const net = evaluateNetwork({ loadCap, competitorsFor, connectionMarkdown: markdown, routes: pricedRoutes, airports, types, day, weeks, fleet: routeFleet, flights: routeFlights, operatedFraction: routeFraction, serviceLevels: inp.serviceLevels });
   revenue += net.deltaRevenue / 7;
   routeCosts += net.deltaCosts / 7;
   for (const [id, evaluation] of Object.entries(net.evaluations)) {
     const rep = reports[id];
     if (rep) reports[id] = { ...rep, evaluation, connecting: net.connecting[id], demandOneWay: (rep.demandOneWay ?? 0) + (net.connecting[id]?.passengersOneWay ?? 0) };
+  }
+  for (const [id, n] of Object.entries(net.askedOneWay)) {
+    const rep = reports[id], w = weeks[id];
+    const seats = w ? w.evaluation.seatsPerWeek / 2 : 0;
+    if (rep && seats > 0) reports[id] = { ...rep, demandLoadFactor: (w!.evaluation.passengersPerWeek / 2 + n) / seats };
   }
   return { schedule, reports, weeks, solvedFares, floorBinding, revenue, routeCosts };
 }
