@@ -46,7 +46,7 @@ describe("generated world field: set-up", () => {
   });
 
   it("is deterministic in the seed, and another seed gives another field", () => {
-    const again = createRivals(airports, aircraftTypes, 2015, s.world.routes, s.world.day, "world");
+    const again = createRivals(airports, aircraftTypes, 2015, s.world.routes, s.world.day, "world", { homeHub: "LAX" });
     expect(again.airlines.map((a) => `${a.name}@${a.bases[0]}:${a.routes.length}`)).toEqual(field.airlines.map((a) => `${a.name}@${a.bases[0]}:${a.routes.length}`));
     const other = createRivals(airports, aircraftTypes, 7, [], 0, "world");
     expect(other.airlines.map((a) => a.bases[0])).not.toEqual(field.airlines.map((a) => a.bases[0]));

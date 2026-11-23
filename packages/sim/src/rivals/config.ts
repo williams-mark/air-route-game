@@ -281,6 +281,39 @@ export const RIVAL_PARAMS = {
  * 50 airlines with hubs at 50 different airports of the top 100 by the model's own demand, the same hub and outstation rules as the
  * player (fleet/hubs.ts OUTSTATION_PARAMS), and decisions spread over an 8-week cycle so only about 6 airlines decide in any week.
  */
+/** How hard the world field competes (owner, 22 Nov 2026: easy / medium / hard at game start). Medium is the field as tuned before. */
+export interface WorldIntensity {
+  /** Airlines in the field (and the startup target). */
+  airlines: number;
+  /** Weeks between an airline's decisions (each still decides on its own week). */
+  decisionCycleWeeks: number;
+  /** New markets an airline may enter at each decision. */
+  entriesPerDecision: number;
+  /** Multiplier on WORLD_FIELD.entryShare: how much of a market a new route is sized for. */
+  entryShareScale: number;
+  /** Added to every world airline's indirect cost share: positive = weaker airlines that fail sooner, negative = leaner ones. */
+  overheadDelta: number;
+  /** Airlines placed at the player's home hub and the nearest top airports to it, so the player's own markets are contested. */
+  homeRivals: number;
+}
+
+export type Difficulty = "easy" | "medium" | "hard";
+
+/**
+ * Difficulty presets: starting cash and world-field intensity. Game-design values, not data. Medium is the game as calibrated on
+ * 20 Nov 2026 (50 airlines, 8-week cycle, two entries per decision, USD 150M). Easy: more cash, fewer and slower rivals that size
+ * routes smaller and carry more overhead, none placed at the player's hub. Hard: less cash, more and faster rivals, bigger entries,
+ * leaner costs, and three airlines based at or near the player's hub, so the starting routes have competition from day one.
+ */
+export const DIFFICULTY: Record<Difficulty, { startingCashUsd: number; intensity: WorldIntensity }> = {
+  easy: { startingCashUsd: 250_000_000, intensity: { airlines: 35, decisionCycleWeeks: 10, entriesPerDecision: 1, entryShareScale: 0.8, overheadDelta: 0.03, homeRivals: 0 } },
+  medium: { startingCashUsd: 150_000_000, intensity: { airlines: 50, decisionCycleWeeks: 8, entriesPerDecision: 2, entryShareScale: 1, overheadDelta: 0, homeRivals: 1 } },
+  hard: { startingCashUsd: 90_000_000, intensity: { airlines: 65, decisionCycleWeeks: 6, entriesPerDecision: 3, entryShareScale: 1.2, overheadDelta: -0.03, homeRivals: 3 } },
+};
+
+/** Intensity of a rival state (absent in older saves and the classic field: medium). */
+export const intensityOf = (rivals: { intensity?: WorldIntensity } | null | undefined): WorldIntensity => rivals?.intensity ?? DIFFICULTY.medium.intensity;
+
 export const WORLD_FIELD = {
   airlines: 50,
   topAirports: 100,

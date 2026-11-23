@@ -21,7 +21,7 @@ export function stepRivals(state: SimState, day: number): SimState {
     (r) => state.routeReports[r.id]?.evaluation.seatsPerFlight ?? 0,
     pandemicEnabled(state.params.pandemic, state.rivals?.originDay ?? 0) ? (a, b) => pandemicFactor(day, a, b) : undefined,
   );
-  if (state.rivals.field === "world") ctx.world = true;
+  if (state.rivals.field === "world") { ctx.world = true; if (state.rivals.intensity) ctx.intensity = state.rivals.intensity; }
   const res = stepRivalsWeek(state.rivals, ctx, day / 7, state.world.seed);
   const next: SimState = { ...state, rivals: res.rivals, bankruptcies: [...state.bankruptcies, ...res.bankruptcies] };
   return res.notices.length > 0 ? { ...next, pendingEvents: [...next.pendingEvents, ...res.notices].slice(-next.params.eventQueueLimit) } : next;
