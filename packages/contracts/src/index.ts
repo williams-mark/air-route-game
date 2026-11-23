@@ -89,6 +89,11 @@ export interface CabinSection {
   rows: number;
   seatsAcross: number;
   pitchIn: number;
+  /**
+   * Deck of a two-deck aircraft (747 family, A380) the section is on. Absent = main deck. A layout with no upper-deck section is
+   * an older single-list layout: its rows are spread over both decks as one equivalent length.
+   */
+  deck?: "upper";
 }
 
 export interface CabinLayout {
