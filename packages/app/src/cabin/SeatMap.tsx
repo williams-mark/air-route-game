@@ -1,7 +1,7 @@
 import type { AircraftType, CabinClass, CabinLayout } from "@arg/contracts";
-import { cabinGeometry, layoutLengthM, SECTION_DIVIDER_M } from "@arg/sim";
+import { cabinGeometry, deckLengths, deckOf, layoutLengthM, SECTION_DIVIDER_M, upperDeckOf } from "@arg/sim";
 import { arrangementLabel, arrangementParts, CLASS_LABEL } from "./helpers";
-import { deckSpecFor, splitLayout } from "./decks";
+import { deckSpecFor, layoutByDeck } from "./decks";
 
 const W = 1000;
 const MARGIN = 46; // nose and tail caps
@@ -36,7 +36,7 @@ function Deck({ type, layout, wide, keyPrefix, zoneL, sc, lengthM, endM, bodyH, 
   const labels: JSX.Element[] = [];
 
   layout.sections.forEach((s, si) => {
-    const parts = arrangementParts(arrangementLabel(type, s.cls, s.seatsAcross));
+    const parts = arrangementParts(arrangementLabel(type, s.cls, s.seatsAcross, deckOf(s)));
     const sum = parts.reduce((a, b) => a + b, 0) || s.seatsAcross;
     const aisleH = (wide ? 9 : 11) * (bodyH / BODY_H);
     const gaps = Math.max(0, parts.length - 1);
@@ -111,7 +111,7 @@ export function SeatMap({ type, layout, label }: Props) {
   const zoneL = MARGIN + noseLen, zoneR = W - MARGIN - tailLen;
   const seatsTotal = layout.sections.reduce((n, s) => n + s.rows * s.seatsAcross, 0);
   const seatsOf = (l: CabinLayout) => l.sections.reduce((n, s) => n + s.rows * s.seatsAcross, 0);
-  const describe = (l: CabinLayout) => l.sections.map((s) => `${CLASS_LABEL[s.cls]} ${s.rows * s.seatsAcross}, ${s.seatsAcross} across ${arrangementLabel(type, s.cls, s.seatsAcross)}`).join("; ");
+  const describe = (l: CabinLayout) => l.sections.map((s) => `${CLASS_LABEL[s.cls]} ${s.rows * s.seatsAcross}, ${s.seatsAcross} across ${arrangementLabel(type, s.cls, s.seatsAcross, deckOf(s))}`).join("; ");
   const note = `${needed.toFixed(1)} m of ${geo.usableLengthM.toFixed(1)} m used`;
 
   if (!spec) {
@@ -130,10 +130,13 @@ export function SeatMap({ type, layout, label }: Props) {
     );
   }
 
-  // Two decks. The equivalent cabin length is shared out: `upperShare` of the usable length upstairs, the rest on the main deck.
-  const upperUsable = spec.upperShare * geo.usableLengthM;
-  const { upper, main } = splitLayout(layout, upperUsable);
+  // Two decks: each section on its own deck, at that deck's width and arrangement. An older layout with no upper-deck section is
+  // drawn on the main deck with the upper deck empty (see layoutByDeck).
+  const lengths = deckLengths(type)!;
+  const upperUsable = lengths.upper;
+  const { upper, main, legacy } = layoutByDeck(layout);
   const mainLen = Math.max(geo.cabinLengthM - upperUsable, geo.serviceAllowanceM + layoutLengthM(main));
+  const upperWide = (upperDeckOf(type)?.aisles ?? 1) === 2;
   const sc = (zoneR - zoneL) / mainLen;
   const half = (geo.serviceAllowanceM / 2) * sc;
   const upperLen = upperUsable + 2 * UPPER_END_M;
@@ -143,14 +146,16 @@ export function SeatMap({ type, layout, label }: Props) {
   const mainY = TITLE_H + upperH + LABEL_H + TITLE_H;
   const height = mainY + BODY_H + LABEL_H;
   const exits = [zoneL + half * 0.5, zoneR - half * 0.5, zoneL + mainLen * sc * 0.36, zoneL + mainLen * sc * 0.64];
-  const aria = `${label ?? type.name} seat map, ${seatsTotal} seats on two decks. Upper deck ${seatsOf(upper)} seats: ${describe(upper) || "none"}. Main deck ${seatsOf(main)} seats: ${describe(main) || "none"}.${overflow ? " Rows do not fit the cabin." : ""}`;
+  const deckOver = !legacy && (layoutLengthM(upper) > lengths.upper + 1e-9 || layoutLengthM(main) > lengths.main + 1e-9);
+  const aria = `${label ?? type.name} seat map, ${seatsTotal} seats on two decks. Upper deck ${legacy ? "not set up" : `${seatsOf(upper)} seats: ${describe(upper) || "none"}`}. Main deck ${seatsOf(main)} seats: ${describe(main) || "none"}.${overflow || deckOver ? " Rows do not fit the cabin." : ""}`;
   return (
     <svg className={`seatmap two-deck ${overflow ? "overflow" : ""}`} viewBox={`0 0 ${W} ${height}`} role="img" aria-label={aria} preserveAspectRatio="xMidYMid meet">
       <g transform={`translate(0 ${TITLE_H})`}>
-        <Deck type={type} layout={upper} wide={spec.upperWidth > 0.8} keyPrefix="u" zoneL={upperX} sc={sc} lengthM={upperLen} endM={UPPER_END_M} bodyH={upperH} shape="pod" overflow={false} exits={[]} title={`Upper deck, ${seatsOf(upper)} seats`} />
+        <Deck type={type} layout={upper} wide={upperWide} keyPrefix="u" zoneL={upperX} sc={sc} lengthM={upperLen} endM={UPPER_END_M} bodyH={upperH} shape="pod" overflow={!legacy && layoutLengthM(upper) > lengths.upper + 1e-9} exits={[]}
+          title={legacy ? "Upper deck not set up: this older cabin counts every row on one long main deck" : `Upper deck, ${seatsOf(upper)} seats`} />
       </g>
       <g transform={`translate(0 ${mainY})`}>
-        <Deck type={type} layout={main} wide={wide} keyPrefix="m" zoneL={zoneL} sc={sc} lengthM={mainLen} endM={geo.serviceAllowanceM / 2} bodyH={BODY_H} shape="full" overflow={overflow} exits={exits} title={`Main deck, ${seatsOf(main)} seats`} />
+        <Deck type={type} layout={main} wide={wide} keyPrefix="m" zoneL={zoneL} sc={sc} lengthM={mainLen} endM={geo.serviceAllowanceM / 2} bodyH={BODY_H} shape="full" overflow={overflow || (!legacy && layoutLengthM(main) > lengths.main + 1e-9)} exits={exits} title={`Main deck, ${seatsOf(main)} seats`} />
       </g>
       <text x={W - MARGIN} y={height - 3} textAnchor="end" className="seatmap-note">{note}</text>
     </svg>

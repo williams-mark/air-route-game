@@ -1,5 +1,6 @@
 import type { AircraftType, CabinClass, CabinLayout, CabinSection } from "@arg/contracts";
 import { cabinGeometry, type CabinGeometry } from "./geometry";
+import { deckOf, hasUpperDeckSections, sectionsOnDeck, upperDeckOf, type Deck } from "./decks";
 
 export const CABIN_CLASSES: readonly CabinClass[] = ["F", "J", "W", "Y"];
 export const CLASS_NAME: Record<CabinClass, string> = { F: "First", J: "Business", W: "Premium economy", Y: "Economy" };
@@ -41,7 +42,9 @@ export function pitchLimits(cls: CabinClass, geo: CabinGeometry): [number, numbe
  * Economy: the type's in-service abreast counts (narrowbody 6 (3-3), A220 5 (2-3), regional 4 (2-2); widebody
  *   7 (2-3-2) to 10 (3-4-3)). 11-abreast on the 777 is not offered (impractical).
  */
-export function allowedAcross(type: Pick<AircraftType, "id" | "widebody" | "maxSeats">, cls: CabinClass): AcrossOption[] {
+export function allowedAcross(type: Pick<AircraftType, "id" | "widebody" | "maxSeats">, cls: CabinClass, deck: Deck = "main"): AcrossOption[] {
+  // Upper deck of a 747 or A380: its own, narrower rules (cabin/decks.ts). Single-deck types have no upper deck.
+  if (deck === "upper") return [...(upperDeckOf(type)?.across[cls] ?? [])];
   const geo = cabinGeometry(type);
   const wide = geo.bodyClass === "widebody";
   const labels = wide ? WIDE_ARRANGEMENT : NARROW_ARRANGEMENT;
@@ -59,7 +62,7 @@ export function allowedAcross(type: Pick<AircraftType, "id" | "widebody" | "maxS
 
 export type IssueCode =
   | "empty_layout" | "bad_section" | "duplicate_class" | "class_unavailable" | "bad_across" | "bad_pitch"
-  | "too_many_seats" | "too_long" | "no_economy";
+  | "too_many_seats" | "too_long" | "no_economy" | "no_upper_deck";
 
 export interface LayoutIssue { code: IssueCode; message: string; cls?: CabinClass }
 export interface LayoutValidation {
@@ -73,6 +76,16 @@ export interface LayoutValidation {
   /** Cabin length the rows need, metres, and the length available. */
   lengthUsedM: number;
   lengthAvailableM: number;
+  /** Two-deck layouts (sections placed on the upper deck): metres used and available on each deck. Absent otherwise. */
+  decks?: Record<Deck, { usedM: number; availableM: number }>;
+}
+
+/** Usable length of each deck of a two-deck type, metres (the equivalent length split by the upper deck's share); null for one deck. */
+export function deckLengths(type: Pick<AircraftType, "id" | "widebody" | "maxSeats">): Record<Deck, number> | null {
+  const up = upperDeckOf(type);
+  if (!up) return null;
+  const usable = cabinGeometry(type).usableLengthM;
+  return { main: usable * (1 - up.share), upper: usable * up.share };
 }
 
 export function sectionSeats(s: CabinSection): number { return s.rows * s.seatsAcross; }
@@ -95,22 +108,32 @@ export function validateLayout(type: AircraftType, layout: CabinLayout): LayoutV
   const warnings: LayoutIssue[] = [];
   const secs = layout?.sections ?? [];
   if (secs.length === 0) errors.push({ code: "empty_layout", message: "The cabin has no seats." });
-  const seen = new Set<CabinClass>();
+  const seen = new Set<string>();
+  const classes = new Set<CabinClass>();
+  const upper = upperDeckOf(type);
   for (const s of secs) {
     const name = CLASS_NAME[s.cls];
+    const deck = deckOf(s);
+    const where = deck === "upper" ? " on the upper deck" : "";
+    if (deck === "upper" && !upper) {
+      errors.push({ code: "no_upper_deck", cls: s.cls, message: `The ${type.name} has no upper deck.` });
+      continue;
+    }
     if (!Number.isInteger(s.rows) || s.rows < 1 || !Number.isInteger(s.seatsAcross) || s.seatsAcross < 1 || !(s.pitchIn > 0)) {
       errors.push({ code: "bad_section", cls: s.cls, message: `${name} needs whole rows (1 or more), a seats-across count and a positive pitch.` });
       continue;
     }
-    if (seen.has(s.cls)) errors.push({ code: "duplicate_class", cls: s.cls, message: `${name} appears in more than one section.` });
-    seen.add(s.cls);
-    const opts = allowedAcross(type, s.cls);
+    // One section per class on each deck (an A380 may have economy on both decks).
+    if (seen.has(`${deck}:${s.cls}`)) errors.push({ code: "duplicate_class", cls: s.cls, message: `${name} appears in more than one section${where}.` });
+    seen.add(`${deck}:${s.cls}`);
+    classes.add(s.cls);
+    const opts = allowedAcross(type, s.cls, deck);
     if (opts.length === 0) {
-      errors.push({ code: "class_unavailable", cls: s.cls, message: `The ${type.name} cannot carry a ${name.toLowerCase()} cabin.` });
+      errors.push({ code: "class_unavailable", cls: s.cls, message: `The ${type.name} cannot carry a ${name.toLowerCase()} cabin${where}.` });
       continue;
     }
     if (!opts.some((o) => o.across === s.seatsAcross)) {
-      errors.push({ code: "bad_across", cls: s.cls, message: `${s.seatsAcross} across is not available in ${name.toLowerCase()} on the ${type.name} (allowed: ${opts.map((o) => `${o.across} (${o.label})`).join(", ")}).` });
+      errors.push({ code: "bad_across", cls: s.cls, message: `${s.seatsAcross} across is not available in ${name.toLowerCase()}${where} on the ${type.name} (allowed: ${opts.map((o) => `${o.across} (${o.label})`).join(", ")}).` });
     }
     const [lo, hi] = pitchLimits(s.cls, geo);
     if (s.pitchIn < lo || s.pitchIn > hi) {
@@ -121,13 +144,27 @@ export function validateLayout(type: AircraftType, layout: CabinLayout): LayoutV
   if (seats > type.maxSeats) {
     errors.push({ code: "too_many_seats", message: `${seats} seats exceeds the ${type.maxSeats}-seat certified maximum of the ${type.name}.` });
   }
-  const lengthUsedM = layoutLengthM({ sections: secs.filter((s) => s.pitchIn > 0 && s.rows > 0) });
-  if (lengthUsedM > geo.usableLengthM + 1e-9) {
-    errors.push({ code: "too_long", message: `The rows need ${lengthUsedM.toFixed(1)} m of cabin but only ${geo.usableLengthM.toFixed(1)} m is usable.` });
+  const fitted = { sections: secs.filter((s) => s.pitchIn > 0 && s.rows > 0) };
+  const lengths = deckLengths(type);
+  let decks: LayoutValidation["decks"];
+  let lengthUsedM: number;
+  if (lengths && hasUpperDeckSections(fitted)) {
+    // Two-deck layout: each deck holds its own rows (a divider between sections on the same deck only).
+    const used = { main: layoutLengthM({ sections: sectionsOnDeck(fitted, "main") }), upper: layoutLengthM({ sections: sectionsOnDeck(fitted, "upper") }) };
+    decks = { main: { usedM: used.main, availableM: lengths.main }, upper: { usedM: used.upper, availableM: lengths.upper } };
+    for (const d of ["main", "upper"] as const) {
+      if (used[d] > lengths[d] + 1e-9) errors.push({ code: "too_long", message: `The ${d} deck rows need ${used[d].toFixed(1)} m but only ${lengths[d].toFixed(1)} m is usable on that deck.` });
+    }
+    lengthUsedM = used.main + used.upper;
+  } else {
+    lengthUsedM = layoutLengthM(fitted);
+    if (lengthUsedM > geo.usableLengthM + 1e-9) {
+      errors.push({ code: "too_long", message: `The rows need ${lengthUsedM.toFixed(1)} m of cabin but only ${geo.usableLengthM.toFixed(1)} m is usable.` });
+    }
   }
-  if (secs.length > 0 && !seen.has("Y")) warnings.push({ code: "no_economy", message: "No economy cabin: all passengers must fit in premium cabins, which only fill on premium-heavy routes." });
+  if (secs.length > 0 && !classes.has("Y")) warnings.push({ code: "no_economy", message: "No economy cabin: all passengers must fit in premium cabins, which only fill on premium-heavy routes." });
   if (seats > 0 && seats === type.maxSeats) warnings.push({ code: "too_many_seats", message: "At the certified seat maximum." });
-  return { ok: errors.length === 0, errors, warnings, seats, maxSeats: type.maxSeats, lengthUsedM, lengthAvailableM: geo.usableLengthM };
+  return { ok: errors.length === 0, errors, warnings, seats, maxSeats: type.maxSeats, lengthUsedM, lengthAvailableM: geo.usableLengthM, ...(decks ? { decks } : {}) };
 }
 
 /** Rows of a class that would use up `lengthM` of cabin at a pitch. */

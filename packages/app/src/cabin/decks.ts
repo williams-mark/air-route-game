@@ -1,7 +1,7 @@
-// Display-only split of a cabin layout over two passenger decks (747 family, A380). The sim's cabin model is one equivalent
-// length that already counts the upper deck (sim cabin/geometry.ts), so capacity, comfort and cost are untouched by this file.
+// How a cabin layout is drawn over the two passenger decks of a 747 or A380. The deck rules themselves (length share, width,
+// aisles, seats across upstairs) live in the sim (cabin/decks.ts); this file only adapts them for the seat map.
 import type { CabinLayout, CabinSection } from "@arg/contracts";
-import { SECTION_DIVIDER_M } from "@arg/sim";
+import { cabinGeometry, hasUpperDeckSections, sectionsOnDeck, SECTION_DIVIDER_M, upperDeckOf } from "@arg/sim";
 
 export interface DeckSpec {
   /** Share of the usable (equivalent) cabin length that is on the upper deck. */
@@ -12,16 +12,22 @@ export interface DeckSpec {
   upperWidth: number;
 }
 
-/**
- * ESTIMATES for the drawing, not sourced figures: the short hump of the 747-100/-200/SP, the stretched upper deck of the
- * 747-300/-400/-8, and the A380's full-length upper deck. They only decide how many rows are drawn upstairs.
- */
+/** Drawing figures for a two-deck type, from the sim's upper-deck spec (estimates, see the sim's cabin/decks.ts). */
 export function deckSpecFor(typeId: string): DeckSpec | null {
-  if (typeId.startsWith("A380")) return { upperShare: 0.45, upperStart: 0.06, upperWidth: 0.88 };
-  if (!typeId.startsWith("B747")) return null;
-  if (/^B747-?8/.test(typeId)) return { upperShare: 0.2, upperStart: 0.08, upperWidth: 0.6 };
-  if (/^B747-(300|400)/.test(typeId)) return { upperShare: 0.17, upperStart: 0.08, upperWidth: 0.6 };
-  return { upperShare: 0.1, upperStart: 0.1, upperWidth: 0.6 };
+  const up = upperDeckOf({ id: typeId });
+  if (!up) return null;
+  const mainWidth = cabinGeometry({ id: typeId, widebody: true, maxSeats: 400 }).cabinWidthM;
+  return { upperShare: up.share, upperStart: up.start, upperWidth: up.widthM / mainWidth };
+}
+
+/**
+ * The sections drawn on each deck. A layout that uses the upper deck is drawn as it is (each section on its own deck). An older
+ * layout with no upper-deck section is one equivalent length in the sim, so it is drawn entirely on the main deck and the upper
+ * deck is left empty (`legacy`), rather than drawing main-deck rows upstairs at main-deck width.
+ */
+export function layoutByDeck(layout: CabinLayout): { upper: CabinLayout; main: CabinLayout; legacy: boolean } {
+  if (!hasUpperDeckSections(layout)) return { upper: { sections: [] }, main: layout, legacy: true };
+  return { upper: { sections: sectionsOnDeck(layout, "upper") }, main: { sections: sectionsOnDeck(layout, "main") }, legacy: false };
 }
 
 const rowM = (s: CabinSection) => s.pitchIn * 0.0254;

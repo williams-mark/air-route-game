@@ -2,6 +2,7 @@ import type { AircraftType, CabinClass, CabinLayout } from "@arg/contracts";
 import { defaultLayout } from "../fleet/layout";
 import type { SegmentMap } from "../demand/market";
 import { cabinGeometry } from "./geometry";
+import { deckOf, upperDeckOf, type Deck } from "./decks";
 import { CABIN_CLASSES, INCH_M, sectionSeats, totalSeats } from "./rules";
 
 /**
@@ -91,11 +92,14 @@ export interface LayoutEffects {
   costPerSeatIndex: number;
 }
 
-function seatWidthIn(type: AircraftType, across: number, cls: CabinClass): number {
+function seatWidthIn(type: AircraftType, across: number, cls: CabinClass, deck: Deck = "main"): number {
   const geo = cabinGeometry(type);
   const P = CABIN_PARAMS;
   const body = geo.bodyClass === "widebody" ? "wide" : "narrow";
-  const space = (geo.cabinWidthM / INCH_M - P.wallIn - geo.aisles * P.aisleIn[body]) / across;
+  // Upper deck of a 747 / A380: its own width and aisles (cabin/decks.ts).
+  const up = deck === "upper" ? upperDeckOf(type) : null;
+  const widthM = up ? up.widthM : geo.cabinWidthM, aisles = up ? up.aisles : geo.aisles;
+  const space = (widthM / INCH_M - P.wallIn - aisles * P.aisleIn[up ? (up.aisles === 2 ? "wide" : "narrow") : body]) / across;
   return cls === "Y" || cls === "W" ? space - P.armrestIn : space;
 }
 
@@ -109,12 +113,22 @@ const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x
 
 function metrics(type: AircraftType, layout: CabinLayout): ClassMetrics[] {
   return CABIN_CLASSES.flatMap((cls) => {
-    const s = layout.sections.find((x) => x.cls === cls);
-    if (!s || s.rows < 1) return [];
-    const b = bench(type, cls);
-    const w = seatWidthIn(type, s.seatsAcross, cls);
-    const comfort = CABIN_PARAMS.pitchWeight * clamp(s.pitchIn / b.pitch, 0.6, 1.2) + (1 - CABIN_PARAMS.pitchWeight) * clamp(w / b.width, 0.6, 1.15);
-    return [{ cls, seats: sectionSeats(s), rows: s.rows, across: s.seatsAcross, pitchIn: s.pitchIn, seatWidthIn: w, comfort }];
+    // A class may have a section on each deck (A380 economy on both): combine them, weighted by seats.
+    const parts = layout.sections.filter((x) => x.cls === cls && x.rows >= 1).map((s) => {
+      const b = bench(type, cls);
+      const w = seatWidthIn(type, s.seatsAcross, cls, deckOf(s));
+      const comfort = CABIN_PARAMS.pitchWeight * clamp(s.pitchIn / b.pitch, 0.6, 1.2) + (1 - CABIN_PARAMS.pitchWeight) * clamp(w / b.width, 0.6, 1.15);
+      return { s, w, comfort, seats: sectionSeats(s) };
+    });
+    if (parts.length === 0) return [];
+    if (parts.length === 1) {
+      const { s, w, comfort, seats } = parts[0]!;
+      return [{ cls, seats, rows: s.rows, across: s.seatsAcross, pitchIn: s.pitchIn, seatWidthIn: w, comfort }];
+    }
+    const seats = parts.reduce((n, p) => n + p.seats, 0);
+    const avg = (f: (p: (typeof parts)[number]) => number) => (seats > 0 ? parts.reduce((n, p) => n + f(p) * p.seats, 0) / seats : 0);
+    const main = parts.find((p) => deckOf(p.s) === "main") ?? parts[0]!;
+    return [{ cls, seats, rows: parts.reduce((n, p) => n + p.s.rows, 0), across: main.s.seatsAcross, pitchIn: avg((p) => p.s.pitchIn), seatWidthIn: avg((p) => p.w), comfort: avg((p) => p.comfort) }];
   });
 }
 

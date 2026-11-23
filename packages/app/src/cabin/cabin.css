@@ -57,3 +57,7 @@ fieldset.sec legend { display: flex; gap: .8rem; align-items: baseline; padding:
 .svc-levels { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: .5rem .8rem; margin: 0; }
 .svc-levels legend { padding: 0 .3rem; }
 .svc-level { display: inline-flex; gap: .4rem; align-items: center; }
+/* Two-deck cabins (747, A380): one group of class sections per deck. */
+.deck-group { display: contents; }
+.deck-h { grid-column: 1 / -1; margin: .4rem 0 0; font-size: .85rem; color: var(--text); }
+.sec-note { grid-column: 1 / -1; margin: 0; padding: .4rem .6rem; border-left: 3px solid var(--accent); background: var(--panel-2); color: var(--text-dim); font-size: .8rem; }
