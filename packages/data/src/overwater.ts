@@ -20,10 +20,10 @@ export const ONE_ENGINE_SPEED_FRACTION = 0.9; // ESTIMATE: one-engine-inoperativ
 /** Diversion time in minutes; null = three or four engines (no limit). */
 const diversionMinutes: Record<string, number | null> = {
   "B737-700": 180, "B737-800": 180, "B737-900ER": 180, "B737-8": 180, "B737-9": 180,
-  A319: 180, A320: 180, A321: 180, A320N: 180, A321N: 180,
+  A319: 180, A320: 180, A321: 180, A320N: 180, A321N: 180, A321LR: 180, A321XLR: 180,
   "A220-100": 180, "A220-300": 180,
   "B757-200": 180, "B767-300ER": 180,
-  "B777-200ER": 330, "B777-300ER": 330,
+  "B777-200ER": 330, "B777-300ER": 330, "B777-9": 330,
   "B787-8": 330, "B787-9": 330, "B787-10": 330,
   "A330-200": 240, "A330-300": 240, "A330-900": 240,
   "A350-900": 370, "A350-1000": 370,
@@ -65,7 +65,7 @@ const diversionMinutes: Record<string, number | null> = {
   "B777-300": 180,
   "B737-600": 180,
   "DC10-30": null,
-  E175: 60, CRJ700: 60, CRJ900: 60, "ATR72-600": 60,
+  E175: 60, "E190-E2": 120, "E195-E2": 120, CRJ700: 60, CRJ900: 60, "ATR72-600": 60,
   // Classic types (lane/aircraft-classics): null = three or four engines; 60 = twins without a documented ETOPS rating (ASSUMPTION, see SOURCES.md).
   "DC8-10": null, "DC8-20": null, "DC8-30": null, "DC8-40": null, "DC8-50": null, "DC8-61": null, "DC8-62": null, "DC8-63": null, "MD11": null, "DC10-10": null, "DC10-40": null, "L1011-1": null, "L1011-100": null, "L1011-200": null, "L1011-500": null, "CV880": null, "CV990": null, "TRIDENT-1C": null, "TRIDENT-2E": null, "TRIDENT-3B": null, "BAE146-100": null, "BAE146-200": null, "BAE146-300": null, "CONCORDE": null,
   "DC9-10": 60, "DC9-30": 60, "DC9-40": 60, "DC9-50": 60, "MD81": 60, "MD82": 60, "MD83": 60, "MD87": 60, "MD88": 60, "MD90-30": 60, "BAC111-200": 60, "BAC111-500": 60, "CARAVELLE-6R": 60, "CARAVELLE-12": 60, "F28-1000": 60, "F28-3000": 60, "F28-4000": 60, "F100": 60,

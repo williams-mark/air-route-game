@@ -376,3 +376,20 @@ describe("aircraft families", () => {
     for (const id of Object.keys(aircraftFamilyById)) expect(ids.has(id), id).toBe(true);
   });
 });
+
+describe("new-generation types (23 Nov 2026)", () => {
+  const can = (t: string, a: string, b: string) => canFlyRoute(ac(t), ap(a), ap(b));
+  it("enter service in their real years", () => {
+    expect(ac("B777-9").introYear).toBe(2027);
+    expect(ac("A321LR").introYear).toBe(2018);
+    expect(ac("A321XLR").introYear).toBe(2024);
+    expect(ac("E190-E2").introYear).toBe(2018);
+    expect(ac("E195-E2").introYear).toBe(2019);
+  });
+  it("the long-range A321s reach further than the A321neo", () => {
+    expect(can("A321N", "JFK", "LHR")).toBe(false);
+    expect(can("A321LR", "JFK", "LHR")).toBe(true);
+    expect(can("A321XLR", "JFK", "FCO")).toBe(true);
+    expect(can("A321LR", "JFK", "FCO")).toBe(false);
+  });
+});

@@ -1,3 +1,6 @@
+## lane/new-types (23 Nov 2026)
+- New aircraft: Boeing 777-9 (2027), Airbus A321LR (2018) and A321XLR (2024), Embraer E190-E2 (2018) and E195-E2 (2019), with overwater limits and cabin geometry. Figures and which are derived or estimated: data SOURCES.md "New-generation types". No photos yet; rival fleets do not use them yet.
+- Related: lane/runway-sector (PR #25) gives every type the short-sector runway allowance (E175 into Salem).
 ## Session of 22 Nov 2026 (one PR per lane, all branched from #14; merge #14 first)
 - #14 lands #12 (world field) and #13 (Competitors screen) on main: they had been merged into stacked branches only.
 - lane/globe-antimeridian (#15): land polygons crossing 180 degrees are split at load, so no ring of northern ocean is shaded as land.

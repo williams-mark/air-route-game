@@ -4,6 +4,8 @@ import type { Entry } from "./schema.js";
 const entry: Entry = {
   rows: [
     ["E175", "Embraer", "Embraer E175", 4074, 800, 88, 1.8, 2244, 42, 2005, null, false],
+    ["E190-E2", "Embraer", "Embraer E190-E2", 5460, 833, 114, 1.9, 1615, 53.6, 2018, null, false],
+    ["E195-E2", "Embraer", "Embraer E195-E2", 5600, 833, 146, 2.3, 1840, 60.4, 2019, null, false],
     ["CRJ700", "Bombardier", "Bombardier CRJ-700", 3763, 828, 78, 1.6, 1600, 41, 2001, 2020, false],
     ["CRJ900", "Bombardier", "Bombardier CRJ-900", 2950, 828, 90, 1.8, 1770, 48, 2003, 2021, false],
     ["ATR72-600", "ATR", "ATR 72-600", 1404, 510, 78, 1.3, 1279, 26.8, 2011, null, false],
@@ -31,6 +33,8 @@ const entry: Entry = {
   ],
   family: {
       "E175": "E-Jet",
+      "E190-E2": "E-Jet",
+      "E195-E2": "E-Jet",
       "CRJ700": "CRJ family",
       "CRJ900": "CRJ family",
       "ATR72-600": "ATR 72",
@@ -57,6 +61,8 @@ const entry: Entry = {
     "CONCORDE": "Concorde",
   },
   visual: {
+    "E190-E2": { lengthM: 36.25, wingspanM: 33.72, layout: "wing2", tail: "conventional" },
+    "E195-E2": { lengthM: 41.51, wingspanM: 35.12, layout: "wing2", tail: "conventional" },
     "L1011-1": { lengthM: 54.2, wingspanM: 47.3, layout: "wing2+tail", tail: "conventional" },
     "L1011-100": { lengthM: 54.2, wingspanM: 47.3, layout: "wing2+tail", tail: "conventional" },
     "L1011-200": { lengthM: 54.2, wingspanM: 47.3, layout: "wing2+tail", tail: "conventional" },
