@@ -252,6 +252,8 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     solveFares: day % 7 === 0,
     farePolicies: world.farePolicies,
     hubs: playerHubs(state),
+    // The solve corrects for how far the whole flight (connections included) ended from the target last time (see liveModel).
+    previousReports: state.routeReports,
   });
   const { schedule, reports } = live;
   // Fare floor and "full route" bookkeeping on the reports (weekly values carried through the other days of the week).
