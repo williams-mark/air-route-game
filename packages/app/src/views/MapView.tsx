@@ -17,6 +17,8 @@ export function MapView() {
   const speed = useSimSelector((s) => s.speed);
   const active = ui.view === "map";
   const mapRef = useRef<AirMapHandle>(null);
+  // The city last clicked: only routes touching it are drawn until "Show all routes" (owner, 23 Nov 2026).
+  const [focusCity, setFocusCity] = useState<string | null>(null);
   const [simTime, setSimTime] = useState(() => {
     const t = Number(new URLSearchParams(location.search).get("t"));
     return Number.isFinite(t) ? t : 0;
@@ -58,6 +60,7 @@ export function MapView() {
   // or outstations becomes the origin; any other city becomes the destination from the home hub. With the creator open, a click
   // fills the end being picked, as before.
   const openRouteAt = (id: string) => {
+    setFocusCity(id);
     if (creation.open) { creation.assign(id); return; }
     const sim = bridge.getSim?.() ?? null;
     const home = sim ? homeHubOf(sim) : bridge.getState().airline.hub;
@@ -72,7 +75,7 @@ export function MapView() {
       <AirMap
         ref={mapRef} airports={airports} routes={routes} simTime={simTime} theme={ui.theme}
         preset={ui.preset} presetNonce={ui.presetNonce} padding={padding}
-        selectedRouteId={selRoute?.id ?? null} selectedAirportId={null}
+        selectedRouteId={selRoute?.id ?? null} selectedAirportId={focusCity} focusAirportId={focusCity}
         rivalMarkets={ui.showCompetitors ? rivalMarkets : undefined}
         ghost={ghost} showAllAirports={creation.open}
         onSelectRoute={(id) => { if (!creation.open) ui.select({ kind: "route", id }); }}
@@ -84,6 +87,11 @@ export function MapView() {
         <button className="hud-btn" aria-pressed={ui.showCompetitors} onClick={() => ui.setShowCompetitors(!ui.showCompetitors)} title="Draw competitor routes on the map">
           <i className="rival-swatch" aria-hidden="true" />Show competitors
         </button>
+        {focusCity && (
+          <button className="hud-btn" aria-pressed="true" onClick={() => setFocusCity(null)} title="Draw every route again" data-testid="map-focus">
+            Routes at {focusCity} <span aria-hidden="true">✕</span><span className="sr-only">, show all routes</span>
+          </button>
+        )}
         <div className="hud legend">
           {(["profit", "marginal", "loss", "planned"] as const).map((t) => (
             <span key={t}><i style={dot(t)} />{t === "profit" ? "Profit" : t === "marginal" ? "Marginal" : t === "loss" ? "Loss" : "Planned"}</span>

@@ -1,7 +1,7 @@
 import type { Airport } from "@arg/contracts";
 import { displayLon, distanceKm, routePath, screenBearing } from "./geo";
 import { continentOf } from "../routes/geoNames";
-import type { MapRoute, ProfitTier } from "./types";
+import type { MapRoute } from "./types";
 
 export interface RouteGeo {
   route: MapRoute;
@@ -16,16 +16,6 @@ export interface RouteGeo {
   hubToHub: boolean;
 }
 
-export interface AggEdge {
-  id: string;
-  a: Airport;
-  b: Airport;
-  path: [number, number][];
-  routes: number;
-  freq: number;
-  tier: ProfitTier;
-}
-
 export interface MapModel {
   airports: Airport[];
   byId: Map<string, Airport>;
@@ -36,7 +26,6 @@ export interface MapModel {
   /** Airports that at least one route touches. */
   served: Set<string>;
   routes: RouteGeo[];
-  agg: AggEdge[];
 }
 
 /** Sample points along a great circle: about one per 150 km, 24..64. */
@@ -58,7 +47,7 @@ export function toDisplay(a: Airport): Airport {
 
 const bySize = (a: Airport, b: Airport) => b.slotsPerHour - a.slotsPerHour || b.metroPopulation - a.metroPopulation || (a.id < b.id ? -1 : 1);
 
-/** Hubs kept per continent in a world-sized network, so corridors of far zoom have a cluster centre on every continent. */
+/** Hubs kept per continent in a world-sized network, so every continent has labelled anchor airports when zoomed out. */
 const HUBS_PER_CONTINENT = 4;
 
 /** Hubs: the biggest airports (about 15% of a small network, up to 32 of a world-sized one), plus the biggest of every land mass and of every continent. */
@@ -105,19 +94,7 @@ export function buildModel(rawAirports: Airport[], routes: MapRoute[]): MapModel
   const rank = new Map([...airports].sort((a, b) => (hubRank.get(a.id) ?? 1e6) - (hubRank.get(b.id) ?? 1e6) || bySize(a, b)).map((a, i) => [a.id, i]));
   const served = new Set<string>();
 
-  const cluster = new Map<string, Airport>();
-  for (const a of airports) {
-    let best: Airport | undefined, bd = Infinity;
-    for (const h of hubList) {
-      const ha = byId.get(h)!;
-      const d = distanceKm(a.lon, a.lat, ha.lon, ha.lat);
-      if (d < bd) { bd = d; best = ha; }
-    }
-    if (best) cluster.set(a.id, best);
-  }
-
   const geos: RouteGeo[] = [];
-  const aggMap = new Map<string, { a: Airport; b: Airport; routes: number; freq: number; tiers: Record<ProfitTier, number> }>();
   for (const r of routes) {
     const o = byId.get(r.origin), d = byId.get(r.destination);
     if (!o || !d) continue;
@@ -131,19 +108,8 @@ export function buildModel(rawAirports: Airport[], routes: MapRoute[]): MapModel
       aircraft: Math.max(1, Math.min(3, Math.ceil(r.weeklyFrequency / 14))),
       seed: hash(r.id), hubToHub: hubs.has(o.id) && hubs.has(d.id),
     });
-    const ca = cluster.get(o.id), cb = cluster.get(d.id);
-    if (!ca || !cb || ca.id === cb.id) continue;
-    const [x, y] = ca.id < cb.id ? [ca, cb] : [cb, ca];
-    const key = `${x.id}|${y.id}`;
-    let e = aggMap.get(key);
-    if (!e) aggMap.set(key, (e = { a: x, b: y, routes: 0, freq: 0, tiers: { profit: 0, marginal: 0, loss: 0, planned: 0 } }));
-    e.routes++; e.freq += r.weeklyFrequency; e.tiers[r.tier] += r.weeklyFrequency;
   }
-  const agg: AggEdge[] = [...aggMap.entries()].map(([id, e]) => {
-    const tier = (Object.entries(e.tiers).sort((p, q) => q[1] - p[1])[0]![0]) as ProfitTier;
-    return { id, a: e.a, b: e.b, routes: e.routes, freq: e.freq, tier, path: routePath(e.a.lon, e.a.lat, e.b.lon, e.b.lat, pathPoints(distanceKm(e.a.lon, e.a.lat, e.b.lon, e.b.lat))) };
-  });
-  return { airports, byId, hubs, hubRank, rank, served, routes: geos, agg };
+  return { airports, byId, hubs, hubRank, rank, served, routes: geos };
 }
 
 export interface AircraftPos { id: string; position: [number, number]; angle: number }
