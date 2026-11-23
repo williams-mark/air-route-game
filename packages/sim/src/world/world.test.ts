@@ -155,13 +155,25 @@ const closeTxlDay = dateToDay("2020-11-09");
 describe("demand: metros from the data package, caching", () => {
   it("LA, SF and Seattle are the original calibration; the rest of the world has metros too", () => {
     const by = new Map(DEFAULT_METROS.map((m) => [m.id, m]));
-    expect(by.get("LA")).toEqual({ id: "LA", anchors: ["LAX", "ONT"], population: 17_750_000, shares: { LAX: 0.78, SNA: 0.1, ONT: 0.044, BUR: 0.042, LGB: 0.034 } });
-    expect(by.get("SF")).toEqual({ id: "SF", anchors: ["SFO", "SJC"], population: 6_630_000, shares: { SFO: 0.7, OAK: 0.16, SJC: 0.14 } });
+    expect(by.get("LA")).toEqual({ id: "LA", anchors: ["LAX", "ONT"], population: 17_750_000, shares: { LAX: 0.775, SNA: 0.1, ONT: 0.044, BUR: 0.042, LGB: 0.034, SBD: 0.005 } });
+    expect(by.get("SF")).toEqual({ id: "SF", anchors: ["SFO", "SJC"], population: 6_630_000, shares: { SFO: 0.7, OAK: 0.16, SJC: 0.135, CCR: 0.005 } });
     expect(by.get("SEA")).toEqual({ id: "SEA", anchors: ["SEA"], population: 3_733_000, shares: { SEA: 0.88, PAE: 0.08, BFI: 0.04 } });
     expect(by.get("NYC")!.population).toBe(20_200_000);
     expect(by.get("LON")!.shares["LHR"]).toBeGreaterThan(0.4);
     for (const m of DEFAULT_METROS) expect(Object.values(m.shares).reduce((s, x) => s + x, 0)).toBeCloseTo(1, 6);
     expect(DEFAULT_METROS.length).toBeGreaterThan(20);
+  });
+  it("secondary airports take a limited slice of their metro, not a whole metro of their own", () => {
+    const ap = (id: string) => airports.find((a) => a.id === id)!;
+    const w = (a: string, b: string) => pairMarket(ap(a), ap(b)).baseWeekly;
+    // San Bernardino, Carlsbad, Concord and Kalaeloa used to count the whole Inland Empire, North County, East Bay and Oahu.
+    expect(w("SBD", "SFO")).toBeLessThan(0.02 * w("LAX", "SFO"));
+    expect(w("CLD", "SFO")).toBeLessThan(0.03 * w("SAN", "SFO"));
+    expect(w("CCR", "LAX")).toBeLessThan(0.02 * w("SFO", "LAX"));
+    expect(w("JRF", "LAX")).toBeLessThan(0.02 * w("HNL", "LAX"));
+    // ... while SNA stays a real, smaller market than LAX.
+    expect(w("SNA", "SFO")).toBeGreaterThan(0.05 * w("LAX", "SFO"));
+    expect(w("SNA", "SFO")).toBeLessThan(0.25 * w("LAX", "SFO"));
   });
   it("LA/SF/SEA pair volumes are unchanged by the data metros (fixtures vs data airports agree where the inputs agree)", () => {
     const f = baseWeeklyDemand(LAX, SFO), g = baseWeeklyDemand({ ...LAX }, { ...SFO });
