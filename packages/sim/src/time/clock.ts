@@ -4,15 +4,16 @@ export type Speed = 0 | 1 | 2 | 3 | 4 | 5;
 
 /**
  * Simulated days per real second at each speed.
- * 0 paused; 1 = 1 day / 2 s; 2 = 1 day / s; 3 = 3 days / s; 4 = 1 week / s; 5 = ~1 month / s.
+ * 0 paused; 1 = 1 day / 4 s; 2 = 1 day / 2 s; 3 = 1.5 days / s; 4 = 1 week / 2 s; 5 = ~1 month / 2 s.
+ * Halved on 20 Nov 2026 (owner) so the larger rival field costs half as much computing per real second.
  */
 export const DAYS_PER_SECOND: Readonly<Record<Speed, number>> = {
   0: 0,
-  1: 0.5,
-  2: 1,
-  3: 3,
-  4: 7,
-  5: 30,
+  1: 0.25,
+  2: 0.5,
+  3: 1.5,
+  4: 3.5,
+  5: 15,
 };
 
 /** An event asking the clock to slow down (e.g. a bankruptcy warning or a new aircraft delivery). */

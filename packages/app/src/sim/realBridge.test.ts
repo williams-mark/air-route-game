@@ -75,8 +75,8 @@ describe("RealSimBridge", () => {
     b.subscribe(fn);
     fn.mockClear();
     const before = b.getState().cash;
-    // 250 ms at 30 days/s is 7 days: stepped in one batch, announced once.
-    expect(b.advance(250)).toBe(7);
+    // 500 ms at 15 days/s is 7 days: stepped in one batch, announced once.
+    expect(b.advance(500)).toBe(7);
     expect(fn).toHaveBeenCalledTimes(1);
     b.stepDays(23);
     const s = b.getState();
@@ -232,7 +232,7 @@ describe("distress and bankruptcy in the bridge", () => {
     const b = broke(-300_000_000);
     b.setSpeed(5);
     b.advance(250);
-    for (let i = 0; i < 12 && !b.getState().credit?.bankrupt; i++) b.advance(250);
+    for (let i = 0; i < 24 && !b.getState().credit?.bankrupt; i++) b.advance(500);
     expect(b.getState().credit?.bankrupt).not.toBeNull();
     const day = b.getState().day;
     expect(b.getState().speed).toBe(0);
