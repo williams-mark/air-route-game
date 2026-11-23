@@ -36,13 +36,23 @@ const HI_ISLAND: Readonly<Record<string, string>> = {
 export const RUNWAY_SECTOR_FRACTION = 0.85;
 
 /**
- * Runway length the type needs for a sector of `km`. Narrowbodies and turboprops use a flat RUNWAY_SECTOR_FRACTION. For widebodies
- * takeoff weight grows with fuel carried, so short sectors need less runway than the MTOW field length: 60% of runwayNeededM at zero distance, rising linearly to RUNWAY_SECTOR_FRACTION
- * (cap) at 75% of range. Planning assumption, not a sourced figure; lets A330/787 class aircraft use OGG from California.
+ * Fraction of runwayNeededM a type needs on a zero-length sector. Widebodies carry a larger share of their takeoff weight as fuel,
+ * so a short hop is further below MTOW. Planning assumptions, not sourced figures (SOURCES.md "Aircraft").
+ */
+export const RUNWAY_SHORT_SECTOR_FRACTION = { narrowbody: 0.7, widebody: 0.6 } as const;
+/** Rise of that fraction per 75% of range: widebodies as tuned before; narrowbodies reach the cap at 75% of range. */
+const RUNWAY_RAMP = { narrowbody: 0.15, widebody: 0.4 } as const;
+
+/**
+ * Runway length the type needs for a sector of `km`. Takeoff weight grows with the fuel carried, so short sectors need less runway
+ * than the MTOW field length: RUNWAY_SHORT_SECTOR_FRACTION of runwayNeededM at zero distance, rising linearly (RUNWAY_RAMP per 75% of range)
+ * and capped at RUNWAY_SECTOR_FRACTION. Applies to every type (owner, 23 Nov 2026: an E175 was refused SEA-SLE while
+ * an A350-1000 was not, because only widebodies had the short-sector allowance). Lets A330/787 class aircraft use OGG from
+ * California, E175s and 737s use Salem's 1,771 m runway, and still keeps a 737-800 out of Kalaupapa.
  */
 export function runwayRequiredM(type: AircraftType, km: number): number {
-  if (!type.widebody) return type.runwayNeededM * RUNWAY_SECTOR_FRACTION;
-  const ramp = 0.6 + 0.4 * Math.min(1, km / (0.75 * type.rangeKm));
+  const kind = type.widebody ? "widebody" : "narrowbody";
+  const ramp = RUNWAY_SHORT_SECTOR_FRACTION[kind] + RUNWAY_RAMP[kind] * Math.min(1, km / (0.75 * type.rangeKm));
   return type.runwayNeededM * Math.min(RUNWAY_SECTOR_FRACTION, ramp);
 }
 
