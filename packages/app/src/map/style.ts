@@ -1,6 +1,10 @@
 import type { Map as MLMap, StyleSpecification } from "maplibre-gl";
-import land from "./land.json";
+import landRaw from "./land.json";
+import { splitAtAntimeridian } from "./antimeridian";
 import type { MapColors } from "./colors";
+
+/** Land with the polygons that cross the 180th meridian split there (else the globe shades a ring of ocean in the north). */
+const land = splitAtAntimeridian(landRaw as never as { features: never[] });
 
 /** Fully offline style: background + bundled GeoJSON land. No tiles, no glyphs, no sprites. Every land polygon is drawn in the playable style. */
 export function buildStyle(c: MapColors): StyleSpecification {
