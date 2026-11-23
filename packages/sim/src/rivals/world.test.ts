@@ -34,9 +34,12 @@ describe("generated world field: set-up", () => {
     expect(Math.max(...perWeek) - Math.min(...perWeek)).toBeLessThanOrEqual(1);
   });
 
-  it("names are unique and every route starts or ends at the airline's hub", () => {
+  it("names are unique and every route starts or ends at the airline's hub (or an outstation opened for an incumbent route)", () => {
     expect(new Set(field.airlines.map((a) => a.name)).size).toBe(field.airlines.length);
-    for (const a of field.airlines) for (const r of a.routes) expect(r.origin === a.bases[0] || r.destination === a.bases[0], `${a.name} ${r.origin}-${r.destination}`).toBe(true);
+    for (const a of field.airlines) {
+      for (const r of a.routes) expect(r.origin === a.bases[0] || r.destination === a.bases[0] || (a.outstations ?? []).some((o) => o === r.origin || o === r.destination), `${a.name} ${r.origin}-${r.destination}`).toBe(true);
+      for (const o of a.outstations ?? []) expect(a.bases).toContain(o);
+    }
   });
 
   it("most airlines start with a network and the aircraft to fly it", () => {

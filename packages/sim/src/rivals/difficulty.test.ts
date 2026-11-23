@@ -36,10 +36,11 @@ describe("difficulty", () => {
   });
 
   it("the player's starting routes face more competition on hard than on easy", () => {
+    // Rival seats a week on the player's starting markets (every starting market has incumbents on every level: passiveStart.test.ts).
     const contested = (d: Difficulty) => {
       const s = games[d];
-      const flown = new Set(s.rivals!.airlines.flatMap((a) => a.routes.map((r) => marketKey(r.origin, r.destination))));
-      return s.world.routes.filter((r) => flown.has(marketKey(r.origin, r.destination))).length;
+      const mine = new Set(s.world.routes.map((r) => marketKey(r.origin, r.destination)));
+      return s.rivals!.airlines.flatMap((a) => a.routes).filter((r) => mine.has(marketKey(r.origin, r.destination))).reduce((t, r) => t + r.frequency * r.seatsPerFlight, 0);
     };
     expect(contested("hard")).toBeGreaterThan(contested("easy"));
   });
