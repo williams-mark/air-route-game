@@ -123,8 +123,8 @@ function TypeTable({ rows, fleet, hub, home, hubs, openType, onOpen, selected, o
                                 <td>{a.routes.length ? a.routes.join(", ") : "–"}</td>
                                 <td>{a.ageYears < 0.1 ? "New" : `${a.ageYears.toFixed(1)} yr`}{a.retireYear !== undefined && <span className="hint"> · retires {a.retireYear}</span>}</td>
                                 <td>
-                                  <select aria-label={`Hub for ${a.tail}`} value={a.hub ?? home ?? ""} disabled={a.status !== "active"}
-                                    title={a.status !== "active" ? "Only active aircraft can be based at a hub" : undefined}
+                                  <select aria-label={`Hub for ${a.tail}`} value={a.hub ?? home ?? ""} disabled={a.status !== "active" && a.status !== "delivery"}
+                                    title={a.status !== "active" && a.status !== "delivery" ? "Only active aircraft and aircraft on order can change hub" : undefined}
                                     onChange={(e) => onMove(a.id, e.target.value)}>
                                     {hubs.map((h) => <option key={h} value={h}>{h}</option>)}
                                   </select>

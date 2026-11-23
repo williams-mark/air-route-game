@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { typeShortName } from "../aircraft/names";
 import { aircraftTypes } from "@arg/data";
 import { COMMAND_PARAMS, dayToDate, defaultLayout, FINANCING_PARAMS, homeHubOf, layoutSeats, orderableTypes, orderDiscount, basesOf } from "@arg/sim";
@@ -13,12 +13,18 @@ import { useOffersUi } from "../offers/store";
 import { CabinDialog } from "../cabin/CabinDialog";
 import { useCabinDrafts } from "../cabin/store";
 import { ownedHubChoices } from "../hubs/hubs";
+import { aircraftCategories, categoriesOf, seatSplit } from "../fleet/categories";
+import type { FleetItem } from "../sim/bridge";
 import { cancelTerms, needsOrderConfirm, ORDER_LOCK_MS, orderFundingQuote, orderQuoteKey, parseQuantity, pendingBalanceUsd } from "./orderExposure";
 
 type Financing = "purchase" | "lease";
 
 export default function OrdersView() {
-  const { day, cash, orders, decisions, offers, credit } = useSim();
+  const { day, cash, orders, decisions, offers, credit, fleet } = useSim();
+  const [openOrder, setOpenOrder] = useState<string | null>(null);
+  // Category commands change the planner, not the fleet list: bump this to re-read them.
+  const [catVersion, setCatVersion] = useState(0);
+  const [orderCat, setOrderCat] = useState<string>("none");
   const [cancelling, setCancelling] = useState<string | null>(null);
   const tab = useOffersUi((s) => s.tab);
   const setTab = useOffersUi((s) => s.setTab);
@@ -64,6 +70,10 @@ export default function OrdersView() {
   const hubs = ownedHubChoices(simNow ? basesOf(simNow) : [home], home);
   const [deliveryHub, setDeliveryHub] = useState<string>(home);
   const deliveryHubId = hubs.includes(deliveryHub) ? deliveryHub : home;
+  const categories = useMemo(() => categoriesOf(simNow), [simNow, catVersion, day]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cats = useMemo(() => aircraftCategories(simNow), [simNow, catVersion, fleet, day]); // eslint-disable-line react-hooks/exhaustive-deps
+  const catNames = new Map(categories.map((c) => [c.id, c.name]));
+  const orderCategory = categories.some((c) => c.id === orderCat) ? orderCat : "none";
   // Double-click guard: after an order the button stays disabled until the quote changes or the lock runs out. Purchases and deposits over $10M
   // first show an inline confirm step, since the deposit cannot be refunded if the order is cancelled.
   const quoteKey = orderQuoteKey({ typeId: type?.id ?? "", count, financing, deliveryHubId });
@@ -82,7 +92,14 @@ export default function OrdersView() {
     setConfirming(false);
     if (res && !res.ok) { push("alert", res.error.message); return; }
     setLockedKey(quoteKey);
-    push("good", `Ordered ${count} ${typeShortName(type)} on ${financing}. ${financing === "purchase" ? "Deposit" : "Down payment"} ${formatMoney(deposit)} paid.`);
+    // Ordering into a category: the new aircraft join it straight away (they are in the fleet, on order, from now on).
+    let catNote = "";
+    const newIds = res && res.ok && res.orderId ? bridge.getSim?.()?.orders.find((o) => o.id === res.orderId)?.aircraftIds ?? [] : [];
+    if (newIds.length > 0 && orderCategory !== "none") {
+      const c = bridge.dispatch({ kind: "setAircraftCategory", aircraftIds: newIds, categoryId: orderCategory });
+      if (c && !c.ok) push("alert", c.error.message); else { catNote = ` In "${catNames.get(orderCategory) ?? orderCategory}".`; setCatVersion((n) => n + 1); }
+    }
+    push("good", `Ordered ${count} ${typeShortName(type)} on ${financing}. ${financing === "purchase" ? "Deposit" : "Down payment"} ${formatMoney(deposit)} paid.${catNote}`);
   };
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,6 +136,14 @@ export default function OrdersView() {
             <label htmlFor="ord-hub">Delivery hub</label>
             <select id="ord-hub" value={deliveryHubId} onChange={(e) => setDeliveryHub(e.target.value)}>
               {hubs.map((h) => <option key={h} value={h}>{h}{h === home ? " (home hub)" : ""}</option>)}
+            </select>
+          </div>
+          <div className="rp-field">
+            <label htmlFor="ord-cat">Aircraft category</label>
+            <select id="ord-cat" value={orderCategory} onChange={(e) => setOrderCat(e.target.value)} disabled={categories.length === 0}
+              title={categories.length === 0 ? "Make aircraft categories in Fleet" : undefined}>
+              <option value="none">{categories.length === 0 ? "No categories yet (make them in Fleet)" : "No category (by aircraft type)"}</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div className="rp-field">
@@ -189,8 +214,12 @@ export default function OrdersView() {
                 {open.map((o) => {
                   const next = o.deliveryDays.filter((d) => d >= day).sort((a, b) => a - b)[0];
                   return (
-                    <tr key={o.id}>
-                      <th scope="row">{o.id}</th>
+                    <Fragment key={o.id}>
+                    <tr className={openOrder === o.id ? "open" : undefined}>
+                      <th scope="row">
+                        <button type="button" className="link-btn fleet-type-toggle" aria-expanded={openOrder === o.id} aria-controls={`order-ac-${o.id}`}
+                          onClick={() => setOpenOrder(openOrder === o.id ? null : o.id)}>{openOrder === o.id ? "▾" : "▸"} {o.id}</button>
+                      </th>
                       <td>{o.typeName}</td>
                       <td className="num">{o.delivered} of {o.count}</td>
                       <td>{formatDate(o.orderDay)}</td>
@@ -214,6 +243,15 @@ export default function OrdersView() {
                         })() : <button onClick={() => setCancelling(o.id)} aria-label={`Cancel the undelivered aircraft on ${o.id}`}>Cancel</button>}
                       </td>
                     </tr>
+                    {openOrder === o.id && (
+                      <tr id={`order-ac-${o.id}`}>
+                        <td colSpan={8}>
+                          <OrderAircraft aircraft={fleet.filter((a) => a.orderId === o.id)} hubs={hubs} home={home} categories={categories} cats={cats} catNames={catNames}
+                            onChanged={() => setCatVersion((n) => n + 1)} />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -224,5 +262,58 @@ export default function OrdersView() {
       </section>
       </div>}
     </div>
+  );
+}
+
+/** The aircraft of one order, with what the Fleet screen shows for them: cabin, category, delivery hub, delivery date. Hub and category can be changed before delivery. */
+function OrderAircraft({ aircraft, hubs, home, categories, cats, catNames, onChanged }: {
+  aircraft: FleetItem[]; hubs: string[]; home: string; categories: { id: string; name: string }[];
+  cats: ReadonlyMap<string, string>; catNames: ReadonlyMap<string, string>; onChanged: () => void;
+}) {
+  const push = useToasts((s) => s.push);
+  if (aircraft.length === 0) return <p className="hint">Every aircraft on this order has been delivered; see Fleet.</p>;
+  const setHub = (a: FleetItem, hubId: string) => {
+    const res = bridge.dispatch({ kind: "setAircraftHub", aircraftId: a.id, hubId });
+    if (res && !res.ok) push("alert", res.error.message); else push("good", `${a.tail} will be delivered to ${hubId}.`);
+  };
+  const setCat = (a: FleetItem, categoryId: string | null) => {
+    const res = bridge.dispatch({ kind: "setAircraftCategory", aircraftIds: [a.id], categoryId });
+    if (res && !res.ok) { push("alert", res.error.message); return; }
+    onChanged();
+  };
+  return (
+    <table className="fleet-members" aria-label="Aircraft on this order">
+      <thead><tr>
+        <th scope="col">Tail</th><th scope="col">Type</th><th scope="col">Seats F/J/W/Y</th><th scope="col" className="num">Seats</th>
+        <th scope="col">Category</th><th scope="col">Delivery hub</th><th scope="col">Delivery</th><th scope="col">Financing</th>
+      </tr></thead>
+      <tbody>
+        {aircraft.map((a) => (
+          <tr key={a.id}>
+            <td>{a.tail}</td>
+            <td>{a.typeName}</td>
+            <td className="num" title="First / Business / Premium economy / Economy">{seatSplit(a.layout)}</td>
+            <td className="num">{a.seats}</td>
+            <td>
+              {a.status === "delivery" ? (
+                <select aria-label={`Category for ${a.tail}`} value={cats.get(a.id) ?? "none"} onChange={(e) => setCat(a, e.target.value === "none" ? null : e.target.value)}>
+                  <option value="none">No category</option>
+                  {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              ) : (catNames.get(cats.get(a.id) ?? "") ?? "–")}
+            </td>
+            <td>
+              {a.status === "delivery" ? (
+                <select aria-label={`Delivery hub for ${a.tail}`} value={a.hub ?? home} onChange={(e) => setHub(a, e.target.value)}>
+                  {(hubs.includes(a.hub ?? home) ? hubs : [a.hub ?? home, ...hubs]).map((h) => <option key={h} value={h}>{h}{h === home ? " (home hub)" : ""}</option>)}
+                </select>
+              ) : (a.hub ?? "–")}
+            </td>
+            <td>{a.status === "delivery" ? (a.deliveryDay !== undefined ? formatDate(a.deliveryDay) : "–") : "Delivered"}</td>
+            <td>{a.financing === "lease" ? "Lease" : a.financing === "purchase" ? "Purchase" : "–"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }

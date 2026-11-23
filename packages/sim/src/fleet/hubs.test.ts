@@ -207,6 +207,20 @@ describe("setAircraftHub", () => {
   });
 });
 
+describe("delivery hub of aircraft on order", () => {
+  it("an aircraft on order can be sent to another hub before delivery", () => {
+    const base = applyCommand(sc(), { kind: "unlockHub", airportId: "SFO" }).state;
+    const typeId = base.world.fleet[0]!.typeId;
+    const ordered = applyCommand({ ...base, world: { ...base.world, cash: 1e10 } }, { kind: "orderAircraft", typeId, count: 2, layout: { sections: [] } });
+    if (!ordered.result.ok || ordered.result.kind !== "orderAircraft") throw new Error("order failed");
+    const id = ordered.result.aircraftIds[0]!;
+    const r = applyCommand(ordered.state, { kind: "setAircraftHub", aircraftId: id, hubId: "SFO" });
+    expect(r.result).toMatchObject({ ok: true, hubId: "SFO" });
+    const ac = r.state.world.fleet.find((x) => x.id === id)!;
+    expect(ac).toMatchObject({ status: "delivery", hubId: "SFO" });
+  });
+});
+
 describe("migration of saves without hubs", () => {
   it("an old save's aircraft are assigned to the home hub on load; the save version is unchanged", () => {
     const base = sc();
