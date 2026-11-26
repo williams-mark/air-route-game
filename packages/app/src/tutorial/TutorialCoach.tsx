@@ -86,7 +86,7 @@ function copy(step: StepId): StepCopy {
     case "frequency": return {
       title: "Compete on frequency",
       target: ".route-panel",
-      todo: `In the route panel, change Flights / wk to 21 and press Apply changes.`,
+      todo: `In the route panel, set Weekly frequency to 21 and press Apply changes.`,
       body: <p>With fares fixed by the Board, airlines competed on how often they flew. You may change the frequency of a route you hold. More flights carry more passengers, but each one costs fuel and crew, and needs aircraft time (block hours).</p>,
     };
     case "award2": return {
@@ -126,7 +126,7 @@ function copy(step: StepId): StepCopy {
       target: ".hud-btn, .view .page-head button.primary",
       todo: "Press Plan a route from LAX, pick a destination (type a code or click the map), and press Open route.",
       body: <>
-        <p>The Act is signed. You may now fly any route you have aircraft for. The planner shows the market, rivals and a profit projection before you commit. Your 727s have spare time for a longer route.</p>
+        <p>The Act is signed. You may now fly any route you have aircraft for. The planner shows the market, rivals and a profit projection before you commit. Your 727s have spare time for a longer route: try Denver (DEN) or Portland (PDX). Routes you already fly (PHX, SEA, LAS) cannot be opened a second time.</p>
         <p className="hint">In reality the Board's route controls were phased out over the next few years; here they end on the day the Act is signed.</p>
       </>,
     };
@@ -197,7 +197,7 @@ export function TutorialCoach() {
         {t.step === "freeRoute" && <button className="primary" onClick={() => { setMin(true); useCreation.getState().begin(TUTORIAL_HUB); }}>Plan a route from {TUTORIAL_HUB}</button>}
         {t.step === "done" && <>
           <button className="primary" onClick={() => bridge.setTutorial?.(finishTutorial(t))}>Keep playing</button>
-          <button onClick={() => { bridge.setTutorial?.(finishTutorial(t)); useUi.getState().setStartOpen(true); }}>Main menu</button>
+          <button onClick={() => { bridge.setTutorial?.(finishTutorial(t)); useUi.getState().setStartOpen(true); }}>Back to start screen</button>
         </>}
         {t.step !== "done" && <button className="link-btn" onClick={skip}>Skip tutorial</button>}
       </div>

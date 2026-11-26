@@ -319,6 +319,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
       </div>
       <div className="rc-foot">
         <button type="button" onClick={() => end()}>Cancel</button>
+        {blockedReason && <span className="rc-blocked" role="status">{blockedReason}</span>}
         <button type="button" className="primary" disabled={!typeId || !parsed || !lf.ok || !!blockedReason} title={blockedReason ?? undefined} onClick={open}>Open route</button>
       </div>
     </>

@@ -307,3 +307,5 @@ html:not([data-view="map"]) .main > .time-pill:not(.docked) { display: none; }
   .topbar .time-pill.docked { display: none; }
   html:not([data-view="map"]) .main > .time-pill:not(.docked) { display: flex; }
 }
+/* Phones: the time pill floats on every screen, so pages keep extra room at the bottom. */
+@media (max-width: 720px) { .page { padding-bottom: calc(var(--pill-clear) + 4.5rem); } }
