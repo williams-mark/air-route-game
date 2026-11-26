@@ -72,7 +72,7 @@ export default function PoliciesView() {
             {hist.length > 1 && <span className="hint"> · {Math.abs(trend) < 0.005 ? "steady" : trend > 0 ? "rising" : "falling"} over the last {hist.length - 1} weeks</span>}
           </div>
         </div>
-        <p className="hint">Reputation moves toward how satisfied passengers are with your current policy (now {signed(current.satisfaction * 100)}), about halfway in four months{sim.product ? <>: about <b>{signed(projectedReputation(rep, current.satisfaction, 13) * 100)}</b> in three months and <b>{signed(projectedReputation(rep, current.satisfaction, 52) * 100)}</b> in a year if nothing changes</> : null}. It moves your product score on every route by up to ±6 points.{sim.product ? "" : " You are on the standard policy, so it stays at zero."}</p>
+        <p className="hint">Reputation moves toward how satisfied passengers are with your current policy (now {signed(current.satisfaction * 100)}), about halfway in four months{sim.product ? <>: about <b>{signed(projectedReputation(rep, current.satisfaction, 13) * 100)}</b> in three months and <b>{signed(projectedReputation(rep, current.satisfaction, 52) * 100)}</b> in a year if nothing changes</> : null}. It moves your product score on every route by up to ±9 points.{sim.product ? "" : " You are on the standard policy, so it stays at zero."}</p>
       </section>
 
       <section className="panel-box" aria-label="Presets">

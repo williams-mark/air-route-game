@@ -145,7 +145,7 @@ export const PRODUCT_PARAMS = {
   qualityPerPoint: 0.035,
   qualityExcessFactor: 0.5,
   /** Quality per unit of reputation (-1..1). */
-  qualityPerReputation: 0.06,
+  qualityPerReputation: 0.09,
   /** Above the best competitor in the market by more than `saturationGap`, extra quality counts only `saturationFactor`. */
   saturationGap: 0.04,
   saturationFactor: 0.25,
