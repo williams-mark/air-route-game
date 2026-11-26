@@ -170,7 +170,7 @@ function b727(o) {
     title: o.title, L, D, VB, belly: { from: W(15), to: W(23.5), drop: 0.1 },
     nose: { len: 1.55, lenB: 1.38, tip: 0.4, tb: 1.45 }, cockpit: { panels: 4, a: 0.4, b: 0.86 },
     tail: { len: 2.6, bot: 0.45, top: 0.88, topLen: 0.3 },
-    fin: { teRoot: L - 0.75, rootV: VT + 0.97, down: VB + 0.55 * D, h: 10.36, tipChord: 3.5, sweepLE: 50, sweepTE: 26 },
+    fin: { teRoot: L - 1.07, rootV: VT + 0.3, down: VB + 0.55 * D, h: 10.36, tipChord: 3.5, sweepLE: 50, sweepTE: 26 },
     stab: { t: true, k: 1.05, dx: 0.1 },
     wing: { root: [W(16.4), VB + 0.3 * D], sweep: 33, semi: 14.6, dih: 3, rootChord: 6.4, teRootK: 0.8, tipChord: 1.6, fairings: 3 },
     gear: { main: [{ u: W(21.0), r: 0.55 }], nose: { u: 3.25, r: 0.38, doorU: 2.1 } },
@@ -178,7 +178,7 @@ function b727(o) {
     windows: { from: 6.1, to: L - 12.8 },
     antennasTop: [[8.5], [W(20)]], antennasBot: [[10], [W(24.5), 0.22]], beaconU: W(14),
     seams: [3.9, 8.0, W(15.0), W(24.0), L - 14.0],
-    front: [sDuct({ u: L - 12.2, len: 5.4, h: 1.0 }), (g) => rearPod(g, pod), tailNozzle({ r: 0.55 })],
+    front: [sDuct({ u: L - 11.0, h: 1.0, w: 0.3 }), (g) => rearPod(g, pod), tailNozzle({ r: 0.55 })],
   };
 }
 

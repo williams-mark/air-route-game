@@ -3,7 +3,7 @@
 // E-Jet 3.35 m, CRJ 2.7 m, ATR 72 2.67 m, BAe 146 3.5 m, One-Eleven 3.3 m, Caravelle 3.2 m, Convair 880/990 3.6 m,
 // Trident 3.6 m, F28/F100 3.3 m, L-1011 6.0 m, Concorde 3.3 m fuselage heights. Stations are drawing estimates.
 import { rearPod, sDuct, tailNozzle, sponson, triWindows, nacelle, OUT, OUT_D } from "../jet.mjs";
-import { st, f, S } from "../lib.mjs";
+import { st, f, S, innerShade } from "../lib.mjs";
 
 const pth = (g, cmds, attrs) => g.add(`<path d="${g.d(cmds)}" ${attrs}/>`);
 /** Split tail-cone airbrake seams (F28, BAe 146). */
@@ -62,9 +62,9 @@ function atr72() {
     tail: { len: 3.6, bot: 0.69, top: 0.8, topLen: 2.8 },
     fin: { teRoot: 25.55, h: 7.3, tipChord: 1.6, sweepLE: 44.5, sweepTE: -5, dorsal: { len: 4.9, h: 0.6 } },
     stab: { t: true, k: 0.9, bullet: { fwd: 0.4, aft: 0.3, h: 0.22 } },
-    wing: { high: true, root: [10.15, VT], rootChord: 2.6, semi: 12.2, sweep: 2, dih: 2, tipChord: 1.4 },
-    engines: [{ kind: "prop", u: 7.55, v: 3.28, len: 7.4, h: 1.3, r: 1.965 }],
-    beforeWing: [sponson({ u0: 10.35, u1: 15.75, top: 1.75, bot: 0.78 })],
+    wing: { high: true, above: 0.36, root: [10.05, VT], rootChord: 2.6, semi: 12.2, sweep: 2, dih: 2, tipChord: 1.4, thick: 0.42 },
+    engines: [{ kind: "prop", u: 7.55, v: 3.22, len: 7.6, h: 1.55, r: 1.965 }],
+    beforeWing: [sponson({ u0: 10.6, u1: 15.4, top: 1.6, bot: 0.76 })],
     gear: { main: [{ u: 12.8, r: 0.45, top: 0.9 }], nose: { u: 2.1, r: 0.3, doorU: 1.3, doorLen: 0.8 } },
     doors: [{ u: 4.35, k: "C", w: 1.27, h: 1.53 }, { u: 21.65, v: 1.25, w: 0.72, h: 1.75 }],
     windows: { from: 5.9, to: 20.6, pitch: 0.762, w: 0.27, h: 0.33 },
@@ -78,10 +78,12 @@ function bae146(o) {
   const W = (u) => u + fwd;
   const pods = (g) => {
     const hw = g.geo.highWing;
-    for (const [u0, dv] of [[W(11.5), 0.62], [W(9.6), 0.42]]) {
-      const vc = hw.v - dv - 0.25;
-      pth(g, [["M", u0 + 0.9, vc + 0.6], ["L", u0 + 1.6, hw.v - 0.05], ["L", u0 + 2.9, hw.v - 0.05], ["L", u0 + 2.6, vc + 0.5], ["Z"]], `fill="${g.vgrad(hw.v, vc, [[0, "#eef0f2"], [1, "#b9bfc5"]])}" ${st(0.5, OUT)}`);
-      nacelle(g, { u0, vc, len: 3.3, d: 1.3, mixed: true, stripe: false, splits: [0.3, 0.65] });
+    const wingV = (u) => hw.v + ((hw.tip[1] - hw.v) * (u - hw.u0)) / Math.max(0.1, hw.tip[0] - hw.u0);
+    for (const [u0, drop] of [[W(11.7), 1.1], [W(9.75), 0.92]]) {
+      const vc = hw.v - drop;
+      const p0 = u0 + 1.15, p1 = u0 + 2.55, b0 = wingV(p0) - 0.22, b1 = wingV(p1) - 0.24;
+      pth(g, [["M", p0, vc + 0.6], ["C", p0 + 0.1, b0 - 0.15, p0 + 0.25, b0, p0 + 0.5, b0], ["L", p1, b1], ["L", p1 - 0.1, vc + 0.55], ["Z"]], `fill="${g.vgrad(b0, vc + 0.5, [[0, "#c9cdd1"], [1, "#eef0f2"]])}" ${st(0.5, OUT)}`);
+      nacelle(g, { u0, vc, len: 3.0, d: 1.32, core: { len: 0.55, d0: 0.72, d1: 0.5 }, plug: { len: 0.35, d: 0.32 }, stripe: false, splits: [0.32, 0.66] });
     }
   };
   return {
@@ -90,9 +92,9 @@ function bae146(o) {
     tail: { len: 3.0, bot: 0.55, top: 0.82, topLen: 1.0 },
     fin: { teRoot: L - 1.1, h: 8.61, tipChord: 2.6, sweepLE: 40, sweepTE: 18, dorsal: { len: 3.5, h: 0.8 } },
     stab: { t: true, k: 1.0, bullet: { fwd: 0.5, aft: 0.4, h: 0.26 } },
-    wing: { high: true, root: [W(11.0), VT], rootChord: 3.6, semi: 11.4, sweep: 15, dih: -3, tipChord: 1.2 },
+    wing: { high: true, above: 0.95, root: [W(11.0), VT], rootChord: 3.6, semi: 11.4, sweep: 15, dih: -3, tipChord: 1.2 },
     engines: [{ kind: "custom", draw: pods }],
-    beforeWing: [sponson({ u0: W(12.4), u1: W(17.2), top: 1.65, bot: 0.72 })],
+    beforeWing: [sponson({ u0: W(12.0), u1: W(17.0), top: 1.55, bot: 0.7 })],
     gear: { main: [{ u: W(14.7), r: 0.43, top: 0.85 }], nose: { u: 2.9, r: 0.28, doorU: 1.9, doorLen: 0.8 } },
     doors: [{ u: 3.6, w: 0.8, h: 1.8 }, L - 6.4, { u: 6.2, k: "C", w: 1.0 }],
     windows: { from: 4.6, to: L - 7.3, pitch: 0.53 },
@@ -179,7 +181,7 @@ function trident(o) {
     nose: { len: 1.45, lenB: 1.35, tip: 0.44, tb: 1.4 }, cockpit: { a: 0.42, b: 0.96, bot: 0.7, h: 0.12, panels: 4 },
     tail: { len: 2.8, bot: 0.5, top: 0.88, topLen: 0.35 },
     belly: { from: W(12.2), to: W(19.6), drop: 0.1 },
-    fin: { teRoot: L - 0.6, rootV: VT + 0.8, down: VB + 0.5 * D, h: o.h, tipChord: 2.9, sweepLE: 48, sweepTE: 22 },
+    fin: { teRoot: L - 0.81, rootV: VT + 0.3, down: VB + 0.5 * D, h: o.h, tipChord: 2.9, sweepLE: 48, sweepTE: 22 },
     stab: { t: true, k: 1.15, bullet: { fwd: 0.4, aft: 0.3, h: 0.22 } },
     wing: { root: [W(13.2), VB + 0.25 * D], sweep: 33, semi: o.semi, dih: 3, rootChord: 6.0, teRootK: 0.85, tipChord: 1.4, fairings: 2 },
     gear: { main: [{ u: W(17.6), r: 0.45 }], nose: { u: 3.0, r: 0.3, doorU: 1.9 } },
@@ -187,7 +189,7 @@ function trident(o) {
     windows: { from: 5.0, to: L - 7.6 },
     antennasTop: [[7.5, 0.26], [W(16), 0.26]], antennasBot: [[9, 0.22]], beaconU: W(12),
     seams: [3.4, 7.6, W(12.2), W(19.6), L - 9.5],
-    front: [sDuct({ u: L - 10.4, len: 4.6, h: 0.85 }), (g) => rearPod(g, { u0: L - 9.4, vc: VB + 0.8 * D, len: 4.6, d: 1.3, buckets: true }), tailNozzle({ r: 0.5 })],
+    front: [sDuct({ u: L - 9.0, h: 0.82, w: 0.26 }), (g) => rearPod(g, { u0: L - 9.4, vc: VB + 0.8 * D, len: 4.6, d: 1.3, buckets: true }), tailNozzle({ r: 0.5 })],
   };
 }
 
@@ -220,8 +222,8 @@ function l1011(o) {
     nose: { len: 1.3, lenB: 1.15, tip: 0.42, tb: 1.55 }, cockpit: { a: 0.33, b: 0.74, bot: 0.64, h: 0.12 },
     tail: { len: 2.6, bot: 0.5, top: 0.88, topLen: 0.45 },
     belly: { from: W(17.5), to: W(31.0), drop: 0.35 },
-    fin: { teRoot: L - 1.2, rootV: VT + 1.1, down: VB + 0.6 * D, h: 16.87, tipChord: 2.8, sweepLE: 38, sweepTE: 20 },
-    stab: { k: 1.5, root: 9.0, rootV: 0.62 },
+    fin: { teRoot: L - 1.49, rootV: VT + 0.3, down: VB + 0.6 * D, h: 16.87, tipChord: 2.8, sweepLE: 38, sweepTE: 20 },
+    stab: { k: 1.15, root: 7.8, rootV: 0.64, lowV: 0.72 },
     wing: { root: [W(20.0), VB + 0.3 * D], sweep: 35, semi: o.semi, dih: 7, rootChord: 10, teRootK: 0.85, tipChord: 2.4, fairings: 3 },
     engines: [{ kind: "fan", eta: 0.3, fwd: 5.0, drop: 0.15, ...e }],
     gear: { main: [{ u: W(25.5), r: 0.63, axles: 2, pitch: 1.5 }], nose: { u: 4.7, r: 0.5, doorU: 3.4 } },
@@ -229,27 +231,36 @@ function l1011(o) {
     windows: { from: 7.6, to: L - 12.2 },
     antennasTop: [[10.5], [W(24)]], antennasBot: [[12], [W(31), 0.3]], beaconU: W(17),
     seams: [5.4, W(13), W(17.5), L - 16, L - 5],
-    front: [sDuct({ u: L - 14.5, len: 7.8, h: 1.25, ring: 1.2 }), tailNozzle({ r: 0.85 })],
+    front: [sDuct({ u: L - 9.6, h: 1.25, w: 0.38, join: 1.0 }), tailNozzle({ r: 0.85 })],
   };
 }
 
 function concorde() {
-  const L = 61.66, D = 3.3, VB = 2.2, VT = VB + D;
+  const L = 61.66, D = 3.3, VB = 2.7, VT = VB + D;
+  // Ogival delta seen from the side: root under the fuselage, outer wing drooping below it (conical camber).
   const deltaWing = (g) => {
-    pth(g, [["M", 14.5, VB + 0.55], ["C", 20, VB + 0.95, 28, VB + 1.1, 36, VB + 1.0], ["C", 44, VB + 0.9, 52, VB + 0.62, 59.8, VB + 0.42], ["L", 59.8, VB + 0.12], ["L", 46, VB - 0.02], ["C", 36, VB - 0.08, 26, VB + 0.02, 14.5, VB + 0.35], ["Z"]],
-      `fill="${g.vgrad(VB + 1.1, VB - 0.08, [[0, "#c9cdd1"], [0.3, "#6d7379"], [1, "#4b5056"]])}" ${st(0.6, OUT_D)}`);
-    pth(g, [["M", 14.6, VB + 0.53], ["C", 20, VB + 0.93, 28, VB + 1.08, 36, VB + 0.98], ["C", 44, VB + 0.88, 52, VB + 0.6, 59.7, VB + 0.4]], `fill="none" ${st(1.6, "#e4e7ea")}`);
-    g.add(`<g fill="none" ${st(0.45, "#3f444a")}>${[52.6, 56.0].map((u) => `<path d="${g.d([["M", u, VB + 0.62], ["L", u, VB + 0.05]])}"/>`).join("")}</g>`);
+    const out = [["M", 13.8, VB + 0.42], ["C", 16, VB + 0.3, 18, VB + 0.12, 22, VB - 0.02], ["C", 30, VB - 0.25, 38, VB - 0.45, 44, VB - 0.55], ["C", 48, VB - 0.62, 51, VB - 0.72, 52.6, VB - 0.78], ["L", 57.6, VB - 0.72], ["L", 58.6, VB - 0.08], ["L", 58.8, VB + 0.42], ["Z"]];
+    const d = g.d(out);
+    g.add(`<path d="${d}" fill="${g.vgrad(VB + 0.1, VB - 0.8, [[0, "#8c9298"], [0.45, "#626870"], [1, "#4a4f55"]])}" ${st(0.6, OUT_D)}/>`);
+    innerShade(g, d, { dy: 0.2, blur: 0.2, opacity: 0.3, color: "#22262a", mx: 0.05, my: 1.5 });
+    pth(g, [["M", 13.9, VB + 0.4], ["C", 16, VB + 0.28, 18, VB + 0.1, 22, VB - 0.04], ["C", 30, VB - 0.27, 38, VB - 0.47, 44, VB - 0.57], ["C", 48, VB - 0.64, 51, VB - 0.74, 52.6, VB - 0.8]], `fill="none" ${st(1.4, "#d9dcdf")}`);
+    pth(g, [["M", 30, VB - 0.05], ["C", 40, VB - 0.22, 50, VB - 0.32, 58.4, VB - 0.1]], `fill="none" ${st(0.45, "#7b8187")}`); // root/outer-wing junction
+    g.add(`<g fill="none" ${st(0.5, "#3f444a")}>${[[53.4, 0.75], [55.6, 0.73]].map(([u, dv]) => `<path d="${g.d([["M", u, VB - dv], ["L", u + 0.15, VB - 0.12]])}"/>`).join("")}</g>`);
     pth(g, [["M", 0.05, VB + 0.45 * D], ["L", -1.6, VB + 0.45 * D]], `fill="none" ${st(1.4, "#8d949b")}`); // nose probe
     g.add(`<path d="${g.d([["M", 6.2, VB + 0.95 * D], ["C", 6.1, VB + 0.6 * D, 6.1, VB + 0.3 * D, 6.25, VB + 0.05 * D]])}" fill="none" ${st(0.5, "#b4b9be")}/>`); // droop-nose joint
   };
+  // Twin-engine nacelle under the wing: raked rectangular intake, long box, eyelid nozzles.
   const nacelles = (g) => {
-    const t = VB - 0.02, b = VB - 1.3;
-    pth(g, [["M", 37.6, t], ["L", 55.6, t], ["L", 56.2, b + 0.25], ["L", 55.6, b + 0.1], ["L", 43.0, b], ["L", 40.4, b + 0.05], ["L", 37.2, t - 0.35], ["Z"]],
-      `fill="${g.vgrad(t, b, [[0, "#eef0f2"], [0.45, "#d5d9dd"], [1, "#8d939a"]])}" ${st(0.6, OUT_D)}`);
-    pth(g, [["M", 37.2, t - 0.35], ["L", 40.4, b + 0.05], ["L", 40.0, b + 0.05], ["L", 36.95, t - 0.32], ["Z"]], `fill="#30353a"`);
-    pth(g, [["M", 55.6, t], ["L", 57.4, t - 0.15], ["L", 57.4, b + 0.35], ["L", 55.6, b + 0.1], ["Z"]], `fill="${g.vgrad(t, b, [[0, "#9ba1a7"], [1, "#4b5056"]])}" ${st(0.5, OUT_D)}`);
-    g.add(`<g fill="none" ${st(0.4, "#b9bec3")}>${[42.5, 47.5, 52.0].map((u) => `<path d="${g.d([["M", u, t], ["L", u, b + 0.03]])}"/>`).join("")}</g>`);
+    const t = VB - 0.5, b = VB - 1.72;
+    const box = [["M", 37.4, t], ["L", 55.4, VB - 0.66], ["L", 55.4, b + 0.12], ["L", 42.0, b], ["L", 38.9, b], ["Z"]];
+    const bd = g.d(box);
+    g.add(`<path d="${bd}" fill="${g.vgrad(t, b, [[0, "#f3f4f5"], [0.4, "#e7e9ec"], [1, "#c9cdd1"]])}" ${st(0.6, OUT)}/>`);
+    innerShade(g, bd, { dy: -0.32, blur: 0.3, opacity: 0.55, color: "#2f3338", mx: 0.05, my: 1.0 });
+    pth(g, [["M", 37.4, t], ["L", 38.9, b], ["L", 38.55, b], ["L", 37.1, t + 0.02], ["Z"]], `fill="#2a2e32"`); // intake mouth
+    pth(g, [["M", 37.45, t], ["L", 38.95, b]], `fill="none" ${st(0.9, "#e5e8ea")}`);
+    pth(g, [["M", 55.4, VB - 0.66], ["L", 57.5, VB - 0.82], ["C", 57.9, VB - 1.1, 57.9, b + 0.4, 57.4, b + 0.3], ["L", 55.4, b + 0.12], ["Z"]], `fill="${g.vgrad(VB - 0.66, b, [[0, "#a3a9af"], [0.5, "#737980"], [1, "#43484e"]])}" ${st(0.5, OUT_D)}`);
+    pth(g, [["M", 56.4, VB - 0.72], ["C", 56.6, VB - 1.1, 56.6, b + 0.4, 56.4, b + 0.2]], `fill="none" ${st(0.45, "#3f444a")}`);
+    g.add(`<g fill="none" ${st(0.4, "#b9bec3")}>${[43.0, 47.5, 51.8].map((u) => `<path d="${g.d([["M", u, t - (u - 37.4) * 0.009], ["L", u, b + 0.03]])}"/>`).join("")}</g>`);
   };
   return {
     title: "Aérospatiale/BAC Concorde", L, D, VB, floor: 0.25, winV: 0.6,
