@@ -299,7 +299,7 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
           <h3 id="rp-proj">Projection <span className="hint">{MONTHS[year.month]} {year.year}{livePrev ? ", your fleet" : ""}{hoursShort ? `, at ${achievable}/wk (capped from ${freq})` : ""}</span></h3>
           {capLine && <p className="rc-note" role="status"><b>Capped to {achievable}/wk.</b> {hours!.needed.toFixed(1)} block h/wk needed for {freq}/wk, {Math.max(0, hours!.free).toFixed(1)} free.</p>}
           {substituted && <p className="rc-note" role="status"><b>{substituted}.</b></p>}
-          {planned && <p className="rc-note" role="status"><b>Planned, not operating.</b> No free aircraft; standalone model.</p>}
+          {planned && <p className="rc-note" role="status"><b>Planned, not operating.</b> No free aircraft; standalone model. <button type="button" className="link-btn" onClick={() => { if (typeId) usePickerMemory.getState().remember("order", typeId); end(); useUi.getState().setView("orders"); }}>Order aircraft</button></p>}
           {livePrev && !livePrev.ownershipIncluded && livePrev.operatedFraction > 0 && livePrev.operatedFraction < 1 && <p className="rc-note" role="status">Fleet can fly {Math.round(livePrev.operatedFraction * 100)}% of round trips.</p>}
           <div className="rp-proj rc-proj-kpis" aria-live="polite" aria-busy={settling}>
             <div><span className="k">{settling ? "Updating" : `${livePrev && !livePrev.ownershipIncluded ? "Route profit/wk" : "Profit/wk"}${hoursShort ? ` at ${achievable}/wk` : ""}`}</span><span className={`big ${!ev || noFlights ? "" : ev.profit >= 0 ? "pos" : "neg"}`}>{ev && !noFlights ? usdSigned(ev.profit) : "–"}</span></div>

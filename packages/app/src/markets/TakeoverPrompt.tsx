@@ -10,6 +10,9 @@ import { Modal } from "../shell/Modal";
  * A competitor's offer for the player's airline: the game pauses and this card asks for an answer (accept, decline, or decide later on
  * the Markets screen before it expires). "Later" hides it until the next offer.
  */
+/** Offers the player chose to decide later on Markets, kept for the session so the window does not come back when it remounts. */
+const deferred = new Set<string>();
+
 export function TakeoverPrompt() {
   useSim();
   const sim = bridge.getSim?.() ?? null;
@@ -17,7 +20,7 @@ export function TakeoverPrompt() {
   const [keepName, setKeepName] = useState(false);
   const push = useToasts((s) => s.push);
   const bid = sim ? marketOf(sim).incoming[0] : undefined;
-  if (!sim || !bid || later === bid.id) return null;
+  if (!sim || !bid || later === bid.id || deferred.has(bid.id)) return null;
   // The value quoted is the one the offer was based on (the same figure the notice gave).
   const v = bid.valueUsd;
   const pv = mergePreview(sim, bid.id);
@@ -26,7 +29,7 @@ export function TakeoverPrompt() {
     if (r && !r.ok) push("alert", r.error.message); else push(accept ? "good" : "info", r?.message ?? "Done.");
   };
   return (
-    <Modal label="Takeover offer" className="dialog takeover-card" initialFocus="h2" onClose={() => setLater(bid.id)}>
+    <Modal label="Takeover offer" className="dialog takeover-card" initialFocus="h2" onClose={() => { deferred.add(bid.id); setLater(bid.id); }}>
       <h2 tabIndex={-1}>Takeover offer from {bid.rivalName}</h2>
       <p><b>{bid.rivalName}</b> offers <b>{formatMoney(bid.priceUsd)}</b> for {sim.airlineName}, {Math.round((bid.priceUsd / Math.max(1, v) - 1) * 100)}% above your value of {formatMoney(v)} when it made the offer. It expires on {formatDate(bid.expiresDay)}.</p>
       <ul>
@@ -37,7 +40,7 @@ export function TakeoverPrompt() {
       <div className="mk-actions">
         <button className="primary" onClick={() => answer(true)}>Accept and merge</button>
         <button onClick={() => answer(false)}>Decline</button>
-        <button onClick={() => { setLater(bid.id); useUi.getState().setView("markets"); }}>Decide later (Markets)</button>
+        <button onClick={() => { deferred.add(bid.id); setLater(bid.id); useUi.getState().setView("markets"); }}>Decide later (Markets)</button>
       </div>
     </Modal>
   );
