@@ -452,7 +452,7 @@ export const FARE_SOLVER_PARAMS = {
   /** Lowest local load factor the solve aims for, however large the bias. */
   minLocalTarget: 0.3,
   /** The solve never raises the economy fare above this multiple of the market's benchmark fare (runaway guard; game-design value). */
-  ceilingBenchmarkMultiple: 6,
+  ceilingBenchmarkMultiple: 3,
 } as const;
 
 /** Every fare class multiplied by `scale` (premium fares keep their ratio to economy). */
