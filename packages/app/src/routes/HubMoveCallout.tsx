@@ -70,8 +70,8 @@ export function HubMoveCallout({ originId, destinationId, typeId, available, nee
   };
   return (
     <div className="rc-callout" role="group" aria-label={`Move aircraft to ${code}`}>
-      <p>{why} Move aircraft to {code}; idle aircraft only.</p>
-      {rows.length === 0 ? <p className="hint">You have no aircraft at other hubs to move.</p> : (
+      <p>{why} {rows.length === 0 ? "" : `Move aircraft to ${code}; idle aircraft only.`}</p>
+      {rows.length === 0 ? <p className="hint">You have no aircraft at other hubs or outstations to move here. Lower the frequency, pick another aircraft type, or order more aircraft (Orders).</p> : (
         <>
           {eligible.length === 0 && <p className="hint">No idle aircraft that can fly {code} to {destinationId} is at another hub.</p>}
           {eligible.length > 0 && (
@@ -89,9 +89,9 @@ export function HubMoveCallout({ originId, destinationId, typeId, available, nee
           )}
         </>
       )}
-      <button type="button" className="primary" disabled={chosen.length === 0} title={chosen.length === 0 ? "Select at least one aircraft" : undefined} onClick={confirm}>
+      {rows.length > 0 && <button type="button" className="primary" disabled={chosen.length === 0} title={chosen.length === 0 ? "Select at least one aircraft" : undefined} onClick={confirm}>
         {chosen.length === 0 ? `Move aircraft to ${code}` : `Move ${chosen.length} aircraft to ${code} (+${addHours.toFixed(0)} h/wk)`}
-      </button>
+      </button>}
     </div>
   );
 }

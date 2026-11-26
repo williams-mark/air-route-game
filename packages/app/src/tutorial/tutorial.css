@@ -1,0 +1,32 @@
+/* Tutorial coach card: bottom centre of the main area, above the row of the time controls so it never covers them, and above the notification dock (z 40) so a phone-width dock cannot hide it. Theme colours only. */
+.tut-card {
+  position: absolute; z-index: 45; left: 50%; bottom: 5rem; transform: translateX(-50%);
+  width: min(30rem, calc(100% - 2rem)); max-height: calc(100% - 7rem); overflow-y: auto;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-top: 3px solid var(--accent);
+  border-radius: 10px; box-shadow: var(--shadow); padding: .7rem 1rem .8rem;
+}
+.tut-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.tut-step { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
+.tut-card h2 { margin: .2rem 0 .4rem; font-size: 1.05rem; }
+.tut-body { font-size: .88rem; line-height: 1.45; }
+.tut-body p { margin: 0 0 .5rem; }
+.tut-body ul { margin: 0 0 .5rem; padding-left: 1.2rem; }
+.tut-body .hint { color: var(--text-dim); font-size: .8rem; }
+.tut-todo { margin: .2rem 0 .5rem; font-size: .88rem; font-weight: 600; color: var(--accent); }
+.tut-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.tut-actions .link-btn { margin-left: auto; }
+.tut-pill {
+  position: absolute; z-index: 45; left: 50%; bottom: 5rem; transform: translateX(-50%); max-width: calc(100% - 2rem);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: var(--panel); color: var(--text); border: 1px solid var(--accent); border-radius: 999px; box-shadow: var(--shadow); padding: .4rem .9rem; font-size: .82rem;
+}
+/* The element the current step points at. */
+.tut-target { outline: 3px solid var(--accent) !important; outline-offset: 2px; border-radius: 6px; animation: tut-pulse 1.6s ease-in-out infinite; }
+@keyframes tut-pulse { 50% { outline-color: transparent; } }
+@media (max-width: 720px) {
+  /* Phones: sit above the time controls rather than beside them. */
+  .tut-card, .tut-pill { bottom: 4.8rem; }
+}
+/* Start screen: the tutorial entry. */
+.start-tutorial { display: flex; flex-direction: column; align-items: flex-start; gap: .15rem; text-align: left; padding: .7rem 1rem; border: 1px solid var(--accent); border-radius: 10px; background: var(--panel-2); color: var(--text); }
+.start-tutorial span { font-size: .8rem; color: var(--text-dim); }

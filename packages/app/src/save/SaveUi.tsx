@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { aircraftTypes, airports } from "@arg/data";
-import { earliestStartYear, hubCandidates, startFleetError, startYearError, STARTING_AIRLINE } from "@arg/sim";
+import { DIFFICULTY, earliestStartYear, hubCandidates, startFleetError, startYearError, STARTING_AIRLINE } from "@arg/sim";
 import { StartFleet, prunePicks, type FleetPick } from "./StartFleet";
 import { countryName } from "../routes/geoNames";
 import { hubsByContinent, START_HUB_COUNT } from "./startHubs";
@@ -12,7 +12,13 @@ import { useToasts } from "../routes/store";
 import { exportToFile, importFromFile, latestSlot, loadFromSlot, parseSeed, saveToSlot, slotName, type Outcome } from "./saves";
 import { ALL_SLOTS, getStore, MANUAL_SLOTS, type SlotId, type SlotMeta } from "./store";
 import { Modal } from "../shell/Modal";
+import { initialTutorial, TUTORIAL_FLEET, TUTORIAL_HUB, TUTORIAL_SEED, TUTORIAL_YEAR } from "../tutorial/script";
+import { jan1Day } from "@arg/sim";
+import "../tutorial/tutorial.css";
 import "./save.css";
+
+/** Starting cash by difficulty (sim rivals/config.ts DIFFICULTY). */
+const DIFFICULTY_CASH = { easy: DIFFICULTY.easy.startingCashUsd, medium: DIFFICULTY.medium.startingCashUsd, hard: DIFFICULTY.hard.startingCashUsd } as const;
 
 /** What each difficulty changes (sim rivals/config.ts DIFFICULTY). */
 const DIFFICULTY_HINT: Record<"easy" | "medium" | "hard", string> = {
@@ -158,6 +164,17 @@ export function StartScreen() {
             <span>{latest.airline} {"·"} {formatDate(latest.day)} {"·"} {slotName(latest.slot)}</span>
           </button>
         ) : (<p className="start-none">{metas === null ? "Looking for saved games…" : "No saved game yet."}</p>)}
+        {bridge.setTutorial && (
+          <button className="start-tutorial" onClick={() => {
+            bridge.newGame?.(TUTORIAL_SEED, { hub: TUTORIAL_HUB, startYear: TUTORIAL_YEAR, presentYear, campaignYears: null, difficulty: "easy", startFleet: TUTORIAL_FLEET, tutorial: initialTutorial(jan1Day(TUTORIAL_YEAR)) });
+            bridge.setSpeed(0);
+            useUi.getState().setView("map");
+            begin({ ok: true, message: "Tutorial: Los Angeles, January 1978. Follow the card at the bottom of the screen." });
+          }}>
+            <strong>Tutorial: 1978, before deregulation</strong>
+            <span>Learn the game step by step. The government awards your routes until the Airline Deregulation Act; then the skies open.</span>
+          </button>
+        )}
         <form className="start-new" onSubmit={(e) => { e.preventDefault(); if (parsed === null) { setMsg({ ok: false, message: "Seed must be a whole number from 0 to 999999999." }); return; } if (yearErr) { setMsg({ ok: false, message: yearErr }); return; } if (fleetErr) { setMsg({ ok: false, message: fleetErr }); return; } bridge.newGame?.(parsed, { hub, name: airline, startYear: yearNum, presentYear, campaignYears: campaign === "endless" ? null : Number(campaign), difficulty, ...(fleetMode === "custom" ? { startFleet: shownPicks } : {}) }); bridge.setSpeed(0); const home = airports.find((x) => x.id === hub); if (home && hub !== "LAX") useUi.getState().flyTo(presetForAirport(home)); begin({ ok: true, message: `New game (${difficulty}), seed ${parsed}, ${yearNum}, ${airline.trim() || STARTING_AIRLINE} at ${hub}. Paused: press Space to start.` }); }}>
           <label htmlFor="start-airline">Airline name</label>
           <input id="start-airline" className="wide" maxLength={40} value={airline} placeholder={STARTING_AIRLINE} onChange={(e) => setAirline(e.target.value)} />
@@ -196,7 +213,7 @@ export function StartScreen() {
           </select>
           <p id="start-fleet-hint" className="start-hint">{fleetMode === "standard"
             ? "A few aircraft and routes that suit the home airport."
-            : "Brand-new aircraft you own, delivered on day one, up to $500M at list price. You start with no routes, plus the usual cash."}</p>
+            : `Brand-new aircraft, delivered on day one and owned outright: up to $500M at list price, free of charge. They do not come out of your cash, which stays at the difficulty's ${formatMoney(DIFFICULTY_CASH[difficulty])}. You start with no routes.`}</p>
           {fleetMode === "custom" && <div className="start-fleet-wrap"><StartFleet year={yearNum} picks={shownPicks} onChange={setPicks} />{fleetErr && shownPicks.length > 0 && <p className="start-hint bad">{fleetErr}</p>}</div>}
           <label htmlFor="start-seed">Seed</label>
           <input id="start-seed" inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value)} aria-invalid={parsed === null} />

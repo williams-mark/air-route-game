@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { typeShortName } from "../aircraft/names";
 import { aircraftTypes } from "@arg/data";
 import { COMMAND_PARAMS, dayToDate, defaultLayout, FINANCING_PARAMS, homeHubOf, layoutSeats, orderableTypes, orderDiscount, basesOf } from "@arg/sim";
@@ -78,6 +78,9 @@ export default function OrdersView() {
   // first show an inline confirm step, since the deposit cannot be refunded if the order is cancelled.
   const quoteKey = orderQuoteKey({ typeId: type?.id ?? "", count, financing, deliveryHubId });
   const [confirming, setConfirming] = useState(false);
+  const confirmRef = useRef<HTMLDivElement>(null);
+  // The confirm step appears at the bottom of a long form; scroll it into view so it is not left under the time controls.
+  useEffect(() => { if (confirming) confirmRef.current?.scrollIntoView?.({ block: "center", behavior: "smooth" }); }, [confirming]);
   const [lockedKey, setLockedKey] = useState<string | null>(null);
   useEffect(() => { setConfirming(false); setLockedKey(null); }, [quoteKey]);
   useEffect(() => {
@@ -185,7 +188,7 @@ export default function OrdersView() {
           </dl>
           {funding?.refusal && <div className="rp-err" role="alert" data-testid="order-refusal">{funding.refusal}</div>}
           {confirming ? (
-            <div className="order-confirm" role="group" aria-label="Confirm order" data-testid="order-confirm">
+            <div ref={confirmRef} className="order-confirm" role="group" aria-label="Confirm order" data-testid="order-confirm">
               <p>Place order: {formatMoney(deposit)} {financing === "purchase" ? "deposit" : "down payment"}, not refundable if cancelled.</p>
               <button type="button" className="primary" disabled={lockedKey !== null} onClick={place}>Confirm</button>
               <button type="button" onClick={() => setConfirming(false)}>Back</button>

@@ -3,6 +3,8 @@
 import { airports as dataAirports } from "@arg/data";
 import type { SimState } from "./state";
 import { stampAircraftHubs } from "./fleet/hubs";
+import { MIN_START_YEAR } from "./time/startYear";
+import { jan1Day } from "./time/calendar";
 
 /**
  * Save format history. 1: the California/Hawaii/Oregon/Washington game (airports without country and landmass, five West Coast
@@ -118,7 +120,8 @@ export function validateSimState(raw: unknown): string[] {
     }
     if (!isObj(s.world)) { add("the world is missing"); return out; }
     const w = s.world;
-    if (!isInt(w.day) || w.day < 0) add("the day is invalid");
+    // Day 0 is 1 January 2015; games that start earlier (from MIN_START_YEAR) run on negative days.
+    if (!isInt(w.day) || w.day < jan1Day(MIN_START_YEAR)) add("the day is invalid");
     if (!isNum(w.cash)) add("cash is invalid");
     if (!isNum(w.seed)) add("the seed is invalid");
     if (!Array.isArray(w.routes)) add("the route list is missing");

@@ -27,6 +27,7 @@ export function GameOver() {
         <dt>Fleet</dt><dd>{aircraft} aircraft{onOrder > 0 ? `, ${onOrder} on order` : ""}</dd>
         <dt>Routes</dt><dd>{sim.routes.length}</dd>
       </dl>
+      <p className="hint">The bankrupt airline is not autosaved. Loading a save, or Continue on the main menu, goes back to your last save from before the bankruptcy.</p>
       <div className="gameover-actions">
         <button className="primary" onClick={() => setDialog("load")}>Load a save</button>
         <button onClick={() => setStart(true)}>New game</button>

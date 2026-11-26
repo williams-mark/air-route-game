@@ -68,6 +68,7 @@ export function StartFleet({ year, picks, onChange }: { year: number; picks: Fle
           })}
         </ul>
       )}
+      {addId && !fits(addId) && <p className="start-hint bad" role="status">{count >= START_FLEET_MAX_AIRCRAFT ? `At most ${START_FLEET_MAX_AIRCRAFT} aircraft.` : `${byId.get(addId) ? typeShortName(byId.get(addId)!) : addId} costs more than the ${formatMoney(Math.max(0, left))} left in the budget.`}</p>}
       <div className="sf-budget">
         <div className="sf-bar" role="img" aria-label={`${formatMoney(value)} of ${formatMoney(START_FLEET_BUDGET_USD)} budget used`}><i style={{ width: `${share * 100}%` }} /></div>
         <span>{formatMoney(value)} of {formatMoney(START_FLEET_BUDGET_USD)} {"·"} {formatMoney(Math.max(0, left))} left {"·"} {count} aircraft</span>
