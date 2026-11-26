@@ -91,6 +91,13 @@ describe("product policy in the game", () => {
     expect(rep.some((r) => r.routes > 0 && r.playerScore < 50)).toBe(true);
   }, 120_000);
 
+  it("a policy stays in force as time passes (two game years), through every daily step", () => {
+    const pol = clone(DEFAULT_POLICY); pol.service.short.meal = "meal"; pol.ancillary.short.bagFee = 25;
+    const after = runDays(applyCommand(base(), { kind: "setProductPolicy", policy: pol }).state, 730);
+    expect(after.product!.policy.service.short.meal).toBe("meal");
+    expect(after.product!.policy.ancillary.short.bagFee).toBe(25);
+  }, 240_000);
+
   it("refuses an invalid policy", () => {
     const bad = clone(DEFAULT_POLICY); bad.ancillary.short.seatFee = 1e6;
     const r = applyCommand(base(), { kind: "setProductPolicy", policy: bad });

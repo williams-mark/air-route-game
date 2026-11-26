@@ -150,8 +150,8 @@ export const PRODUCT_PARAMS = {
   saturationGap: 0.04,
   saturationFactor: 0.25,
   /** Satisfaction (weekly target of reputation): per service point vs expectation, and per USD of fees above the default ones. */
-  satisfactionPerPoint: 0.22,
-  satisfactionPerFeeUsd: 1 / 45,
+  satisfactionPerPoint: 0.15,
+  satisfactionPerFeeUsd: 1 / 60,
   /** Reputation moves this fraction of the way to satisfaction each week (about a half-life of 4 months). */
   reputationStep: 1 / 26,
 } as const;

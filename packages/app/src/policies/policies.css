@@ -21,3 +21,5 @@ tr.pol-group th { background: var(--panel-2); font-size: .72rem; text-transform:
 /* Form controls in theme colours (light and dark). */
 .policies select, .policies input[type="number"], .markets .mk-bid input { font: inherit; font-size: .86rem; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: .35rem .5rem; min-width: 0; }
 .policies input[type="number"] { font-variant-numeric: tabular-nums; }
+.pol-sticky { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; padding: .55rem .8rem; margin: .4rem 0; background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; box-shadow: var(--shadow); font-size: .88rem; }
+.pol-actions .hint { font-size: .82rem; color: var(--text-dim); align-self: center; }

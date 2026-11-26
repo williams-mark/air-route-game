@@ -5,7 +5,7 @@ export interface ValuationPoint {
   day: Day;
   /** The player's equity value, USD. */
   valueUsd: number;
-  /** The ten most valuable competitors at that date: [airline id, value USD]. */
+  /** Every trading competitor at that date, most valuable first: [airline id, value USD rounded to 0.1M]. (Older samples: top ten.) */
   rivals: [Id, number][];
 }
 

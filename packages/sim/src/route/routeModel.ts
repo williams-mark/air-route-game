@@ -557,6 +557,8 @@ export interface HubConnectionInput {
   reservedSeats2?: number;
   /** The airline's service level per cabin (absent = standard). */
   serviceLevels?: Partial<Record<CabinClass, ServiceLevel>>;
+  /** Product policy and reputation (policy/product.ts): the connecting passenger judges the same product as a local one. */
+  product?: { policy: ProductPolicy; reputation: number };
   /** World field: the competing itineraries in the through market (replace the synthetic rivals; see RouteWeekOptions.competitors). */
   competitors?: Itinerary[];
 }
@@ -648,18 +650,19 @@ export function evaluateHubConnection(input: HubConnectionInput): HubConnection 
     ...makeLeg(id, o, d, dd, speedOf(groups), route.weeklyFrequency * frac, 1),
     weeklySeats: seats,
   });
+  const rivals = input.competitors ?? buildRivals(a, b, dist, rivalSizingMarket(a, b, dist, market, demand, cfg.choice, (m) => buildRivals(a, b, dist, m, cfg)), cfg);
+  const prod = input.product ? productEffect(input.product.policy, bandOf(dist), input.product.reputation) : null;
   const player: Itinerary = {
     id: `player:${a.id}-${h.id}-${b.id}`,
     carrier: "player",
-    fare: throughFare,
-    quality: 0.5,
+    fare: prod ? Math.max(1, throughFare + prod.perceivedFareUsd) : throughFare,
+    quality: prod ? saturateQuality(0.5 + prod.qualityDelta, rivals.length > 0 ? Math.max(...rivals.map((r) => r.quality)) : null) : 0.5,
     marketDistanceKm: dist,
     legs: [
       mk(`player:${leg1.id}`, a.id, h.id, d1, grp1, leg1, f1, left1),
       mk(`player:${leg2.id}`, h.id, b.id, d2, grp2, leg2, f2, left2),
     ],
   };
-  const rivals = input.competitors ?? buildRivals(a, b, dist, rivalSizingMarket(a, b, dist, market, demand, cfg.choice, (m) => buildRivals(a, b, dist, m, cfg)), cfg);
   const choice = runChoice({
     demand,
     itineraries: [player, ...rivals],

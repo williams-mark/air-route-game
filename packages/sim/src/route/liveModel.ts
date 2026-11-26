@@ -193,7 +193,7 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
     const t = effectiveTargetLoadFactor(r, inp.farePolicies, airports, inp.hubs);
     if (t !== undefined) (loadCap ??= {})[r.id] = t;
   }
-  const net = evaluateNetwork({ loadCap, competitorsFor, connectionMarkdown: markdown, routes: pricedRoutes, airports, types, day, weeks, fleet: routeFleet, flights: routeFlights, operatedFraction: routeFraction, serviceLevels: inp.serviceLevels });
+  const net = evaluateNetwork({ loadCap, competitorsFor, connectionMarkdown: markdown, routes: pricedRoutes, airports, types, day, weeks, fleet: routeFleet, flights: routeFlights, operatedFraction: routeFraction, serviceLevels: inp.serviceLevels, product: inp.product });
   revenue += net.deltaRevenue / 7;
   routeCosts += net.deltaCosts / 7;
   for (const [id, evaluation] of Object.entries(net.evaluations)) {

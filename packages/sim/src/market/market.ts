@@ -24,6 +24,7 @@ import { defaultLayout } from "../fleet/layout";
 import { initialMeta } from "../fleet/maintenance";
 import { airportOpen } from "../world/closures";
 import { dayToDate } from "../time/calendar";
+import { dayLabel } from "../world/closures";
 import type { BidRecord, IncomingBid, MarketState, ValuationPoint } from "./types";
 
 export const MARKET_PARAMS = {
@@ -77,19 +78,27 @@ export function playerValuation(state: SimState): Valuation {
     const t = types.get(ac.typeId);
     if (t && holdingOf(state, ac) === "purchase") fleet += saleValueUsd(state, ac, t);
   }
-  const from = state.world.day - 365;
-  const recent = state.snapshots.filter((s) => s.day >= from);
-  const sum = recent.reduce((s, x) => s + x.profit, 0);
-  const earnings = recent.length >= 30 ? sum * (365 / recent.length) : 0;
-  return value(state.world.cash, fleet, earnings);
+  return value(state.world.cash, fleet, smoothedEarnings(state.snapshots.map((x) => x.profit), 365));
 }
 
 export function rivalValuation(air: RivalAirline, types: ReadonlyMap<Id, AircraftType>): Valuation {
   let fleet = 0;
   for (const f of air.fleet) { const t = types.get(f.typeId); if (t) fleet += aircraftBookValueUsd(t, f.ageDays) * MARKET_PARAMS.rivalFleetFactor; }
-  const n = air.profit52.length;
-  const earnings = n >= 4 ? air.profit52.reduce((s, x) => s + x, 0) * (52 / n) : 0;
-  return value(air.cash, fleet, earnings);
+  return value(air.cash, fleet, smoothedEarnings(air.profit52, 52));
+}
+
+/**
+ * Annual earnings the valuation uses, from per-period profits (oldest first; `perYear` periods a year). Two steps keep the value
+ * from jumping: a young airline's annualised profit is weighted by how much of a year it has behind it (one good first month does not
+ * count as a year), and the latest year is blended half-and-half with the year before when there is one.
+ */
+export function smoothedEarnings(profits: readonly number[], perYear: number): number {
+  const n = profits.length;
+  if (n === 0) return 0;
+  const last = profits.slice(-perYear);
+  const annual = (last.reduce((s, x) => s + x, 0) / last.length) * perYear * Math.min(1, last.length / perYear);
+  const prior = n >= 2 * perYear ? profits.slice(-2 * perYear, -perYear) : null;
+  return prior ? 0.5 * annual + 0.5 * prior.reduce((s, x) => s + x, 0) : annual;
 }
 
 const typeMap = (state: SimState) => new Map(state.aircraftTypes.map((t) => [t.id, t]));
@@ -107,10 +116,35 @@ export function reservationPriceUsd(state: SimState, air: RivalAirline): number 
 
 /** A rough guide price the player can see: the market estimate times the usual premium, rounded. */
 export function guidePriceUsd(state: SimState, air: RivalAirline): number {
-  const v = rivalValuation(air, typeMap(state)).valueUsd * (isDistressed(air) ? MARKET_PARAMS.distressedPremium : MARKET_PARAMS.premium);
-  return roundSig(v);
+  // The board's asking price this month, rounded up to three significant figures: an offer at the guide price is accepted.
+  return ceilSig(reservationPriceUsd(state, air));
 }
 const roundSig = (x: number) => { if (x <= 0) return 0; const p = Math.pow(10, Math.floor(Math.log10(x)) - 1); return Math.round(x / p) * p; };
+const ceilSig = (x: number) => { if (x <= 0) return 0; const p = Math.pow(10, Math.floor(Math.log10(x)) - 2); return Math.ceil(x / p) * p; };
+
+/** Day from which the player may make another offer for this airline (cool-down after a rejection or a purchase); null = now. */
+export function nextBidDay(state: SimState, air: RivalAirline): Day | null {
+  const m = marketOf(state);
+  const own = m.cooldown[air.id] ?? -Infinity;
+  const last = [...m.bids].reverse().find((b) => b.outcome === "accepted");
+  const after = last ? last.day + MARKET_PARAMS.acquisitionCooldownDays : -Infinity;
+  const d = Math.max(own, after);
+  return d > state.world.day ? d : null;
+}
+
+/** What buying `air` at `priceUsd` would do: cash change, what joins, distance from the player's network. */
+export interface DealPreview { priceUsd: number; targetCashUsd: number; netCashUsd: number; cashAfterUsd: number; aircraft: number; fleetValueUsd: number; routes: number; bases: Id[]; valueUsd: number; valueChangeUsd: number; nearestBaseKm: number | null }
+export function dealPreview(state: SimState, air: RivalAirline, priceUsd: number): DealPreview {
+  const v = rivalValuation(air, typeMap(state));
+  const bases = ownedHubsOf(state).concat(state.outstations ?? []);
+  const hub = state.airports.find((a) => a.id === air.bases[0]);
+  const near = hub ? Math.min(...bases.map((b) => { const ap = state.airports.find((a) => a.id === b); return ap ? distanceKm(hub, ap) : Infinity; })) : Infinity;
+  return {
+    priceUsd, targetCashUsd: air.cash, netCashUsd: air.cash - priceUsd, cashAfterUsd: state.world.cash + air.cash - priceUsd,
+    aircraft: air.fleet.length, fleetValueUsd: v.fleetUsd, routes: air.routes.length, bases: air.bases, valueUsd: v.valueUsd,
+    valueChangeUsd: v.valueUsd - priceUsd, nearestBaseKm: Number.isFinite(near) ? near : null,
+  };
+}
 
 export const emptyMarket = (): MarketState => ({ history: [], incoming: [], bids: [], hostileUntil: {}, cooldown: {}, payoutUsd: 0, merged: [], nextBid: 1 });
 export const marketOf = (s: SimState): MarketState => s.market ?? emptyMarket();
@@ -144,9 +178,9 @@ export function bidForAirline(state: SimState, airlineId: Id, priceUsd: number):
   const m = marketOf(state);
   const reserve = reservationPriceUsd(state, air);
   if (priceUsd < reserve) {
-    const hint = roundSig(reserve * (1 + 0.05 * (makeRng(mixSeed(state.world.seed, hashId(air.id) + state.world.day))() - 0.5)));
+    const hint = ceilSig(reserve);
     const rec: BidRecord = { day: state.world.day, rivalId: air.id, rivalName: air.name, priceUsd, outcome: "rejected", hintUsd: hint };
-    const text = `${air.name}'s board rejected your offer of ${usdM(priceUsd)}. It signalled it would consider about ${usdM(hint)}. Try again in ${MARKET_PARAMS.rejectCooldownDays} days.`;
+    const text = `${air.name}'s board rejected your offer of ${usdM(priceUsd)}. Its asking price this month is ${usdM(hint)} (it moves a little each month). You can offer again from ${dayLabel(state.world.day + MARKET_PARAMS.rejectCooldownDays)}.`;
     const next: SimState = { ...state, market: { ...m, bids: [...m.bids, rec], cooldown: { ...m.cooldown, [air.id]: state.world.day + MARKET_PARAMS.rejectCooldownDays } } };
     return { state: pushNotices(next, [say(state, text)]), ok: false, message: text };
   }
@@ -278,7 +312,7 @@ export function stepMarket(state: SimState): SimState {
   const mine = playerValuation(state);
   const active = state.rivals.airlines.filter((a) => a.status === "active");
   const values = active.map((a) => ({ a, v: rivalValuation(a, types).valueUsd })).sort((x, y) => y.v - x.v || (x.a.id < y.a.id ? -1 : 1));
-  const point: ValuationPoint = { day, valueUsd: mine.valueUsd, rivals: values.slice(0, 10).map((x) => [x.a.id, Math.round(x.v)]) };
+  const point: ValuationPoint = { day, valueUsd: mine.valueUsd, rivals: values.map((x) => [x.a.id, Math.round(x.v / 1e5) * 1e5]) };
   m = { ...m, history: [...m.history, point].slice(-MARKET_PARAMS.historyMax) };
 
   // A competitor's offer for the player: only much larger airlines, more likely when the player is weak (distress or a value well below its peak).

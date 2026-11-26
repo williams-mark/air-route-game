@@ -116,7 +116,7 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .palette-list .lbl { flex: 1; }
 .palette-list li.empty { cursor: default; color: var(--text-dim); }
 
-@media (max-width: 1100px) { .stat .k { display: none; } .stats { gap: 1rem; } .brand .chip { display: none; } }
+@media (max-width: 1100px) { .stat .k { font-size: .56rem; letter-spacing: .03em; white-space: nowrap; } .stats { gap: 1rem; } .brand .chip { display: none; } }
 
 /* Narrow layouts. Desktop is the target; the supported minimum is 360 px wide (see QA.md). */
 @media (max-width: 900px) {

@@ -23,7 +23,9 @@ export function LineChart({ points, format, label, height = 180, zeroLine = fals
     lo -= pad; hi += pad;
     const x = (d: number) => L + (x1 === x0 ? 0.5 : (d - x0) / (x1 - x0)) * (W - L - R);
     const y = (v: number) => T + ((hi - v) / (hi - lo)) * (H - T - B);
-    const ticks = [0, 1, 2, 3].map((k) => lo + pad + ((hi - lo - 2 * pad) * k) / 3);
+    // Ticks span the data itself (lowest to highest point, the latest included), so no point sits above the top gridline.
+    const dLo = Math.min(...ys, zeroLine ? 0 : Infinity), dHi = Math.max(...ys, zeroLine ? 0 : -Infinity);
+    const ticks = [0, 1, 2, 3].map((k) => dLo + ((dHi - dLo) * k) / 3);
     return { x, y, ticks, x0, x1 };
   }, [points, zeroLine, H]);
   if (!geo || points.length < 2) return <p className="hint">Not enough history yet: the chart fills in as months pass.</p>;

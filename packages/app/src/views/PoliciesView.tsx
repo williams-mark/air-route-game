@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AMENITY_LABEL, AMENITY_LEVELS, ANCILLARY_KEYS, ANCILLARY_LABEL, BAND_LABEL, BAND_RANGE, BANDS, CREW_LABEL, CREW_LEVELS, FEE_MAX, MEAL_LABEL, MEAL_LEVELS,
-  PRESETS, policyError, productOf, productReport, reputationLabel, type AncillaryPolicy, type Band, type ProductPolicy,
+  PRESETS, policyError, productOf, productReport, projectedReputation, reputationLabel, type AncillaryPolicy, type Band, type ProductPolicy,
 } from "@arg/sim";
 import { bridge, useSim } from "../sim/useSim";
 import { useToasts } from "../routes/store";
@@ -52,6 +52,13 @@ export default function PoliciesView() {
         <p>Set onboard service and extra fees for each distance band, like fare categories. Better service than your competitors wins passengers (business travellers most), but only up to a point: far above the best airline in a market, extra service mostly adds cost. Too little service, or fees above what passengers expect, lose passengers and slowly damage your reputation, which then costs you on every route.</p>
       </header>
 
+      {dirty && (
+        <div className="pol-sticky" role="status">
+          <span>Unsaved changes to your service and fees.</span>
+          <button className="primary" disabled={!!err} onClick={apply}>Apply policy</button>
+          <button onClick={() => setDraft(structuredClone(current.policy))}>Undo</button>
+        </div>
+      )}
       <section className="panel-box pol-rep" aria-label="Reputation">
         <h2>Customer reputation</h2>
         <div className="pol-rep-row">
@@ -63,7 +70,7 @@ export default function PoliciesView() {
             {hist.length > 1 && <span className="hint"> · {Math.abs(trend) < 0.005 ? "steady" : trend > 0 ? "rising" : "falling"} over the last {hist.length - 1} weeks</span>}
           </div>
         </div>
-        <p className="hint">Reputation moves toward how satisfied passengers are with your current policy (now {signed(current.satisfaction * 100)}), about halfway in four months. It changes your product score on every route by up to ±6 points.{sim.product ? "" : " You are on the standard policy, so it stays at zero."}</p>
+        <p className="hint">Reputation moves toward how satisfied passengers are with your current policy (now {signed(current.satisfaction * 100)}), about halfway in four months{sim.product ? <>: about <b>{signed(projectedReputation(rep, current.satisfaction, 13) * 100)}</b> in three months and <b>{signed(projectedReputation(rep, current.satisfaction, 52) * 100)}</b> in a year if nothing changes</> : null}. It moves your product score on every route by up to ±6 points.{sim.product ? "" : " You are on the standard policy, so it stays at zero."}</p>
       </section>
 
       <section className="panel-box" aria-label="Presets">
@@ -81,6 +88,7 @@ export default function PoliciesView() {
             <tr><th scope="col">By distance</th>{report.map((r) => <th key={r.band} scope="col">{BAND_LABEL[r.band]}<span className="hint">{BAND_RANGE[r.band]} · {r.routes} route{r.routes === 1 ? "" : "s"}</span></th>)}</tr>
           </thead>
           <tbody>
+            <tr><th scope="row">Passengers a week</th>{report.map((r) => <td key={r.band} className="num">{r.routes === 0 ? <span className="hint">–</span> : Math.round(r.paxPerWeek).toLocaleString("en-US")}{r.avgEconomyFareUsd !== null && <span className="hint pol-mix">avg economy fare {usd0(r.avgEconomyFareUsd)}</span>}</td>)}</tr>
             <tr className="pol-group"><th scope="rowgroup" colSpan={5}>Onboard service</th></tr>
             <tr><th scope="row">Food and drink</th>{BANDS.map((b) => (
               <td key={b}><select aria-label={`Food and drink, ${BAND_LABEL[b]}`} value={draft.service[b].meal} onChange={(e) => setService(b, "meal", e.target.value)}>{MEAL_LEVELS.map((m) => <option key={m} value={m}>{MEAL_LABEL[m]}</option>)}</select></td>
@@ -118,12 +126,13 @@ export default function PoliciesView() {
 
       <section className="panel-box pol-totals" aria-label="Weekly effect">
         <h2>Weekly effect at today's passenger numbers</h2>
-        <p>Service cost {formatMoney(totals.cost)} ({formatMoney(totals.cost - nowTotals.cost, { sign: true })}) · extras revenue {formatMoney(totals.anc)} ({formatMoney(totals.anc - nowTotals.anc, { sign: true })}).
-          <span className="hint"> Before passengers react: a better product or lower fees also win passengers from competitors, a worse one loses them.</span></p>
+        <p>Service cost {formatMoney(totals.cost)} <span className="hint">(change {formatMoney(totals.cost - nowTotals.cost, { sign: true })})</span> · extras revenue {formatMoney(totals.anc)} <span className="hint">(change {formatMoney(totals.anc - nowTotals.anc, { sign: true })})</span></p>
+        <p className="hint">These are at today's passengers, before they react. A better product or lower fees win passengers from competitors and a worse one loses them. On full flights you see it in who flies, not in the load factor: high-paying local and business passengers are replaced by cheaper connecting and leisure ones, and routes with a target load factor re-price their fares each week. Watch revenue per passenger and the average fare above.</p>
         {err && <p className="rp-err" role="alert">{err}</p>}
         <div className="pol-actions">
           <button className="primary" disabled={!dirty || !!err} onClick={apply}>Apply policy</button>
           <button disabled={!dirty} onClick={() => setDraft(structuredClone(current.policy))}>Undo changes</button>
+          {!dirty && <span className="hint" role="status">No changes to apply: this is your current policy.</span>}
         </div>
       </section>
     </div>

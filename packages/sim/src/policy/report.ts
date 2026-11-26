@@ -4,6 +4,7 @@ import type { Id } from "@arg/contracts";
 import type { SimState } from "../state";
 import type { Archetype } from "../rivals/types";
 import { competitorItinerariesFor } from "../rivals";
+import { distanceKm } from "../geo";
 import { BANDS, bandOf, productEffect, productOf, type Band, type ProductPolicy } from "./product";
 
 export interface BandReport {
@@ -11,6 +12,8 @@ export interface BandReport {
   routes: number;
   /** Passengers per week, both directions (latest reports). */
   paxPerWeek: number;
+  /** Passenger-weighted economy fare on these routes, USD (null with no passengers yet). */
+  avgEconomyFareUsd: number | null;
   servicesUsdPerPax: number;
   ancillaryUsdPerPax: number;
   /** Weekly service cost and ancillary revenue at today's passengers, USD. */
@@ -33,15 +36,17 @@ export function productReport(state: SimState, policy?: ProductPolicy): BandRepo
   const airports = new Map(state.airports.map((a) => [a.id, a]));
   const types = new Map(state.aircraftTypes.map((t) => [t.id, t]));
   const archetypeOf = new Map<Id, Archetype>((state.rivals?.airlines ?? []).map((a) => [a.id, a.archetype]));
-  const acc = new Map<Band, { routes: number; pax: number; rq: number; rw: number; mix: Partial<Record<Archetype, number>> }>();
-  for (const b of BANDS) acc.set(b, { routes: 0, pax: 0, rq: 0, rw: 0, mix: {} });
+  const acc = new Map<Band, { routes: number; pax: number; fareRev: number; rq: number; rw: number; mix: Partial<Record<Archetype, number>> }>();
+  for (const b of BANDS) acc.set(b, { routes: 0, pax: 0, fareRev: 0, rq: 0, rw: 0, mix: {} });
   for (const r of state.world.routes) {
     const rep = state.routeReports[r.id];
     const a = airports.get(r.origin), b = airports.get(r.destination);
-    if (!rep || !a || !b) continue;
-    const x = acc.get(bandOf(rep.evaluation.distanceKm))!;
+    if (!a || !b) continue;
+    // Banded by distance, so a route counts from the day it opens (its first report comes after the next simulated day).
+    const x = acc.get(bandOf(rep?.evaluation.distanceKm ?? distanceKm(a, b)))!;
     x.routes += 1;
-    x.pax += rep.evaluation.passengersPerWeek;
+    x.pax += rep?.evaluation.passengersPerWeek ?? 0;
+    x.fareRev += (rep?.evaluation.passengersPerWeek ?? 0) * r.fares.Y;
     for (const it of competitorItinerariesFor(state.rivals, a, b, types, airports) ?? []) {
       const seats = Math.min(...it.legs.map((l) => l.weeklySeats));
       if (!(seats > 0)) continue;
@@ -55,7 +60,7 @@ export function productReport(state: SimState, policy?: ProductPolicy): BandRepo
     const e = productEffect(pol, band, prod.reputation);
     const mixTotal = Object.values(x.mix).reduce((s, v) => s + (v ?? 0), 0);
     return {
-      band, routes: x.routes, paxPerWeek: x.pax,
+      band, routes: x.routes, paxPerWeek: x.pax, avgEconomyFareUsd: x.pax > 0 ? x.fareRev / x.pax : null,
       servicesUsdPerPax: e.servicesUsdPerPax, ancillaryUsdPerPax: e.ancillaryUsdPerPax,
       serviceCostWeekly: e.servicesUsdPerPax * x.pax, ancillaryWeekly: e.ancillaryUsdPerPax * x.pax,
       playerScore: Math.round((0.5 + e.qualityDelta) * 100),

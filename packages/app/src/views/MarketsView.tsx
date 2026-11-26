@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Id } from "@arg/contracts";
 import {
-  baseJetAPriceUsdPerGallon, bidRefusal, guidePriceUsd, isDistressed, MARKET_PARAMS, marketOf, playerValuation, rivalHistory, rivalValuation,
+  baseJetAPriceUsdPerGallon, bidRefusal, creditLimitUsd, dealPreview, guidePriceUsd, isDistressed, MARKET_PARAMS, marketOf, nextBidDay, playerValuation, rivalHistory, rivalValuation,
   type RivalAirline, type SimState,
 } from "@arg/sim";
 import { bridge, useSim } from "../sim/useSim";
@@ -9,6 +9,24 @@ import { useToasts } from "../routes/store";
 import { formatDate, formatMoney } from "../sim/format";
 import { LineChart } from "../markets/LineChart";
 import "../markets/markets.css";
+
+/** Within this distance of one of the player's bases a target counts as near the player's network (game-design value). */
+const NEAR_KM = 3000;
+
+/** What a deal at `priceUsd` would do, shown before the player confirms. */
+function DealLines({ sim, a, priceUsd }: { sim: SimState; a: RivalAirline; priceUsd: number }) {
+  if (!(priceUsd > 0)) return null;
+  const d = dealPreview(sim, a, priceUsd);
+  const before = playerValuation(sim).valueUsd;
+  return (
+    <ul className="mk-deal">
+      <li>You pay {usdM(d.priceUsd)} and take over its cash of {usdM(d.targetCashUsd)}: your cash goes from {usdM(sim.world.cash)} to <b className={d.cashAfterUsd < 0 ? "neg" : ""}>{usdM(d.cashAfterUsd)}</b>{d.cashAfterUsd < 0 ? " (on your credit line, with interest)" : ""}.</li>
+      <li>You get {d.aircraft} aircraft owned outright (about {usdM(d.fleetValueUsd)}), {d.routes} routes and its base{d.bases.length === 1 ? "" : "s"} {d.bases.join(", ")} as hubs.</li>
+      <li>Your company value moves from {usdM(before)} by about <b className={d.valueChangeUsd < 0 ? "neg" : "pos"}>{formatMoney(d.valueChangeUsd, { sign: true })}</b> at once (price against what it is worth); it pays off only if the combined network earns more.</li>
+      {(d.nearestBaseKm ?? Infinity) > NEAR_KM && <li className="neg">Its hub is {d.nearestBaseKm === null ? "far" : `${Math.round(d.nearestBaseKm).toLocaleString("en-US")} km`} from your nearest base: its routes will not connect with yours.</li>}
+    </ul>
+  );
+}
 
 const ARCH: Record<string, string> = { legacy: "Full-service", lcc: "Low-cost", regional: "Regional", interisland: "Inter-island" };
 const usdM = (v: number) => formatMoney(v);
@@ -85,7 +103,7 @@ function Company({ sim }: { sim: SimState }) {
         <div>
           <span className="mk-k">Company value</span>
           <span className="mk-big">{usdM(v.valueUsd)}</span>
-          <span className="hint">{change === null ? "first year" : `${change >= 0 ? "+" : "−"}${Math.abs(change * 100).toFixed(0)}% in 12 months`} · number {rank.pos} of {rank.of} airlines by value</span>
+          <span className="hint">{change === null ? "first year" : `${change >= 0 ? "+" : "−"}${Math.abs(change * 100).toFixed(0)}% in 12 months`} · number {rank.pos} of {rank.of} airlines flying today, by value</span>
         </div>
         <dl className="mini mk-break">
           <dt>Cash</dt><dd className={v.cashUsd < 0 ? "neg" : ""}>{usdM(v.cashUsd)}</dd>
@@ -116,13 +134,20 @@ function Competitors({ sim }: { sim: SimState }) {
   const m = marketOf(sim);
   const [open, setOpen] = useState<Id | null>(null);
   const [price, setPrice] = useState("");
-  const [sort, setSort] = useState<"value" | "name">("value");
+  const [sort, setSort] = useState<"value" | "name" | "price">("value");
+  const [query, setQuery] = useState("");
+  const [affordable, setAffordable] = useState(false);
+  const [near, setNear] = useState(false);
+  const spend = sim.world.cash + creditLimitUsd(sim);
   const rows = (sim.rivals?.airlines ?? []).filter((a) => a.status === "active").map((a) => {
     const v = rivalValuation(a, types).valueUsd;
     // Change over the last year: only once there is a sample about a year old (the first months have nothing to compare).
     const past = rivalHistory(m, a.id).filter((h) => h.day >= sim.world.day - 380)[0];
-    return { a, v, change: past && sim.world.day - past.day >= 330 ? v / Math.max(1, past.valueUsd) - 1 : null, guide: guidePriceUsd(sim, a) };
-  }).sort((x, y) => (sort === "value" ? y.v - x.v : x.a.name.localeCompare(y.a.name)));
+    const guide = guidePriceUsd(sim, a);
+    return { a, v, change: past && sim.world.day - past.day >= 330 ? v / Math.max(1, past.valueUsd) - 1 : null, guide, deal: dealPreview(sim, a, guide) };
+  }).filter((r) => (!query || `${r.a.name} ${r.a.bases.join(" ")}`.toLowerCase().includes(query.toLowerCase()))
+    && (!affordable || r.guide <= spend) && (!near || (r.deal.nearestBaseKm ?? Infinity) <= NEAR_KM))
+    .sort((x, y) => (sort === "value" ? y.v - x.v : sort === "price" ? x.guide - y.guide : x.a.name.localeCompare(y.a.name)));
   const mine = playerValuation(sim).valueUsd;
   const recent = (sim.rivals?.news ?? []).filter((n) => n.kind === "acquired").slice(-6).reverse();
   const bid = (a: RivalAirline) => {
@@ -136,22 +161,31 @@ function Competitors({ sim }: { sim: SimState }) {
         <h2>Buying a competitor</h2>
         <p className="hint">Offer a price; the airline's board accepts if it is at or above its asking price, usually about {Math.round((MARKET_PARAMS.premium - 1) * 100)}% above its value (close to value when it is in trouble). You pay from cash and can draw on your credit line. You take over its aircraft (owned outright), bases (as hubs), routes and its cash or debts. After a rejection the board waits {MARKET_PARAMS.rejectCooldownDays} days; after a purchase you need {MARKET_PARAMS.acquisitionCooldownDays} days before the next. Values are market estimates: competitors' accounts are not public.</p>
       </section>
+      <div className="mk-filters" role="group" aria-label="Filter competitors">
+        <input type="search" placeholder="Search airline or airport" aria-label="Search airline or airport" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <label><input type="checkbox" checked={affordable} onChange={(e) => setAffordable(e.target.checked)} /> Affordable now</label>
+        <label><input type="checkbox" checked={near} onChange={(e) => setNear(e.target.checked)} /> Near your network (within {NEAR_KM.toLocaleString("en-US")} km)</label>
+        <span className="hint">You can spend up to {usdM(spend)} (cash {usdM(sim.world.cash)} plus your credit line). {rows.length} airline{rows.length === 1 ? "" : "s"} shown.</span>
+      </div>
       <div className="table-wrap">
         <table className="data mk-table">
           <thead><tr>
             <th scope="col"><button className="th-btn" onClick={() => setSort("name")}>Airline</button></th>
             <th scope="col">Hub</th><th scope="col" className="num">Routes</th><th scope="col" className="num">Aircraft</th>
             <th scope="col" className="num"><button className="th-btn" onClick={() => setSort("value")}>Value (est.)</button></th>
-            <th scope="col" className="num">12 months</th><th scope="col" className="num">Guide price</th><th scope="col"><span className="sr-only">Offer</span></th>
+            <th scope="col" className="num">12 months</th><th scope="col" className="num"><button className="th-btn" onClick={() => setSort("price")}>Asking price</button></th><th scope="col"><span className="sr-only">Offer</span></th>
           </tr></thead>
           <tbody>
-            {rows.map(({ a, v, change, guide }) => {
+            {rows.map(({ a, v, change, guide, deal }) => {
               const refusal = bidRefusal(sim, a, guide);
+              const wait = nextBidDay(sim, a);
               const last = [...m.bids].reverse().find((b) => b.rivalId === a.id);
+              const far = (deal.nearestBaseKm ?? Infinity) > NEAR_KM;
               return (
                 <tr key={a.id}>
-                  <th scope="row">{a.name}<span className="hint"> {ARCH[a.archetype]}{isDistressed(a) ? " · in trouble" : ""}{(m.hostileUntil[a.id] ?? -1) > sim.world.day ? " · hostile to you" : ""}</span>
-                    {last && <span className="hint mk-last"> Last offer {formatDate(last.day)}: {usdM(last.priceUsd)}, {last.outcome}{last.hintUsd ? ` (asked about ${usdM(last.hintUsd)})` : ""}</span>}
+                  <th scope="row">{a.name}<span className="hint"> {ARCH[a.archetype]}{isDistressed(a) ? " · in trouble" : ""}{(m.hostileUntil[a.id] ?? -1) > sim.world.day ? " · hostile to you" : ""}{far ? ` · far from your network (${deal.nearestBaseKm === null ? "?" : Math.round(deal.nearestBaseKm).toLocaleString("en-US")} km)` : ""}</span>
+                    {last && <span className="hint mk-last"> Last offer {formatDate(last.day)}: {usdM(last.priceUsd)}, {last.outcome}{last.hintUsd ? ` (asking ${usdM(last.hintUsd)})` : ""}</span>}
+                    {wait !== null && <span className="hint mk-last"> Next offer possible from {formatDate(wait)}.</span>}
                   </th>
                   <td>{a.bases[0]}</td>
                   <td className="num">{a.routes.length}</td>
@@ -163,11 +197,12 @@ function Competitors({ sim }: { sim: SimState }) {
                     {open === a.id ? (
                       <form className="mk-bid" onSubmit={(e) => { e.preventDefault(); bid(a); }}>
                         <label>$<input autoFocus inputMode="decimal" aria-label={`Offer for ${a.name}, millions of dollars`} value={price} onChange={(e) => setPrice(e.target.value)} />M</label>
-                        <button className="primary" type="submit">Offer</button>
+                        <button className="primary" type="submit">Confirm offer</button>
                         <button type="button" onClick={() => setOpen(null)}>Cancel</button>
+                        <DealLines sim={sim} a={a} priceUsd={Number(price.replace(/[^0-9.]/g, "")) * 1e6} />
                       </form>
                     ) : (
-                      <button disabled={!!refusal && !/credit line/.test(refusal) ? true : false} title={refusal ?? undefined} onClick={() => { setOpen(a.id); setPrice(String(Math.round(guide / 1e6))); }}>Make offer</button>
+                      <button disabled={wait !== null || (!!refusal && !/credit line/.test(refusal))} title={refusal ?? undefined} onClick={() => { setOpen(a.id); setPrice(String(Math.ceil(guide / 1e5) / 10)); }}>Make offer</button>
                     )}
                   </td>
                 </tr>
@@ -213,7 +248,7 @@ function Fuel({ sim }: { sim: SimState }) {
           <span className={`hint ${now > ago ? "neg" : "pos"}`}>{now >= ago ? "+" : "−"}{gal(Math.abs(now - ago))} on a year ago ({gal(ago)})</span>
         </div>
         <dl className="mini mk-break">
-          <dt>Your fuel bill</dt><dd>{formatMoney(fuel)} a week</dd>
+          <dt>Your fuel bill</dt><dd>{Object.keys(sim.routeReports).length === 0 ? "after the first day of flying" : `${formatMoney(fuel)} a week`}</dd>
           <dt>Share of route costs</dt><dd>{costs > 0 ? `${Math.round((fuel / costs) * 100)}%` : "–"}</dd>
           <dt>Each 10 cents a gallon</dt><dd>{formatMoney(per10c)} a week</dd>
         </dl>

@@ -1,7 +1,7 @@
 // Weekly reputation step and the policy command (policy/product.ts). Pure.
 import type { Day, SimEvent } from "@arg/contracts";
 import type { SimState } from "../state";
-import { BANDS, bandOf, defaultProduct, policyError, productOf, satisfactionOf, stepReputation, type Band, type ProductPolicy } from "./product";
+import { PRODUCT_PARAMS, BANDS, bandOf, defaultProduct, policyError, productOf, satisfactionOf, stepReputation, type Band, type ProductPolicy } from "./product";
 
 /** Reputation thresholds the player is told about when crossed (game-design labels). */
 export const REPUTATION_LABELS: ReadonlyArray<readonly [number, string]> = [[0.5, "excellent"], [0.15, "good"], [-0.15, "as expected"], [-0.5, "poor"], [-1.01, "very poor"]];
@@ -36,4 +36,9 @@ export function setProductPolicy(state: SimState, policy: ProductPolicy): { stat
   const cur = productOf(state);
   const clean: ProductPolicy = structuredClone(policy);
   return { state: { ...state, product: { ...(state.product ?? defaultProduct()), ...cur, policy: clean } }, error: null };
+}
+
+/** Where reputation is heading: its value after `weeks` more weeks at today's satisfaction. */
+export function projectedReputation(reputation: number, satisfaction: number, weeks: number): number {
+  return satisfaction + (reputation - satisfaction) * Math.pow(1 - PRODUCT_PARAMS.reputationStep, weeks);
 }
