@@ -96,8 +96,15 @@ function Company({ sim }: { sim: SimState }) {
   const change = year && sim.world.day - year.day >= 330 ? v.valueUsd / Math.max(1, year.valueUsd) - 1 : null;
   const rank = (() => {
     const types = new Map(sim.aircraftTypes.map((t) => [t.id, t]));
-    const vals = (sim.rivals?.airlines ?? []).filter((a) => a.status === "active").map((a) => rivalValuation(a, types).valueUsd);
-    return { pos: 1 + vals.filter((x) => x > v.valueUsd).length, of: vals.length + 1 };
+    const vals = (sim.rivals?.airlines ?? []).filter((a) => a.status === "active").map((a) => rivalValuation(a, types, sim.rivals?.originDay ?? 0).valueUsd);
+    // Growth rank: 12-month value change against every airline with a sample a year old (size-neutral, so a small airline can lead).
+    const growths: number[] = [];
+    for (const a of sim.rivals?.airlines ?? []) {
+      if (a.status !== "active") continue;
+      const past = rivalHistory(m, a.id).filter((h) => h.day >= sim.world.day - 380)[0];
+      if (past && sim.world.day - past.day >= 330 && past.valueUsd > 0) growths.push(rivalValuation(a, types, sim.rivals?.originDay ?? 0).valueUsd / past.valueUsd - 1);
+    }
+    return { pos: 1 + vals.filter((x) => x > v.valueUsd).length, of: vals.length + 1, growthPos: change === null ? null : 1 + growths.filter((g) => g > change).length, growthOf: growths.length + 1 };
   })();
   return (
     <>
@@ -105,7 +112,7 @@ function Company({ sim }: { sim: SimState }) {
         <div>
           <span className="mk-k">Company value</span>
           <span className="mk-big">{usdM(v.valueUsd)}</span>
-          <span className="hint">{change === null ? (lastMerge > -Infinity && sim.world.day - lastMerge < 400 ? `merged ${formatDate(lastMerge)}: growth shows a year after` : "first year") : `${change >= 0 ? "+" : "−"}${Math.abs(change * 100).toFixed(0)}% in 12 months`} · number {rank.pos} of {rank.of} airlines flying today, by value</span>
+          <span className="hint">{change === null ? (lastMerge > -Infinity && sim.world.day - lastMerge < 400 ? `merged ${formatDate(lastMerge)}: growth shows a year after` : "first year") : `${change >= 0 ? "+" : "−"}${Math.abs(change * 100).toFixed(0)}% in 12 months`} · number {rank.pos} of {rank.of} airlines flying today by value{rank.growthPos !== null ? `, number ${rank.growthPos} of ${rank.growthOf} by growth over 12 months` : ""}</span>
         </div>
         <dl className="mini mk-break">
           <dt>Cash</dt><dd className={v.cashUsd < 0 ? "neg" : ""}>{usdM(v.cashUsd)}</dd>
@@ -142,7 +149,7 @@ function Competitors({ sim }: { sim: SimState }) {
   const [near, setNear] = useState(false);
   const spend = sim.world.cash + creditLimitUsd(sim);
   const rows = (sim.rivals?.airlines ?? []).filter((a) => a.status === "active").map((a) => {
-    const v = rivalValuation(a, types).valueUsd;
+    const v = rivalValuation(a, types, sim.rivals?.originDay ?? 0).valueUsd;
     // Change over the last year: only once there is a sample about a year old (the first months have nothing to compare).
     const past = rivalHistory(m, a.id).filter((h) => h.day >= sim.world.day - 380)[0];
     const guide = guidePriceUsd(sim, a);
@@ -151,6 +158,11 @@ function Competitors({ sim }: { sim: SimState }) {
     && (!affordable || r.guide <= spend) && (!near || (r.deal.nearestBaseKm ?? Infinity) <= NEAR_KM))
     .sort((x, y) => (sort === "value" ? y.v - x.v : sort === "price" ? x.guide - y.guide : x.a.name.localeCompare(y.a.name)));
   const mine = playerValuation(sim).valueUsd;
+  // For the empty state: the closest airline whose asking price is within reach, whatever the filters say.
+  const nearestAffordable = rows.length > 0 ? null : (sim.rivals?.airlines ?? []).filter((a) => a.status === "active").map((a) => {
+    const guide = guidePriceUsd(sim, a);
+    return { a, guide, km: dealPreview(sim, a, guide).nearestBaseKm ?? Infinity };
+  }).filter((x) => x.guide <= spend && Number.isFinite(x.km)).sort((x, y) => x.km - y.km)[0] ?? null;
   const recent = (sim.rivals?.news ?? []).filter((n) => n.kind === "acquired").slice(-6).reverse();
   const bid = (a: RivalAirline) => {
     const usd = Number(price.replace(/[^0-9.]/g, "")) * 1e6;
@@ -179,7 +191,7 @@ function Competitors({ sim }: { sim: SimState }) {
           </tr></thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={8} className="mk-empty">No airline matches{affordable ? `. "Affordable now" only shows airlines whose asking price is within the ${usdM(spend)} you can spend` : ""}{near ? `. "Near your network" only shows those within ${NEAR_KM.toLocaleString("en-US")} km of your bases` : ""}. <button className="link-btn" onClick={() => { setQuery(""); setAffordable(false); setNear(false); }}>Clear filters</button></td></tr>
+              <tr><td colSpan={8} className="mk-empty">{nearestAffordable && <>Nearest airline you can afford: <b>{nearestAffordable.a.name}</b> ({nearestAffordable.a.bases[0]}, {Math.round(nearestAffordable.km).toLocaleString("en-US")} km from your nearest base, asking {usdM(nearestAffordable.guide)}). </>}No airline matches{affordable ? `. "Affordable now" only shows airlines whose asking price is within the ${usdM(spend)} you can spend` : ""}{near ? `. "Near your network" only shows those within ${NEAR_KM.toLocaleString("en-US")} km of your bases` : ""}. <button className="link-btn" onClick={() => { setQuery(""); setAffordable(false); setNear(false); }}>Clear filters</button></td></tr>
             )}
             {rows.map(({ a, v, change, guide, deal }) => {
               const refusal = bidRefusal(sim, a, guide);

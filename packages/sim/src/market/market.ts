@@ -19,6 +19,7 @@ import type { RivalAirline, RivalNewsItem, RivalsState } from "../rivals/types";
 import { ARCHETYPES } from "../rivals/config";
 import { aircraftBookValueUsd, creditLimitUsd } from "../finance/credit";
 import { saleValueUsd, holdingOf } from "../fleet/disposal";
+import { DISPOSAL_PARAMS } from "../fleet/lifecycle";
 import { ownedHubsOf } from "../fleet/hubs";
 import { defaultLayout } from "../fleet/layout";
 import { initialMeta } from "../fleet/maintenance";
@@ -32,8 +33,6 @@ export const MARKET_PARAMS = {
   lossMultiple: 2,
   /** Floor: this share of cash (if positive) plus aircraft value. */
   floorFraction: 0.15,
-  /** Rivals' aircraft at this share of book value (a dealer price, like the player's `saleValueUsd`). */
-  rivalFleetFactor: 0.6,
   /** Board's reservation price: value x premium x (1 +- noise). */
   premium: 1.3,
   distressedPremium: 1.05,
@@ -81,10 +80,19 @@ export function playerValuation(state: SimState): Valuation {
   return value(state.world.cash, fleet, smoothedEarnings(state.snapshots.map((x) => x.profit), 365));
 }
 
-export function rivalValuation(air: RivalAirline, types: ReadonlyMap<Id, AircraftType>): Valuation {
+/** Resale value of one aircraft on the same basis as the player's `saleValueUsd` (book x dealer factor x widebody haircut). */
+export const resaleUsd = (t: AircraftType, ageDays: number): number => aircraftBookValueUsd(t, ageDays) * DISPOSAL_PARAMS.marketFactor * (t.widebody ? DISPOSAL_PARAMS.widebodyFactor : 1);
+
+/**
+ * A competitor's value. `originDay` is the day the field was founded (RivalsState.originDay): airlines founded later (startups) are
+ * young and their first months' profit is weighted like the player's; airlines that were flying before the game are valued on their
+ * annualised profit straight away (they did not start from nothing on day one).
+ */
+export function rivalValuation(air: RivalAirline, types: ReadonlyMap<Id, AircraftType>, originDay?: number): Valuation {
   let fleet = 0;
-  for (const f of air.fleet) { const t = types.get(f.typeId); if (t) fleet += aircraftBookValueUsd(t, f.ageDays) * MARKET_PARAMS.rivalFleetFactor; }
-  return value(air.cash, fleet, smoothedEarnings(air.profit52, 52));
+  for (const f of air.fleet) { const t = types.get(f.typeId); if (t) fleet += resaleUsd(t, f.ageDays); }
+  const young = originDay !== undefined && air.foundedDay > originDay;
+  return value(air.cash, fleet, smoothedEarnings(air.profit52, 52, young));
 }
 
 /**
@@ -92,11 +100,11 @@ export function rivalValuation(air: RivalAirline, types: ReadonlyMap<Id, Aircraf
  * from jumping: a young airline's annualised profit is weighted by how much of a year it has behind it (one good first month does not
  * count as a year), and the latest year is blended half-and-half with the year before when there is one.
  */
-export function smoothedEarnings(profits: readonly number[], perYear: number): number {
+export function smoothedEarnings(profits: readonly number[], perYear: number, young = true): number {
   const n = profits.length;
   if (n === 0) return 0;
   const last = profits.slice(-perYear);
-  const annual = (last.reduce((s, x) => s + x, 0) / last.length) * perYear * Math.min(1, last.length / perYear);
+  const annual = (last.reduce((s, x) => s + x, 0) / last.length) * perYear * (young ? Math.min(1, last.length / perYear) : 1);
   const prior = n >= 2 * perYear ? profits.slice(-2 * perYear, -perYear) : null;
   return prior ? 0.5 * annual + 0.5 * prior.reduce((s, x) => s + x, 0) : annual;
 }
@@ -108,7 +116,7 @@ export const isDistressed = (air: RivalAirline) => air.cash < 0 || air.lossWeeks
 
 /** The price at which a competitor's board accepts an offer this month (hidden from the player). */
 export function reservationPriceUsd(state: SimState, air: RivalAirline): number {
-  const v = rivalValuation(air, typeMap(state)).valueUsd;
+  const v = rivalValuation(air, typeMap(state), state.rivals?.originDay ?? 0).valueUsd;
   const prem = isDistressed(air) ? MARKET_PARAMS.distressedPremium : MARKET_PARAMS.premium;
   const noise = (makeRng(mixSeed(state.world.seed, hashId(air.id) ^ monthOf(state.world.day)))() - 0.5) * 2 * MARKET_PARAMS.boardNoise;
   return v * prem * (1 + noise);
@@ -135,7 +143,7 @@ export function nextBidDay(state: SimState, air: RivalAirline): Day | null {
 /** What buying `air` at `priceUsd` would do: cash change, what joins, distance from the player's network. */
 export interface DealPreview { priceUsd: number; targetCashUsd: number; netCashUsd: number; cashAfterUsd: number; aircraft: number; fleetValueUsd: number; routes: number; bases: Id[]; valueUsd: number; valueChangeUsd: number; nearestBaseKm: number | null }
 export function dealPreview(state: SimState, air: RivalAirline, priceUsd: number): DealPreview {
-  const v = rivalValuation(air, typeMap(state));
+  const v = rivalValuation(air, typeMap(state), state.rivals?.originDay ?? 0);
   const bases = ownedHubsOf(state).concat(state.outstations ?? []);
   const hub = state.airports.find((a) => a.id === air.bases[0]);
   const near = hub ? Math.min(...bases.map((b) => { const ap = state.airports.find((a) => a.id === b); return ap ? distanceKm(hub, ap) : Infinity; })) : Infinity;
@@ -212,7 +220,7 @@ export function respondToBid(state: SimState, bidId: Id, accept: boolean, keepNa
   const merged = absorbRival({ ...state, market: { ...m, incoming: [] } }, air, bid.priceUsd);
   const m2 = marketOf(merged);
   // The campaign grade measures what you build: the buyer's net assets (its cash and aircraft, less the price) raise the baseline.
-  const t = rivalValuation(air, typeMap(state));
+  const t = rivalValuation(air, typeMap(state), state.rivals?.originDay ?? 0);
   const broughtIn = t.cashUsd + t.fleetUsd - bid.priceUsd;
   const campaign = merged.campaign ? { ...merged.campaign, startCashUsd: Math.max(1, merged.campaign.startCashUsd + broughtIn) } : merged.campaign;
   const name = keepName ? oldName : air.name;
@@ -326,7 +334,7 @@ export function stepMarket(state: SimState): SimState {
   const rng = makeRng(mixSeed(state.world.seed, 0x4d4b54 + day));
   const mine = playerValuation(state);
   const active = state.rivals.airlines.filter((a) => a.status === "active");
-  const values = active.map((a) => ({ a, v: rivalValuation(a, types).valueUsd })).sort((x, y) => y.v - x.v || (x.a.id < y.a.id ? -1 : 1));
+  const values = active.map((a) => ({ a, v: rivalValuation(a, types, state.rivals?.originDay ?? 0).valueUsd })).sort((x, y) => y.v - x.v || (x.a.id < y.a.id ? -1 : 1));
   const point: ValuationPoint = { day, valueUsd: mine.valueUsd, rivals: values.map((x) => [x.a.id, Math.round(x.v / 1e5) * 1e5]) };
   m = { ...m, history: [...m.history, point].slice(-MARKET_PARAMS.historyMax) };
 
@@ -360,7 +368,7 @@ export function stepMarket(state: SimState): SimState {
       const price = t.v * MARKET_PARAMS.distressedPremium;
       const buyer = values.map((x) => byId.get(x.a.id)!).find((b) => {
         if (b.id === target.id || b.status !== "active" || isDistressed(b) || b.cash < price) return false;
-        if (rivalValuation(b, types).valueUsd < 2 * t.v) return false;
+        if (rivalValuation(b, types, state.rivals?.originDay ?? 0).valueUsd < 2 * t.v) return false;
         const bh = state.airports.find((a) => a.id === b.bases[0]);
         return !!home && !!bh && distanceKm(home, bh) <= MARKET_PARAMS.consolidationMaxKm;
       });
