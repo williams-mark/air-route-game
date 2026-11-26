@@ -189,8 +189,8 @@ export default function OrdersView() {
           {funding?.refusal && <div className="rp-err" role="alert" data-testid="order-refusal">{funding.refusal}</div>}
           {confirming ? (
             <div ref={confirmRef} className="order-confirm" role="group" aria-label="Confirm order" data-testid="order-confirm">
-              <p>Place order: {formatMoney(deposit)} {financing === "purchase" ? "deposit" : "down payment"}, not refundable if cancelled.</p>
-              <button type="button" className="primary" disabled={lockedKey !== null} onClick={place}>Confirm</button>
+              <p><b>One more step:</b> the order is not placed until you confirm. {formatMoney(deposit)} {financing === "purchase" ? "deposit" : "down payment"} is paid now and is not refundable if you cancel.</p>
+              <button type="button" className="primary" disabled={lockedKey !== null} onClick={place}>Confirm order</button>
               <button type="button" onClick={() => setConfirming(false)}>Back</button>
             </div>
           ) : (

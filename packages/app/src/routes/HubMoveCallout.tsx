@@ -5,7 +5,9 @@ import { basesOf, COMMAND_PARAMS, OUTSTATION_PARAMS, typeCanServe, weeklyCapacit
 import { bridge, useSim } from "../sim/useSim";
 import { usd } from "./fmt";
 import { hubCallout, moveCandidates, type HubCalloutState, type MoveCandidate } from "./hubMove";
-import { useToasts } from "./store";
+import { useCreation, useToasts } from "./store";
+import { usePickerMemory } from "../aircraft/memory";
+import { useUi } from "../store";
 
 /**
  * Explains why the origin cannot fly the draft (not a hub, no aircraft of the type based there, too few free block hours)
@@ -71,7 +73,12 @@ export function HubMoveCallout({ originId, destinationId, typeId, available, nee
   return (
     <div className="rc-callout" role="group" aria-label={`Move aircraft to ${code}`}>
       <p>{why} {rows.length === 0 ? "" : `Move aircraft to ${code}; idle aircraft only.`}</p>
-      {rows.length === 0 ? <p className="hint">You have no aircraft at other hubs or outstations to move here. Lower the frequency, pick another aircraft type, or order more aircraft (Orders).</p> : (
+      {rows.length === 0 ? (
+        <>
+          <p className="hint">You have no aircraft at other hubs or outstations to move here. Lower the frequency, pick another aircraft type, or order more aircraft: new aircraft take 6 to 30 months to arrive.</p>
+          <button type="button" className="primary" onClick={() => { usePickerMemory.getState().remember("order", state.typeId); useCreation.getState().end(); useUi.getState().setView("orders"); }}>Order a {typeName}</button>
+        </>
+      ) : (
         <>
           {eligible.length === 0 && <p className="hint">No idle aircraft that can fly {code} to {destinationId} is at another hub.</p>}
           {eligible.length > 0 && (

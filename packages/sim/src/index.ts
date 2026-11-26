@@ -1,3 +1,5 @@
+import { stepProduct } from "./policy/step";
+import { stepMarket } from "./market/market";
 import type {
   Aircraft, AircraftType, Airport, FinanceSnapshot, Id, Route, SimEvent, WorldState,
 } from "@arg/contracts";
@@ -23,7 +25,7 @@ import { airportOpen, closureOf, dayLabel } from "./world/closures";
 import { pandemicEnabled, pandemicFactor, pandemicNewsOn } from "./demand/pandemic";
 import { isBankrupt, overdraftInterestUsd, stepCredit } from "./finance/credit";
 import { rivalItinerariesFor, stepRivals } from "./rivals";
-import { DEFAULT_SIM_PARAMS, FARE_FLOOR_NOTICE_DAYS, FULL_ROUTE_LOAD_FACTOR, type AircraftMeta, type CheckKind, type RouteReport, type SimParams, type SimState } from "./state";
+import { DEFAULT_SIM_PARAMS, FARE_FLOOR_NOTICE_DAYS, FULL_ROUTE_LOAD_FACTOR, LOW_ROUTE_LOAD_FACTOR, LOW_ROUTE_WEEKS, type AircraftMeta, type CheckKind, type RouteReport, type SimParams, type SimState } from "./state";
 
 export { makeRng };
 export * from "./demand/market";
@@ -75,6 +77,11 @@ export * from "./rivals";
 export * from "./serialize";
 export * from "./planner";
 export * from "./campaign/campaign";
+export * from "./policy/product";
+export * from "./policy/step";
+export * from "./policy/report";
+export * from "./market/types";
+export * from "./market/market";
 
 export function newWorld(seed: number): WorldState {
   return { seed, day: 0, playerId: "player", cash: 100_000_000, routes: [], fleet: [] };
@@ -256,6 +263,8 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     hubs: playerHubs(state),
     // The solve corrects for how far the whole flight (connections included) ended from the target last time (see liveModel).
     previousReports: state.routeReports,
+    // Product policy (service, fees, reputation); absent = the flat service and ancillary figures (policy/product.ts).
+    ...(state.product ? { product: { policy: state.product.policy, reputation: state.product.reputation } } : {}),
   });
   const { schedule, reports } = live;
   // Fare floor and "full route" bookkeeping on the reports (weekly values carried through the other days of the week).
@@ -263,16 +272,21 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     const rep = reports[route.id];
     if (!rep) continue;
     const prev = state.routeReports[route.id];
-    let { fareFloor, fareFloorNoticeDay, fullWeeks } = prev ?? {};
+    let { fareFloor, fareFloorNoticeDay, fullWeeks, lowWeeks } = prev ?? {};
     if (day % 7 === 0) {
       fullWeeks = rep.evaluation.loadFactor >= FULL_ROUTE_LOAD_FACTOR ? (fullWeeks ?? 0) + 1 : 0;
+      lowWeeks = rep.evaluation.flightsPerWeek > 0 && rep.evaluation.loadFactor < LOW_ROUTE_LOAD_FACTOR ? (lowWeeks ?? 0) + 1 : 0;
+      if (lowWeeks === LOW_ROUTE_WEEKS) {
+        const rivals = (rep.market.weeklyDemand > 0 ? 1 - rep.market.playerShare : 0);
+        say(`${route.origin}-${route.destination} has run below ${Math.round(LOW_ROUTE_LOAD_FACTOR * 100)}% full for ${LOW_ROUTE_WEEKS} weeks (now ${Math.round(rep.evaluation.loadFactor * 100)}%)${rivals > 0.5 ? `; competitors carry ${Math.round(rivals * 100)}% of the market` : ""}. Cut frequency, lower fares or close it (Routes).`);
+      }
       fareFloor = live.floorBinding[route.id];
       if (fareFloor && (fareFloorNoticeDay === undefined || day - fareFloorNoticeDay >= FARE_FLOOR_NOTICE_DAYS)) {
         fareFloorNoticeDay = day;
         say(`${route.origin}-${route.destination}: fare floor reached at $${Math.round(fareFloor.floorFare)}. Load factor is ${Math.round(rep.evaluation.loadFactor * 100)}%, below the ${Math.round(fareFloor.target * 100)}% target; fares will not go lower.`);
       }
     }
-    reports[route.id] = { ...rep, ...(fareFloor ? { fareFloor } : {}), ...(fareFloorNoticeDay !== undefined ? { fareFloorNoticeDay } : {}), ...(fullWeeks !== undefined ? { fullWeeks } : {}) };
+    reports[route.id] = { ...rep, ...(fareFloor ? { fareFloor } : {}), ...(fareFloorNoticeDay !== undefined ? { fareFloorNoticeDay } : {}), ...(fullWeeks !== undefined ? { fullWeeks } : {}), ...(lowWeeks ? { lowWeeks } : {}) };
   }
   if (Object.keys(live.solvedFares).length > 0) {
     world = { ...world, routes: world.routes.map((r) => (live.solvedFares[r.id] ? { ...r, fares: live.solvedFares[r.id]! } : r)) };
@@ -380,7 +394,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   const reviewNotice: SimEvent[] = reviewNow ? [{ kind: "notice", day: day + 1, text: `${state.airlineName}: the campaign has reached its end date. The review is ready.` }] : [];
   const pushed = pushEvents(frozen, [...events, ...notices, ...credit.notices.map((text): SimEvent => ({ kind: "notice", day, text })), ...reviewNotice]);
   // A failed airline stops here: no more offers or rival moves.
-  return credit.bankrupt ? pushed : stepOffers(stepRivals(pushed, day));
+  return credit.bankrupt ? pushed : stepOffers(stepMarket(stepRivals(stepProduct(pushed, day), day)));
 }
 
 /**

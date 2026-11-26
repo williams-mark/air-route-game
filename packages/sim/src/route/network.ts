@@ -1,3 +1,4 @@
+import { bandOf, productEffect, type ProductPolicy } from "../policy/product";
 import type { Aircraft, AircraftType, Airport, CabinClass, Day, Id, Route, ServiceLevel } from "@arg/contracts";
 import { marketOnDay, pairMarket } from "../demand/market";
 import { benchmarkFareFor } from "../demand/fares";
@@ -67,6 +68,8 @@ export interface NetworkInput {
   connectionMarkdown?: Readonly<Record<Id, number | undefined>>;
   /** The airline's service level per cabin (absent = standard); passed to every cabin-dependent evaluation. */
   serviceLevels?: Readonly<Partial<Record<CabinClass, ServiceLevel>>>;
+  /** Product policy and reputation (policy/product.ts), applied to connecting itineraries too. */
+  product?: { policy: ProductPolicy; reputation: number };
   /**
    * Target load factor per route (fare policy or the route's own). Connecting passengers may fill a leg only up to this share of
    * its seats, as an airline's revenue management holds back seats (owner, 22 Nov 2026: a route with an 85% target must not sit at
@@ -283,6 +286,7 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
       week1: input.weeks[c.r1.id], week2: input.weeks[c.r2.id],
       reservedSeats1: reserved[c.r1.id] ?? 0, reservedSeats2: reserved[c.r2.id] ?? 0,
       serviceLevels: input.serviceLevels,
+      product: input.product,
       competitors: input.competitorsFor?.(c.a, c.b),
     });
     if (!conn || conn.connectingPassengers < 0.5) continue;
@@ -320,7 +324,8 @@ export function evaluateNetwork(input: NetworkInput): NetworkResult {
       return l;
     };
     const fareOf = (c: Cand) => throughFare(c);
-    const req = fast.map((c) => fastConnectionDemand(c.a, c.hub, c.b, legOf(c.r1), legOf(c.r2), fareOf(c), day, input.competitorsFor?.(c.a, c.b)));
+    const prodOf = (c: Cand) => (input.product ? productEffect(input.product.policy, bandOf(distanceKm(c.a, c.b)), input.product.reputation) : undefined);
+    const req = fast.map((c) => fastConnectionDemand(c.a, c.hub, c.b, legOf(c.r1), legOf(c.r2), fareOf(c), day, input.competitorsFor?.(c.a, c.b), prodOf(c)));
     const asked = new Map<Id, number>();
     fast.forEach((c, k) => { for (const r of [c.r1, c.r2]) asked.set(r.id, (asked.get(r.id) ?? 0) + req[k]!); });
     for (const [id, n] of asked) askedOneWay[id] = (askedOneWay[id] ?? 0) + n;

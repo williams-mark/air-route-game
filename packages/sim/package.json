@@ -13,7 +13,8 @@
     "soak": "vite-node src/qa/soak.ts",
     "perf": "vite-node src/qa/perf.ts",
     "rivals": "vite-node src/qa/rivalsReport.ts",
-    "balance": "vite-node src/qa/balance.ts"
+    "balance": "vite-node src/qa/balance.ts",
+    "tenyear": "vite-node src/qa/tenYear.ts"
   },
   "dependencies": {
     "@arg/contracts": "workspace:*",

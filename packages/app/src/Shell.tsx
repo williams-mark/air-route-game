@@ -22,6 +22,7 @@ import { SaveDialog, StartScreen, quickSave } from "./save/SaveUi";
 import { installAutosave } from "./save/saves";
 import { useAchievementTracker } from "./achievements/useAchievementTracker";
 import { TutorialCoach } from "./tutorial/TutorialCoach";
+import { TakeoverPrompt } from "./markets/TakeoverPrompt";
 import "./routes/routes.css";
 
 const LAZY: Partial<Record<ViewId, ReturnType<typeof lazy>>> = {
@@ -33,6 +34,8 @@ const LAZY: Partial<Record<ViewId, ReturnType<typeof lazy>>> = {
   finance: lazy(() => import("./views/FinanceView")),
   hubs: lazy(() => import("./views/HubsView")),
   farepolicy: lazy(() => import("./views/FarePolicyView")),
+  policies: lazy(() => import("./views/PoliciesView")),
+  markets: lazy(() => import("./views/MarketsView")),
   hubboard: lazy(() => import("./views/HubBoardView")),
   rivals: lazy(() => import("./views/RivalsView")),
   settings: lazy(() => import("./views/SettingsView")),
@@ -128,6 +131,7 @@ export function Shell() {
       {saveDialog && <SaveDialog />}
       {!startOpen && !saveDialog && <GameOver />}
       {!startOpen && !saveDialog && <CampaignReviewCard />}
+      {!startOpen && !saveDialog && <TakeoverPrompt />}
       {startOpen && <StartScreen />}
     </div>
   );

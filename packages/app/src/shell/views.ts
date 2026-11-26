@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import type { ViewId } from "../store";
-import { IconFinance, IconFleet, IconPlanner, IconCabin, IconMap, IconOrders, IconRoutes, IconSettings, IconRivals, IconHubBoard, IconHubs, IconFarePolicy } from "./icons";
+import { IconFinance, IconFleet, IconPlanner, IconCabin, IconMap, IconOrders, IconRoutes, IconSettings, IconRivals, IconHubBoard, IconHubs, IconFarePolicy, IconMarkets, IconPolicies } from "./icons";
 
 /** The fleet planner panel is retired (code kept). Set to true to bring back its toolbar entry, shortcut and page. */
 export const PLANNER_ENABLED = false;
@@ -11,9 +11,11 @@ const ALL_VIEWS: Array<{ id: ViewId; label: string; Icon: ComponentType<{ size?:
   { id: "fleet", label: "Fleet", Icon: IconFleet, key: "3" },
   { id: "hubs", label: "Hubs", Icon: IconHubs, key: "-", code: "Minus" },
   { id: "farepolicy", label: "Fare policy", Icon: IconFarePolicy, key: "=", code: "Equal" },
+  { id: "policies", label: "Service and fees", Icon: IconPolicies, key: "[", code: "BracketLeft" },
   { id: "planner", label: "Planner", Icon: IconPlanner, key: "4" },
   { id: "orders", label: "Orders / Offers", Icon: IconOrders, key: "5" },
   { id: "finance", label: "Finance", Icon: IconFinance, key: "6" },
+  { id: "markets", label: "Markets", Icon: IconMarkets, key: "]", code: "BracketRight" },
   { id: "rivals", label: "Competitors", Icon: IconRivals, key: "7" },
   { id: "settings", label: "Settings", Icon: IconSettings, key: "8" },
   { id: "cabin", label: "Cabin designer", Icon: IconCabin, key: "9" },

@@ -271,3 +271,4 @@ tr.selected { background: var(--panel-2); box-shadow: inset 3px 0 0 var(--accent
 /* Route creator: fly with a type or an aircraft category. */
 .rc-flywith { display: flex; align-items: center; gap: .5rem; margin-top: .35rem; font-size: .8rem; }
 .rc-flywith select { flex: 1; min-width: 0; }
+.rc-blocked { flex: 1 1 12rem; font-size: .8rem; color: var(--neg); align-self: center; }

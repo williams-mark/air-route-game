@@ -33,4 +33,6 @@ export const IconCabin = (p: P) => <Svg {...p}><path d="M2.5 12c0-2 1.5-3.5 3.5-
 export const IconRivals = (p: P) => <Svg {...p}><circle cx="9" cy="8" r="3" /><path d="M3.5 19c0-3.2 2.4-5 5.5-5s5.500 1.800 5.500 5" /><circle cx="17.5" cy="9" r="2.300" /><path d="M16.500 14.200c2.700-.2 4.500 1.300 4.500 4" /></Svg>;
 export const IconHubBoard = (p: P) => <Svg {...p}><path d="M3 5h18v14H3z" /><path d="M3 10h18M8 5v14" /><path d="M11 13.500h7M11 16.500h5" /></Svg>;
 export const IconHubs = (p: P) => <Svg {...p}><circle cx="12" cy="12" r="2.500" /><circle cx="5" cy="6" r="1.500" /><circle cx="19" cy="6" r="1.500" /><circle cx="5" cy="18" r="1.500" /><circle cx="19" cy="18" r="1.500" /><path d="M6.200 7l4 3.600M17.800 7l-4 3.600M6.200 17l4-3.600M17.800 17l-4-3.600" /></Svg>;
+export const IconMarkets = (p: P) => <Svg {...p}><path d="M3 20h18" /><path d="m4 15 5-5 4 3 7-7" /><path d="M15 6h5v5" /></Svg>;
+export const IconPolicies = (p: P) => <Svg {...p}><path d="M4 17h16" /><path d="M5.5 17a6.500 6.500 0 0 1 13 0" /><path d="M12 8.500V7M10.500 7h3" /><path d="M3 20h18" /></Svg>;
 export const IconFarePolicy = (p: P) => <Svg {...p}><path d="M4 5h9l7 7-8 8-8-8z" /><circle cx="9" cy="9.500" r="1.200" /><path d="M10 15l4-4" /></Svg>;

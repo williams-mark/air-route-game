@@ -116,7 +116,7 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .palette-list .lbl { flex: 1; }
 .palette-list li.empty { cursor: default; color: var(--text-dim); }
 
-@media (max-width: 1100px) { .stat .k { display: none; } .stats { gap: 1rem; } .brand .chip { display: none; } }
+@media (max-width: 1100px) { .stat .k { font-size: .56rem; letter-spacing: .03em; white-space: nowrap; } .stats { gap: 1rem; } .brand .chip { display: none; } }
 
 /* Narrow layouts. Desktop is the target; the supported minimum is 360 px wide (see QA.md). */
 @media (max-width: 900px) {
@@ -290,3 +290,22 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .cat-chip input { margin: 0; }
 .fleet-hub-filter label + select + label { margin-left: .8rem; }
 .cat-new input { width: 100%; min-width: 0; box-sizing: border-box; }
+
+/* Toolbar badge (a takeover offer waiting on Markets). */
+.tool-btn.has-badge { position: relative; }
+.tool-btn.has-badge::after { content: ""; position: absolute; top: .35rem; right: .55rem; width: .55rem; height: .55rem; border-radius: 50%; background: var(--sev-warn); border: 2px solid var(--panel); }
+.takeover-card { max-width: 34rem; }
+.takeover-card ul { padding-left: 1.1rem; line-height: 1.5; font-size: .9rem; }
+.takeover-card .mk-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.tk-keep { display: flex; gap: .5rem; align-items: center; margin: .2rem 0 .8rem; font-size: .88rem; }
+/* Time controls docked in the top bar on every screen but the map (the floating pill covered page content). */
+.time-pill.docked { position: static; box-shadow: none; margin: 0; padding: .2rem .3rem; background: var(--panel-2); }
+.time-pill.docked .tp-date { display: none; }
+html[data-view="map"] .time-pill.docked { display: none; }
+html:not([data-view="map"]) .main > .time-pill:not(.docked) { display: none; }
+@media (max-width: 720px) {
+  .topbar .time-pill.docked { display: none; }
+  html:not([data-view="map"]) .main > .time-pill:not(.docked) { display: flex; }
+}
+/* Phones: the time pill floats on every screen, so pages keep extra room at the bottom. */
+@media (max-width: 720px) { .page { padding-bottom: calc(var(--pill-clear) + 4.5rem); } }

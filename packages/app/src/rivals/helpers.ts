@@ -11,7 +11,7 @@ export interface RivalListItem {
   /** Coarse fleet size, never the exact number. */
   fleetBand: string;
   routeCount: number;
-  status: "active" | "bankrupt";
+  status: "active" | "bankrupt" | "acquired";
   foundedDay: number;
   /** Outstations (world field; announced publicly when opened). */
   outstations: Id[];

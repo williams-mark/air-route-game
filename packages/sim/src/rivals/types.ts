@@ -83,7 +83,8 @@ export interface RivalAirline {
   typePrefs?: string[];
   /** Route cap; unset = the archetype's. */
   maxRoutes?: number;
-  status: "active" | "bankrupt";
+  /** "acquired": bought by the player or by another competitor (market/market.ts); it no longer trades. */
+  status: "active" | "bankrupt" | "acquired";
   foundedDay: Day;
   bankruptDay: Day | null;
   cash: number;
@@ -123,7 +124,7 @@ export interface RivalAirline {
   lastFleetDay?: Day;
 }
 
-export type RivalNewsKind = "launch" | "enter" | "exit" | "fareCut" | "frequency" | "shrink" | "bankrupt" | "order" | "outstation" | "farePolicy";
+export type RivalNewsKind = "launch" | "enter" | "exit" | "fareCut" | "frequency" | "shrink" | "bankrupt" | "order" | "outstation" | "farePolicy" | "acquired";
 
 /** Structured news for decision cards. `playerMarket` is true when the player flies the same airport pair. */
 export interface RivalNewsItem {

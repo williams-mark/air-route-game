@@ -3,12 +3,15 @@ import { formatDay } from "../sim/format";
 import type { Speed } from "../sim/bridge";
 import { IconPause, IconPlay } from "./icons";
 
-/** Floating pill at the bottom-right of the main area: pause, speeds 1-5 and the date. Sits left of the map side panel / route panel. */
-export function TimeControls() {
+/**
+ * Pause, speeds 1-5 and the date. On the map: a floating pill at the bottom-right of the main area. On the other screens it is docked
+ * in the top bar (`docked`), so it never covers a page's content (playtest, 26 Nov 2026); phones keep the floating pill (shell.css).
+ */
+export function TimeControls({ docked = false }: { docked?: boolean } = {}) {
   const sim = useSim();
   const paused = sim.speed === 0;
   return (
-    <div className="time-pill" role="group" aria-label="Time controls">
+    <div className={`time-pill${docked ? " docked" : ""}`} role="group" aria-label="Time controls">
       <span className="tp-date" aria-hidden="true">{formatDay(sim.day)}</span>
       <div className="speed" role="group" aria-label="Game speed">
         <button className="icon-btn" aria-label={paused ? "Resume" : "Pause"} aria-pressed={paused} title="Pause / resume (Space)" onClick={togglePause}>

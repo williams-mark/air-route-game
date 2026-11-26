@@ -6,6 +6,7 @@ import { IconKeyboard, IconMoon, IconSearch, IconSun, IconBell, IconTag } from "
 import { Sparkline } from "./Sparkline";
 import { useOffersUi } from "../offers/store";
 import { GameMenu } from "./GameMenu";
+import { TimeControls } from "./TimeControls";
 
 export function TopBar() {
   const sim = useSim();
@@ -32,6 +33,7 @@ export function TopBar() {
         </div>
       </div>
 
+      <TimeControls docked />
       <div className="topbar-right">
         <GameMenu />
         {pending > 0 && (

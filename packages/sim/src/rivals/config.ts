@@ -318,6 +318,44 @@ export const DIFFICULTY: Record<Difficulty, { startingCashUsd: number; intensity
   hard: { startingCashUsd: 90_000_000, intensity: { airlines: 65, decisionCycleWeeks: 6, entriesPerDecision: 3, entryShareScale: 1.2, overheadDelta: -0.03, homeRivals: 3, startCoverage: 1 } },
 };
 
+/**
+ * The field gets tougher with time (owner, 26 Nov 2026: "competitive within about 10 years"). Over RAMP.years from the start of the
+ * game, linearly: more market entries per decision, larger entries, shorter decision cycles, leaner overheads (applied yearly to each
+ * airline, rivals/index.ts), more outstations, and growing aggression toward the player's markets (rivals/engine.ts: profitable player
+ * markets score higher, the player's bases are favoured for outstations, and startups launch at the player's hub). Game-design values.
+ */
+export const RAMP = {
+  years: 10,
+  extraEntries: 2,
+  entryShareGain: 0.35,
+  cycleWeeksCut: 3,
+  minCycleWeeks: 4,
+  overheadCutPerYear: 0.0035,
+  overheadCutMax: 0.035,
+  extraOutstations: 3,
+  /** Aggression toward the player at the end of the ramp, and the extra for an airline the player turned down (market/hostileUntil). */
+  aggressionMax: 1,
+  hostileAggression: 0.8,
+  /** Score multiplier on a player market: 1 + playerMarketBonus x aggression. */
+  playerMarketBonus: 0.9,
+  /** Chance a startup launches at the player's home hub, at full aggression. */
+  homeStartupChance: 0.5,
+} as const;
+
+/** Ramp progress, 0 at the start of the game to 1 after RAMP.years. */
+export const rampProgress = (years: number): number => Math.max(0, Math.min(1, years / RAMP.years));
+
+/** The difficulty's intensity after `years` of play (see RAMP). */
+export function rampedIntensity(base: WorldIntensity, years: number): WorldIntensity {
+  const t = rampProgress(years);
+  return {
+    ...base,
+    entriesPerDecision: base.entriesPerDecision + Math.round(RAMP.extraEntries * t),
+    entryShareScale: base.entryShareScale * (1 + RAMP.entryShareGain * t),
+    decisionCycleWeeks: Math.max(RAMP.minCycleWeeks, base.decisionCycleWeeks - Math.round(RAMP.cycleWeeksCut * t)),
+  };
+}
+
 /** Intensity of a rival state (absent in older saves and the classic field: medium). */
 export const intensityOf = (rivals: { intensity?: WorldIntensity } | null | undefined): WorldIntensity => rivals?.intensity ?? DIFFICULTY.medium.intensity;
 

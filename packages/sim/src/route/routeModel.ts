@@ -1,4 +1,5 @@
 import type { Aircraft, AircraftType, Airport, CabinClass, Day, Fares, MarketSnapshot, Route, ServiceLevel } from "@arg/contracts";
+import { bandOf, productEffect, saturateQuality, type ProductPolicy } from "../policy/product";
 import {
   benchmarkFare,
   DEFAULT_CHOICE_PARAMS,
@@ -270,6 +271,8 @@ export interface RouteWeekOptions {
   competitors?: Itinerary[];
   /** The airline's service level per cabin (absent = standard). Drives the premium fare multipliers. */
   serviceLevels?: Partial<Record<CabinClass, ServiceLevel>>;
+  /** The airline's product policy and reputation (policy/product.ts). Absent = the ledger's flat service and ancillary figures. */
+  product?: { policy: ProductPolicy; reputation: number };
 }
 
 /**
@@ -329,21 +332,23 @@ export function simulateRouteWeek(
   const demand = segmentMap((s) => market.bySegment[s] * demandScale);
 
   const flownFreq = feasibleAny ? route.weeklyFrequency * fraction : 0;
-  const player: Itinerary = {
-    id: `player:${route.id}`,
-    carrier: "player",
-    legs: [makeLeg(`player:${route.id}`, a.id, b.id, dist, speed, flownFreq, avgSeats)],
-    fare: route.fares.Y,
-    quality,
-    marketDistanceKm: dist,
-  };
-
   const rivals = opts.competitors ?? (() => {
     const synthetic = buildRivals(a, b, dist, rivalSizingMarket(a, b, dist, market, demand, cfg.choice, (m) => buildRivals(a, b, dist, m, cfg)), cfg);
     return opts.rivalItineraries && opts.rivalItineraries.length > 0
       ? [...opts.rivalItineraries, ...synthetic.filter((i) => i.id.startsWith("conn:"))]
       : synthetic;
   })();
+  // Product policy: service and reputation move quality (saturating above the best competitor here); expected fees move the price compared.
+  const product = opts.product ? productEffect(opts.product.policy, bandOf(dist), opts.product.reputation) : null;
+  const bestRival = rivals.length > 0 ? Math.max(...rivals.map((r) => r.quality)) : null;
+  const player: Itinerary = {
+    id: `player:${route.id}`,
+    carrier: "player",
+    legs: [makeLeg(`player:${route.id}`, a.id, b.id, dist, speed, flownFreq, avgSeats)],
+    fare: product ? Math.max(1, route.fares.Y + product.perceivedFareUsd) : route.fares.Y,
+    quality: product ? saturateQuality(quality + product.qualityDelta, bestRival) : quality,
+    marketDistanceKm: dist,
+  };
 
   const choice = runChoice({
     demand,
@@ -365,6 +370,7 @@ export function simulateRouteWeek(
     return evaluateRoute({
       origin: a, destination: b, aircraft: x.g.type, day, weeklyFrequency: route.weeklyFrequency * x.share, cabins,
       cabinCost: x.fx ? { paxServices: x.fx.serviceCostMultiplier, crewSeats: x.fx.crewSeatEquivalent } : undefined,
+      product: product ? { servicesUsdPerPax: product.servicesUsdPerPax, ancillaryUsdPerPax: product.ancillaryUsdPerPax, crewDelta: product.crewDelta } : undefined,
       weeklyPassengers: 2 * mine.passengers * paxShare,
       operatedFraction: fraction,
       ownership,
@@ -374,7 +380,7 @@ export function simulateRouteWeek(
   const captured = choice.totals.captured;
   const connPax = choice.itineraries.reduce((s, r, i) => s + (i > 0 && r.id.startsWith("conn:") ? r.passengers : 0), 0);
   const avgFare = captured > 0
-    ? ([player, ...rivals].reduce((s, it, i) => s + it.fare * choice.itineraries[i]!.passengers, 0)) / captured
+    ? ([player, ...rivals].reduce((s, it, i) => s + (i === 0 ? route.fares.Y : it.fare) * choice.itineraries[i]!.passengers, 0)) / captured
     : 0;
   const snapshot: MarketSnapshot = {
     origin: a.id,
@@ -445,6 +451,8 @@ export const FARE_SOLVER_PARAMS = {
   biasMax: 0.25,
   /** Lowest local load factor the solve aims for, however large the bias. */
   minLocalTarget: 0.3,
+  /** The solve never raises the economy fare above this multiple of the market's benchmark fare (runaway guard; game-design value). */
+  ceilingBenchmarkMultiple: 3,
 } as const;
 
 /** Every fare class multiplied by `scale` (premium fares keep their ratio to economy). */
@@ -549,6 +557,8 @@ export interface HubConnectionInput {
   reservedSeats2?: number;
   /** The airline's service level per cabin (absent = standard). */
   serviceLevels?: Partial<Record<CabinClass, ServiceLevel>>;
+  /** Product policy and reputation (policy/product.ts): the connecting passenger judges the same product as a local one. */
+  product?: { policy: ProductPolicy; reputation: number };
   /** World field: the competing itineraries in the through market (replace the synthetic rivals; see RouteWeekOptions.competitors). */
   competitors?: Itinerary[];
 }
@@ -640,18 +650,19 @@ export function evaluateHubConnection(input: HubConnectionInput): HubConnection 
     ...makeLeg(id, o, d, dd, speedOf(groups), route.weeklyFrequency * frac, 1),
     weeklySeats: seats,
   });
+  const rivals = input.competitors ?? buildRivals(a, b, dist, rivalSizingMarket(a, b, dist, market, demand, cfg.choice, (m) => buildRivals(a, b, dist, m, cfg)), cfg);
+  const prod = input.product ? productEffect(input.product.policy, bandOf(dist), input.product.reputation) : null;
   const player: Itinerary = {
     id: `player:${a.id}-${h.id}-${b.id}`,
     carrier: "player",
-    fare: throughFare,
-    quality: 0.5,
+    fare: prod ? Math.max(1, throughFare + prod.perceivedFareUsd) : throughFare,
+    quality: prod ? saturateQuality(0.5 + prod.qualityDelta, rivals.length > 0 ? Math.max(...rivals.map((r) => r.quality)) : null) : 0.5,
     marketDistanceKm: dist,
     legs: [
       mk(`player:${leg1.id}`, a.id, h.id, d1, grp1, leg1, f1, left1),
       mk(`player:${leg2.id}`, h.id, b.id, d2, grp2, leg2, f2, left2),
     ],
   };
-  const rivals = input.competitors ?? buildRivals(a, b, dist, rivalSizingMarket(a, b, dist, market, demand, cfg.choice, (m) => buildRivals(a, b, dist, m, cfg)), cfg);
   const choice = runChoice({
     demand,
     itineraries: [player, ...rivals],
