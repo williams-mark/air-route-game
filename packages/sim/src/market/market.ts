@@ -193,7 +193,7 @@ export function bidForAirline(state: SimState, airlineId: Id, priceUsd: number):
 }
 
 /** Accept or decline a competitor's offer for the player's airline. */
-export function respondToBid(state: SimState, bidId: Id, accept: boolean): { state: SimState; ok: boolean; message: string } {
+export function respondToBid(state: SimState, bidId: Id, accept: boolean, keepName = false): { state: SimState; ok: boolean; message: string } {
   const m = marketOf(state);
   const bid = m.incoming.find((b) => b.id === bidId);
   if (!bid) return { state, ok: false, message: "That offer is no longer open." };
@@ -207,10 +207,17 @@ export function respondToBid(state: SimState, bidId: Id, accept: boolean): { sta
     return { state: pushNotices({ ...state, market: { ...m, incoming: rest, hostileUntil } }, [say(state, text)]), ok: true, message: text };
   }
   const oldName = state.airlineName;
-  const merged = absorbRival({ ...state, market: { ...m, incoming: [] } }, air, 0);
+  // The bidder pays the price out of its own cash: the combined airline starts with both airlines' cash less the price paid to your
+  // shareholders (playtest, 26 Nov 2026: without this, a failing airline that sold itself inherited the buyer's whole cash pile).
+  const merged = absorbRival({ ...state, market: { ...m, incoming: [] } }, air, bid.priceUsd);
   const m2 = marketOf(merged);
-  const text = `${air.name} has bought ${oldName} for ${usdM(bid.priceUsd)}, paid to your shareholders. You run the combined airline, now called ${air.name}: its ${air.fleet.length} aircraft and ${air.routes.length} routes join yours.`;
-  const next: SimState = { ...merged, airlineName: air.name, market: { ...m2, payoutUsd: m2.payoutUsd + bid.priceUsd, merged: [...m2.merged, { day: state.world.day, name: air.name, viaOffer: true }] } };
+  // The campaign grade measures what you build: the buyer's net assets (its cash and aircraft, less the price) raise the baseline.
+  const t = rivalValuation(air, typeMap(state));
+  const broughtIn = t.cashUsd + t.fleetUsd - bid.priceUsd;
+  const campaign = merged.campaign ? { ...merged.campaign, startCashUsd: Math.max(1, merged.campaign.startCashUsd + broughtIn) } : merged.campaign;
+  const name = keepName ? oldName : air.name;
+  const text = `${air.name} has bought ${oldName} for ${usdM(bid.priceUsd)}, paid to your shareholders out of the combined company's cash. You run the combined airline${keepName ? `, keeping the ${oldName} name` : `, now called ${air.name}`}: its ${air.fleet.length} aircraft and ${air.routes.length} routes join yours.`;
+  const next: SimState = { ...merged, airlineName: name, ...(campaign ? { campaign } : {}), market: { ...m2, payoutUsd: m2.payoutUsd + bid.priceUsd, merged: [...m2.merged, { day: state.world.day, name: air.name, viaOffer: true }] } };
   return { state: pushNotices(next, [say(state, text)]), ok: true, message: text };
 }
 
@@ -290,6 +297,14 @@ function consolidate(rivals: RivalsState, buyer: RivalAirline, target: RivalAirl
   const text = `${buyer.name} buys ${target.name} for ${usdM(price)}: ${target.name}'s routes and aircraft join ${buyer.name}.`;
   rivals.news.push({ day, kind: "acquired", rivalId: buyer.id, rivalName: buyer.name, playerMarket: false, text });
   return text;
+}
+
+/** What accepting an offer would bring: the bidder's aircraft, routes, bases and cash, less the price paid out. */
+export function mergePreview(state: SimState, bidId: Id): { aircraft: number; routes: number; bases: Id[]; cashAfterUsd: number; bidderCashUsd: number } | null {
+  const bid = marketOf(state).incoming.find((b) => b.id === bidId);
+  const air = bid ? state.rivals?.airlines.find((a) => a.id === bid.rivalId) : undefined;
+  if (!bid || !air) return null;
+  return { aircraft: air.fleet.length, routes: air.routes.length, bases: air.bases, bidderCashUsd: air.cash, cashAfterUsd: state.world.cash + air.cash - bid.priceUsd };
 }
 
 /** Month-start bookkeeping: valuation history, competitors' offers for the player, consolidation. Daily: offers lapse. */

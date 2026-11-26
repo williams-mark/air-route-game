@@ -41,3 +41,4 @@ table.data.mk-table th .mk-last { display: block; white-space: normal; }
 table.data.mk-table tr.mk-offer-tr td { white-space: normal; background: var(--panel-2); }
 table.data.mk-table tbody th { white-space: normal; min-width: 15rem; }
 table.data.mk-table tbody th .hint { display: block; }
+table.data.mk-table td.mk-empty { white-space: normal; color: var(--text-dim); }

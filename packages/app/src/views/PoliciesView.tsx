@@ -30,7 +30,9 @@ export default function PoliciesView() {
   const setService = (b: Band, k: "meal" | "crew" | "amenities", v: string) => setDraft({ ...draft, service: { ...draft.service, [b]: { ...draft.service[b], [k]: v } } });
   const setFee = (b: Band, k: keyof AncillaryPolicy, text: string) => {
     const n = text.trim() === "" ? 0 : Number(text);
-    setDraft({ ...draft, ancillary: { ...draft.ancillary, [b]: { ...draft.ancillary[b], [k]: Number.isFinite(n) ? Math.round(n) : draft.ancillary[b][k] } } });
+    // Fees run from $0 (included) to the maximum; anything outside is clamped as typed.
+    const v = Number.isFinite(n) ? Math.max(0, Math.min(FEE_MAX[k], Math.round(n))) : draft.ancillary[b][k];
+    setDraft({ ...draft, ancillary: { ...draft.ancillary, [b]: { ...draft.ancillary[b], [k]: v } } });
   };
   const apply = () => {
     const res = bridge.dispatch({ kind: "setProductPolicy", policy: draft });
@@ -99,10 +101,10 @@ export default function PoliciesView() {
             <tr><th scope="row">Amenities</th>{BANDS.map((b) => (
               <td key={b}><select aria-label={`Amenities, ${BAND_LABEL[b]}`} value={draft.service[b].amenities} onChange={(e) => setService(b, "amenities", e.target.value)}>{AMENITY_LEVELS.map((m) => <option key={m} value={m}>{AMENITY_LABEL[m]}</option>)}</select></td>
             ))}</tr>
-            <tr className="pol-group"><th scope="rowgroup" colSpan={5}>Fees per passenger, one way ($0 = included)</th></tr>
+            <tr className="pol-group"><th scope="rowgroup" colSpan={5}>Fees per passenger, one way ($0 = included; hover a box for its maximum)</th></tr>
             {ANCILLARY_KEYS.map((k) => (
               <tr key={k}><th scope="row">{ANCILLARY_LABEL[k]}</th>{BANDS.map((b) => (
-                <td key={b}><span className="pol-fee">$<input type="number" inputMode="numeric" min={0} max={FEE_MAX[k]} step={5} aria-label={`${ANCILLARY_LABEL[k]} fee, ${BAND_LABEL[b]}`} value={draft.ancillary[b][k]} onChange={(e) => setFee(b, k, e.target.value)} /></span></td>
+                <td key={b}><span className="pol-fee">$<input type="number" inputMode="numeric" min={0} max={FEE_MAX[k]} step={5} title={`$0 to $${FEE_MAX[k]}`} aria-label={`${ANCILLARY_LABEL[k]} fee, ${BAND_LABEL[b]}`} value={draft.ancillary[b][k]} onChange={(e) => setFee(b, k, e.target.value)} /></span></td>
               ))}</tr>
             ))}
             <tr className="pol-group"><th scope="rowgroup" colSpan={5}>Effect per passenger</th></tr>
@@ -122,6 +124,7 @@ export default function PoliciesView() {
         </table>
       </div>
 
+      <p className="hint pol-legend"><b>How to read the effect rows.</b> <i>Price as passengers see it</i>: how much more (red) or less (green) your fees make a ticket feel than the usual fees, when passengers compare airlines. <i>Service vs expectation</i>: service points above (green) or below (red) what passengers expect for the distance. <i>Product score</i>, 0 to 100: your service and reputation against the competitors' in the markets you fly; green when you are 4 or more points ahead, red when 4 or more behind.</p>
       {used.length > 0 && <Advice report={used} />}
 
       <section className="panel-box pol-totals" aria-label="Weekly effect">

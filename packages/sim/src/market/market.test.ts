@@ -79,6 +79,19 @@ describe("offers for the player's airline", () => {
     expect(r.state.world.fleet.length).toBe(s.world.fleet.length + bidder.fleet.length);
     expect(marketOf(r.state).payoutUsd).toBe(5e8);
     expect(marketOf(r.state).incoming).toEqual([]);
+    // The price comes out of the combined cash: no free inheritance of the bidder's cash pile.
+    expect(r.state.world.cash).toBeCloseTo(s.world.cash + bidder.cash - 5e8, 0);
+    // Keeping the name is an option.
+    expect(respondToBid(s, "bid-1", true, true).state.airlineName).toBe(s.airlineName);
+  }, 60_000);
+
+  it("accepting raises the campaign baseline by the net assets brought in", () => {
+    const s0 = runDays(startingScenario(airports, aircraftTypes, 5, { rivalField: "world", campaignYears: 15 }), 7);
+    const s = withOffer(s0);
+    const bidder = s.rivals!.airlines.find((a) => a.id === marketOf(s).incoming[0]!.rivalId)!;
+    const t = rivalValuation(bidder, types);
+    const r = respondToBid(s, "bid-1", true);
+    expect(r.state.campaign!.startCashUsd).toBeCloseTo(s.campaign!.startCashUsd + t.cashUsd + t.fleetUsd - 5e8, -3);
   }, 60_000);
 
   it("declining makes the bidder hostile for a year", () => {

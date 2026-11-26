@@ -297,3 +297,13 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .takeover-card { max-width: 34rem; }
 .takeover-card ul { padding-left: 1.1rem; line-height: 1.5; font-size: .9rem; }
 .takeover-card .mk-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.tk-keep { display: flex; gap: .5rem; align-items: center; margin: .2rem 0 .8rem; font-size: .88rem; }
+/* Time controls docked in the top bar on every screen but the map (the floating pill covered page content). */
+.time-pill.docked { position: static; box-shadow: none; margin: 0; padding: .2rem .3rem; background: var(--panel-2); }
+.time-pill.docked .tp-date { display: none; }
+html[data-view="map"] .time-pill.docked { display: none; }
+html:not([data-view="map"]) .main > .time-pill:not(.docked) { display: none; }
+@media (max-width: 720px) {
+  .topbar .time-pill.docked { display: none; }
+  html:not([data-view="map"]) .main > .time-pill:not(.docked) { display: flex; }
+}

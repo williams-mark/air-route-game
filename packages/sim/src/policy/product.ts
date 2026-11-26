@@ -36,9 +36,9 @@ export type AmenityLevel = "basic" | "standard" | "premium";
 export const MEAL_LEVELS: readonly MealLevel[] = ["none", "buy", "snack", "meal", "premium"];
 export const CREW_LEVELS: readonly CrewLevel[] = ["lean", "standard", "generous"];
 export const AMENITY_LEVELS: readonly AmenityLevel[] = ["basic", "standard", "premium"];
-export const MEAL_LABEL: Record<MealLevel, string> = { none: "Nothing", buy: "Buy on board", snack: "Free snack and drinks", meal: "Hot meal", premium: "Premium dining" };
-export const CREW_LABEL: Record<CrewLevel, string> = { lean: "Lean (one fewer attendant)", standard: "Standard", generous: "Generous (one more attendant)" };
-export const AMENITY_LABEL: Record<AmenityLevel, string> = { basic: "Basic", standard: "Wi-Fi and streaming", premium: "Seatback screens, kits" };
+export const MEAL_LABEL: Record<MealLevel, string> = { none: "Nothing", buy: "Buy on board", snack: "Free snack", meal: "Hot meal", premium: "Premium dining" };
+export const CREW_LABEL: Record<CrewLevel, string> = { lean: "Lean (−1 attendant)", standard: "Standard", generous: "Generous (+1 attendant)" };
+export const AMENITY_LABEL: Record<AmenityLevel, string> = { basic: "Basic", standard: "Wi-Fi, streaming", premium: "Screens and kits" };
 
 export interface ServicePolicy { meal: MealLevel; crew: CrewLevel; amenities: AmenityLevel }
 /** Fees per one-way passenger, USD. 0 = included in the fare. */

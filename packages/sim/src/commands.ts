@@ -166,7 +166,7 @@ export type CampaignCommand = { kind: "continueEndless" };
 /** Product policy (policy/product.ts): service and fees by distance band. */
 export type ProductCommand = { kind: "setProductPolicy"; policy: ProductPolicy };
 /** Markets (market/market.ts): offer for a competitor, or answer a competitor's offer for the player's airline. */
-export type MarketCommand = { kind: "bidForAirline"; airlineId: Id; priceUsd: number } | { kind: "respondToBid"; bidId: Id; accept: boolean };
+export type MarketCommand = { kind: "bidForAirline"; airlineId: Id; priceUsd: number } | { kind: "respondToBid"; bidId: Id; accept: boolean; keepName?: boolean };
 
 /** Open a route flown by an aircraft category (planner/categories.ts) instead of one type. `route.typeId` is the planning type. */
 export type CategoryRouteCommand = { kind: "openCategoryRoute"; route: Omit<Route, "id">; categoryId: Id };
@@ -572,7 +572,7 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
       return r.ok ? { state: r.state, result: { ok: true, kind: "bidForAirline", message: r.message } } : { state: r.state, result: fail(state.rivals?.airlines.some((a) => a.id === cmd.airlineId) ? "bid_rejected" : "unknown_airline", r.message) };
     }
     case "respondToBid": {
-      const r = respondToBid(state, cmd.bidId, cmd.accept);
+      const r = respondToBid(state, cmd.bidId, cmd.accept, cmd.keepName ?? false);
       return r.ok ? { state: r.state, result: { ok: true, kind: "respondToBid", message: r.message } } : { state, result: fail("unknown_bid", r.message) };
     }
     case "acceptOffer":

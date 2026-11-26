@@ -20,7 +20,7 @@ function DealLines({ sim, a, priceUsd }: { sim: SimState; a: RivalAirline; price
   const before = playerValuation(sim).valueUsd;
   return (
     <ul className="mk-deal">
-      <li>You pay {usdM(d.priceUsd)} and take over its cash of {usdM(d.targetCashUsd)}: your cash goes from {usdM(sim.world.cash)} to <b className={d.cashAfterUsd < 0 ? "neg" : ""}>{usdM(d.cashAfterUsd)}</b>{d.cashAfterUsd < 0 ? " (on your credit line, with interest)" : ""}.</li>
+      <li>You pay {usdM(d.priceUsd)} and take over its cash of {usdM(d.targetCashUsd)}: your cash goes from {usdM(sim.world.cash)} to <b className={d.cashAfterUsd < 0 ? "neg" : ""}>{usdM(d.cashAfterUsd)}</b>{sim.world.cash - d.priceUsd < -creditLimitUsd(sim) ? <b className="neg"> You cannot pay this: it is beyond your {usdM(creditLimitUsd(sim))} credit line, so the offer would be refused.</b> : d.cashAfterUsd < 0 ? " (on your credit line, with interest)" : ""}.</li>
       <li>You get {d.aircraft} aircraft owned outright (about {usdM(d.fleetValueUsd)}), {d.routes} routes and its base{d.bases.length === 1 ? "" : "s"} {d.bases.join(", ")} as hubs.</li>
       <li>Your company value moves from {usdM(before)} by about <b className={d.valueChangeUsd < 0 ? "neg" : "pos"}>{formatMoney(d.valueChangeUsd, { sign: true })}</b> at once (price against what it is worth); it pays off only if the combined network earns more.</li>
       {(d.nearestBaseKm ?? Infinity) > NEAR_KM && <li className="neg">Its hub is {d.nearestBaseKm === null ? "far" : `${Math.round(d.nearestBaseKm).toLocaleString("en-US")} km`} from your nearest base: its routes will not connect with yours.</li>}
@@ -90,7 +90,9 @@ function Company({ sim }: { sim: SimState }) {
   const v = playerValuation(sim);
   const m = marketOf(sim);
   const hist = m.history.map((h) => ({ day: h.day, value: h.valueUsd }));
-  const year = m.history.filter((h) => h.day >= sim.world.day - 380)[0];
+  // Growth over 12 months, never across a merger (a merger is not growth): only samples after the latest merger count.
+  const lastMerge = m.merged.length > 0 ? m.merged[m.merged.length - 1]!.day : -Infinity;
+  const year = m.history.filter((h) => h.day >= sim.world.day - 380 && h.day > lastMerge)[0];
   const change = year && sim.world.day - year.day >= 330 ? v.valueUsd / Math.max(1, year.valueUsd) - 1 : null;
   const rank = (() => {
     const types = new Map(sim.aircraftTypes.map((t) => [t.id, t]));
@@ -103,7 +105,7 @@ function Company({ sim }: { sim: SimState }) {
         <div>
           <span className="mk-k">Company value</span>
           <span className="mk-big">{usdM(v.valueUsd)}</span>
-          <span className="hint">{change === null ? "first year" : `${change >= 0 ? "+" : "−"}${Math.abs(change * 100).toFixed(0)}% in 12 months`} · number {rank.pos} of {rank.of} airlines flying today, by value</span>
+          <span className="hint">{change === null ? (lastMerge > -Infinity && sim.world.day - lastMerge < 400 ? `merged ${formatDate(lastMerge)}: growth shows a year after` : "first year") : `${change >= 0 ? "+" : "−"}${Math.abs(change * 100).toFixed(0)}% in 12 months`} · number {rank.pos} of {rank.of} airlines flying today, by value</span>
         </div>
         <dl className="mini mk-break">
           <dt>Cash</dt><dd className={v.cashUsd < 0 ? "neg" : ""}>{usdM(v.cashUsd)}</dd>
@@ -173,9 +175,12 @@ function Competitors({ sim }: { sim: SimState }) {
             <th scope="col"><button className="th-btn" onClick={() => setSort("name")}>Airline</button></th>
             <th scope="col">Hub</th><th scope="col" className="num">Routes</th><th scope="col" className="num">Aircraft</th>
             <th scope="col" className="num"><button className="th-btn" onClick={() => setSort("value")}>Value (est.)</button></th>
-            <th scope="col" className="num">12 months</th><th scope="col" className="num"><button className="th-btn" onClick={() => setSort("price")}>Asking price</button></th><th scope="col"><span className="sr-only">Offer</span></th>
+            <th scope="col" className="num" title="Change in the airline's estimated value over the last 12 months">12 months</th><th scope="col" className="num"><button className="th-btn" onClick={() => setSort("price")}>Asking price</button></th><th scope="col"><span className="sr-only">Offer</span></th>
           </tr></thead>
           <tbody>
+            {rows.length === 0 && (
+              <tr><td colSpan={8} className="mk-empty">No airline matches{affordable ? `. "Affordable now" only shows airlines whose asking price is within the ${usdM(spend)} you can spend` : ""}{near ? `. "Near your network" only shows those within ${NEAR_KM.toLocaleString("en-US")} km of your bases` : ""}. <button className="link-btn" onClick={() => { setQuery(""); setAffordable(false); setNear(false); }}>Clear filters</button></td></tr>
+            )}
             {rows.map(({ a, v, change, guide, deal }) => {
               const refusal = bidRefusal(sim, a, guide);
               const wait = nextBidDay(sim, a);
@@ -250,7 +255,7 @@ function Fuel({ sim }: { sim: SimState }) {
         <div>
           <span className="mk-k">Jet fuel, US West Coast</span>
           <span className="mk-big">{gal(now)}<small>/gal</small></span>
-          <span className={`hint ${now > ago ? "neg" : "pos"}`}>{now >= ago ? "+" : "−"}{gal(Math.abs(now - ago))} on a year ago ({gal(ago)})</span>
+          <span className={`hint ${now > ago ? "neg" : "pos"}`}>{Math.abs(now - ago) < 0.005 ? "Unchanged from a year ago" : `${now > ago ? "Up" : "Down"} ${gal(Math.abs(now - ago))} from ${gal(ago)} a year ago`}</span>
         </div>
         <dl className="mini mk-break">
           <dt>Your fuel bill</dt><dd>{Object.keys(sim.routeReports).length === 0 ? "after the first day of flying" : `${formatMoney(fuel)} a week`}</dd>

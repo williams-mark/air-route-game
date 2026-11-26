@@ -12,6 +12,8 @@ import {
 } from "./script";
 import "./tutorial.css";
 
+/** The visible time controls: the floating pill on the map, the docked one in the top bar elsewhere. */
+const TIME_TARGET = 'html[data-view="map"] .main .time-pill, html:not([data-view="map"]) .time-pill.docked';
 const typeName = (id: string) => { const t = aircraftTypes.find((x) => x.id === id); return t ? typeShortName(t) : id; };
 const city = (id: string) => airportById.get(id)?.city ?? id;
 const awardText = (w: Award) => `${TUTORIAL_HUB} to ${w.to} (${city(w.to)}), ${w.frequency} round trips a week on the ${typeName(w.typeId)}`;
@@ -65,7 +67,7 @@ function copy(step: StepId): StepCopy {
     };
     case "clock": return {
       title: "Start the clock",
-      target: ".time-pill",
+      target: TIME_TARGET,
       todo: "Press Space, or the play button, and let two weeks pass. Keys 1 to 5 change the speed.",
       body: <p>The game is paused. Time runs in days; every day your aircraft fly, passengers buy tickets and costs are paid.</p>,
     };
@@ -115,7 +117,7 @@ function copy(step: StepId): StepCopy {
     };
     case "deregulation": return {
       title: "Wait for deregulation",
-      target: ".time-pill",
+      target: TIME_TARGET,
       todo: `Run the clock to ${DEREGULATION_LABEL}. Speed 5 is the fastest; the game pauses on the day.`,
       body: <p>Until then the Board picks your routes and the route planner stays locked. Intrastate airlines in California and Texas, outside the Board's control, had shown that lower fares could fill aircraft, and that helped persuade Congress.</p>,
     };
