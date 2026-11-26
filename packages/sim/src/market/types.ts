@@ -49,4 +49,6 @@ export interface MarketState {
   /** Airlines merged into the player, by name, with the day. */
   merged: { day: Day; name: string; viaOffer: boolean }[];
   nextBid: number;
+  /** Day of the last offer for the player's airline (one a year at most). Absent in older saves. */
+  lastOfferDay?: number;
 }

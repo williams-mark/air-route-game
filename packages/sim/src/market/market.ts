@@ -47,7 +47,9 @@ export const MARKET_PARAMS = {
   /** One-off integration cost of any merger (systems, liveries, labour agreements), as a share of the acquired airline's annual revenue. Game-design value. */
   integrationShareOfRevenue: 0.08,
   offerChancePerMonth: 0.015,
-  offerChanceWeak: 0.08,
+  offerChanceWeak: 0.05,
+  /** After any offer for the player (accepted, declined or lapsed), no new one for this many days. */
+  offerCooldownDays: 365,
   offerPremium: [1.2, 1.5] as const,
   hostileDays: 365,
   /** Consolidation among competitors, checked each quarter for every failing airline. */
@@ -355,7 +357,8 @@ export function stepMarket(state: SimState): SimState {
   m = { ...m, history: [...m.history, point].slice(-MARKET_PARAMS.historyMax) };
 
   // A competitor's offer for the player: only much larger airlines, more likely when the player is weak (distress or a value well below its peak).
-  if (m.incoming.length === 0 && day - (state.rivals.originDay ?? 0) >= 365) {
+  const lastOffer = m.lastOfferDay ?? -Infinity;
+  if (m.incoming.length === 0 && day - (state.rivals.originDay ?? 0) >= 365 && day - lastOffer >= MARKET_PARAMS.offerCooldownDays) {
     const peak = Math.max(...m.history.map((h) => h.valueUsd));
     const weak = !!state.credit?.distressSinceDay || mine.valueUsd < 0.6 * peak;
     const chance = weak ? MARKET_PARAMS.offerChanceWeak : MARKET_PARAMS.offerChancePerMonth;
@@ -365,7 +368,7 @@ export function stepMarket(state: SimState): SimState {
       const [lo, hi] = MARKET_PARAMS.offerPremium;
       const price = roundSig(mine.valueUsd * (lo + (hi - lo) * rng()));
       const bid: IncomingBid = { id: `bid-${m.nextBid}`, rivalId: s.a.id, rivalName: s.a.name, day, expiresDay: day + MARKET_PARAMS.offerExpiryDays, priceUsd: price, valueUsd: mine.valueUsd };
-      m = { ...m, incoming: [...m.incoming, bid], nextBid: m.nextBid + 1 };
+      m = { ...m, incoming: [...m.incoming, bid], nextBid: m.nextBid + 1, lastOfferDay: day };
       notices.push(say(state, `Takeover offer: ${s.a.name} offers ${usdM(price)} for ${state.airlineName} (your value is about ${usdM(mine.valueUsd)}). Accept to run the combined airline, or decline. Open Markets to decide within ${MARKET_PARAMS.offerExpiryDays} days.`));
     }
   }

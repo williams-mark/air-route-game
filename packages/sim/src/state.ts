@@ -62,6 +62,8 @@ export interface RouteReport {
   fareFloorNoticeDay?: Day;
   /** Consecutive weekly checks at or above FULL_ROUTE_LOAD_FACTOR; the app warns after 4 on a route with no fare target. */
   fullWeeks?: number;
+  /** Consecutive weekly checks below LOW_ROUTE_LOAD_FACTOR; the player is told once at LOW_ROUTE_WEEKS (absent in older saves). */
+  lowWeeks?: number;
   /**
    * One-way weekly passengers who wanted this flight before seats ran out (the choice model's first pass, plus connecting
    * passengers carried). Used to rank routes of an aircraft category. Absent in older saves.
@@ -71,6 +73,9 @@ export interface RouteReport {
 
 /** Load factor at which a route counts as full for the "Route is full" warning. */
 export const FULL_ROUTE_LOAD_FACTOR = 0.98;
+/** A route below this load factor for LOW_ROUTE_WEEKS weekly checks in a row gets a warning (often a competitor has moved in). */
+export const LOW_ROUTE_LOAD_FACTOR = 0.4;
+export const LOW_ROUTE_WEEKS = 4;
 /** Fare floor notices per route are spaced at least this many days apart (one a quarter). */
 export const FARE_FLOOR_NOTICE_DAYS = 91;
 

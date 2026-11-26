@@ -25,7 +25,7 @@ import { airportOpen, closureOf, dayLabel } from "./world/closures";
 import { pandemicEnabled, pandemicFactor, pandemicNewsOn } from "./demand/pandemic";
 import { isBankrupt, overdraftInterestUsd, stepCredit } from "./finance/credit";
 import { rivalItinerariesFor, stepRivals } from "./rivals";
-import { DEFAULT_SIM_PARAMS, FARE_FLOOR_NOTICE_DAYS, FULL_ROUTE_LOAD_FACTOR, type AircraftMeta, type CheckKind, type RouteReport, type SimParams, type SimState } from "./state";
+import { DEFAULT_SIM_PARAMS, FARE_FLOOR_NOTICE_DAYS, FULL_ROUTE_LOAD_FACTOR, LOW_ROUTE_LOAD_FACTOR, LOW_ROUTE_WEEKS, type AircraftMeta, type CheckKind, type RouteReport, type SimParams, type SimState } from "./state";
 
 export { makeRng };
 export * from "./demand/market";
@@ -272,16 +272,21 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     const rep = reports[route.id];
     if (!rep) continue;
     const prev = state.routeReports[route.id];
-    let { fareFloor, fareFloorNoticeDay, fullWeeks } = prev ?? {};
+    let { fareFloor, fareFloorNoticeDay, fullWeeks, lowWeeks } = prev ?? {};
     if (day % 7 === 0) {
       fullWeeks = rep.evaluation.loadFactor >= FULL_ROUTE_LOAD_FACTOR ? (fullWeeks ?? 0) + 1 : 0;
+      lowWeeks = rep.evaluation.flightsPerWeek > 0 && rep.evaluation.loadFactor < LOW_ROUTE_LOAD_FACTOR ? (lowWeeks ?? 0) + 1 : 0;
+      if (lowWeeks === LOW_ROUTE_WEEKS) {
+        const rivals = (rep.market.weeklyDemand > 0 ? 1 - rep.market.playerShare : 0);
+        say(`${route.origin}-${route.destination} has run below ${Math.round(LOW_ROUTE_LOAD_FACTOR * 100)}% full for ${LOW_ROUTE_WEEKS} weeks (now ${Math.round(rep.evaluation.loadFactor * 100)}%)${rivals > 0.5 ? `; competitors carry ${Math.round(rivals * 100)}% of the market` : ""}. Cut frequency, lower fares or close it (Routes).`);
+      }
       fareFloor = live.floorBinding[route.id];
       if (fareFloor && (fareFloorNoticeDay === undefined || day - fareFloorNoticeDay >= FARE_FLOOR_NOTICE_DAYS)) {
         fareFloorNoticeDay = day;
         say(`${route.origin}-${route.destination}: fare floor reached at $${Math.round(fareFloor.floorFare)}. Load factor is ${Math.round(rep.evaluation.loadFactor * 100)}%, below the ${Math.round(fareFloor.target * 100)}% target; fares will not go lower.`);
       }
     }
-    reports[route.id] = { ...rep, ...(fareFloor ? { fareFloor } : {}), ...(fareFloorNoticeDay !== undefined ? { fareFloorNoticeDay } : {}), ...(fullWeeks !== undefined ? { fullWeeks } : {}) };
+    reports[route.id] = { ...rep, ...(fareFloor ? { fareFloor } : {}), ...(fareFloorNoticeDay !== undefined ? { fareFloorNoticeDay } : {}), ...(fullWeeks !== undefined ? { fullWeeks } : {}), ...(lowWeeks ? { lowWeeks } : {}) };
   }
   if (Object.keys(live.solvedFares).length > 0) {
     world = { ...world, routes: world.routes.map((r) => (live.solvedFares[r.id] ? { ...r, fares: live.solvedFares[r.id]! } : r)) };

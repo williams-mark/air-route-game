@@ -71,7 +71,7 @@ export const LOW_CASH_USD = 15_000_000;
 export function classifyNotice(text: string): Severity {
   if (/Financial distress|Still in distress|Bankruptcy/.test(text)) return "alert";
   if (/Distress over/.test(text)) return "good";
-  if (/^Takeover offer|board rejected|reputation is now (poor|very poor)/.test(text)) return "warn";
+  if (/^Takeover offer|board rejected|reputation is now (poor|very poor)|has run below \d+% full/.test(text)) return "warn";
   if (/^You bought|has bought .* for|reputation is now (good|excellent)/.test(text)) return "good";
   if (/Cash is below zero/.test(text)) return "warn";
   if (/under-supplied|forced|no spare aircraft can cover|deferring|Delivery delayed|Offer expiring soon/i.test(text)) return "warn";
