@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
 import { startingScenario } from "../scenario";
 import { applyCommand, runDays, stepDay } from "../index";
-import { absorbRival, integrationCostUsd, guidePriceUsd, marketOf, playerValuation, reservationPriceUsd, respondToBid, rivalValuation, stepMarket } from "./market";
+import { absorbRival, acquisitionFunding, bidRefusal, integrationCostUsd, guidePriceUsd, marketOf, playerValuation, reservationPriceUsd, respondToBid, rivalValuation, stepMarket } from "./market";
 import { rampedIntensity, DIFFICULTY, RAMP } from "../rivals/config";
+import { creditLimitUsd } from "../finance/credit";
 import { jan1Day } from "../time/calendar";
 import type { SimState } from "../state";
 
@@ -53,6 +54,17 @@ describe("buying a competitor", () => {
     expect(s2.world.routes.filter((r) => s2.routeReports[r.id]).length).toBe(s2.world.routes.length);
     expect(guidePriceUsd(s0, target)).toBeGreaterThan(0);
   }, 120_000);
+
+  it("a purchase can borrow against the aircraft it buys (leveraged), and its asking price is smoothed", () => {
+    const s0 = runDays(world(), 40);
+    const target = [...s0.rivals!.airlines].filter((a) => a.status === "active" && a.fleet.length > 5)
+      .sort((x, y) => rivalValuation(x, types).valueUsd - rivalValuation(y, types).valueUsd)[0]!;
+    const ask = reservationPriceUsd(s0, target);
+    const f = acquisitionFunding(s0, target, ask);
+    expect(f.limitAfterUsd).toBeGreaterThan(creditLimitUsd(s0));
+    expect(f.cashAfterUsd).toBeCloseTo(s0.world.cash - ask + target.cash - integrationCostUsd(target), 0);
+    expect(bidRefusal(s0, target, ask) === null).toBe(f.cashAfterUsd >= -f.limitAfterUsd);
+  }, 60_000);
 
   it("refuses an offer the credit line cannot cover", () => {
     const s0 = runDays(world(), 7);

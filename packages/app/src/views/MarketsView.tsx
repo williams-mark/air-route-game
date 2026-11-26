@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import type { Id } from "@arg/contracts";
 import {
-  baseJetAPriceUsdPerGallon, bidRefusal, creditLimitUsd, dealPreview, guidePriceUsd, isDistressed, MARKET_PARAMS, marketOf, nextBidDay, playerValuation, rivalHistory, rivalValuation,
+  acquisitionFunding, baseJetAPriceUsdPerGallon, bidRefusal, creditLimitUsd, dealPreview, guidePriceUsd, isDistressed, MARKET_PARAMS, marketOf, nextBidDay, playerValuation, rivalHistory, rivalValuation,
   type RivalAirline, type SimState,
 } from "@arg/sim";
 import { bridge, useSim } from "../sim/useSim";
@@ -18,9 +18,11 @@ function DealLines({ sim, a, priceUsd }: { sim: SimState; a: RivalAirline; price
   if (!(priceUsd > 0)) return null;
   const d = dealPreview(sim, a, priceUsd);
   const before = playerValuation(sim).valueUsd;
+  const ask = guidePriceUsd(sim, a);
   return (
     <ul className="mk-deal">
-      <li>You pay {usdM(d.priceUsd)}, take over its cash of {usdM(d.targetCashUsd)} and pay {usdM(d.integrationUsd)} to integrate it (systems, staff, liveries): your cash goes from {usdM(sim.world.cash)} to <b className={d.cashAfterUsd < 0 ? "neg" : ""}>{usdM(d.cashAfterUsd)}</b>{sim.world.cash - d.priceUsd < -creditLimitUsd(sim) ? <b className="neg"> You cannot pay this: it is beyond your {usdM(creditLimitUsd(sim))} credit line, so the offer would be refused.</b> : d.cashAfterUsd < 0 ? " (on your credit line, with interest)" : ""}.</li>
+      {priceUsd < ask && <li className="neg"><b>Below the asking price of {usdM(ask)}: the board will reject it</b> (and you then wait {MARKET_PARAMS.rejectCooldownDays} days).</li>}
+      <li>You pay {usdM(d.priceUsd)}, take over its cash of {usdM(d.targetCashUsd)} and pay {usdM(d.integrationUsd)} to integrate it (systems, staff, liveries): your cash goes from {usdM(sim.world.cash)} to <b className={d.cashAfterUsd < 0 ? "neg" : ""}>{usdM(d.cashAfterUsd)}</b>{(() => { const f = acquisitionFunding(sim, a, priceUsd); return f.cashAfterUsd < -f.limitAfterUsd ? <b className="neg"> You cannot fund this: you could borrow at most {usdM(f.limitAfterUsd)} (your credit line plus half the value of its aircraft as security).</b> : d.cashAfterUsd < 0 ? ` (borrowed on your credit line, which grows to ${usdM(f.limitAfterUsd)} with its aircraft as security; interest applies)` : ""; })()}.</li>
       <li>You get {d.aircraft} aircraft owned outright (about {usdM(d.fleetValueUsd)}), {d.routes} routes and its base{d.bases.length === 1 ? "" : "s"} {d.bases.join(", ")} as hubs.</li>
       <li>Your company value moves from {usdM(before)} by about <b className={d.valueChangeUsd < 0 ? "neg" : "pos"}>{formatMoney(d.valueChangeUsd, { sign: true })}</b> at once (price against what it is worth); it pays off only if the combined network earns more.</li>
       {(d.nearestBaseKm ?? Infinity) > NEAR_KM && <li className="neg">Its hub is {d.nearestBaseKm === null ? "far" : `${Math.round(d.nearestBaseKm).toLocaleString("en-US")} km`} from your nearest base: its routes will not connect with yours.</li>}
@@ -155,14 +157,14 @@ function Competitors({ sim }: { sim: SimState }) {
     const guide = guidePriceUsd(sim, a);
     return { a, v, change: past && sim.world.day - past.day >= 330 ? v / Math.max(1, past.valueUsd) - 1 : null, guide, deal: dealPreview(sim, a, guide) };
   }).filter((r) => (!query || `${r.a.name} ${r.a.bases.join(" ")}`.toLowerCase().includes(query.toLowerCase()))
-    && (!affordable || r.guide <= spend) && (!near || (r.deal.nearestBaseKm ?? Infinity) <= NEAR_KM))
+    && (!affordable || (() => { const f = acquisitionFunding(sim, r.a, r.guide); return f.cashAfterUsd >= -f.limitAfterUsd; })()) && (!near || (r.deal.nearestBaseKm ?? Infinity) <= NEAR_KM))
     .sort((x, y) => (sort === "value" ? y.v - x.v : sort === "price" ? x.guide - y.guide : x.a.name.localeCompare(y.a.name)));
   const mine = playerValuation(sim).valueUsd;
   // For the empty state: the closest airline whose asking price is within reach, whatever the filters say.
   const nearestAffordable = rows.length > 0 ? null : (sim.rivals?.airlines ?? []).filter((a) => a.status === "active").map((a) => {
     const guide = guidePriceUsd(sim, a);
     return { a, guide, km: dealPreview(sim, a, guide).nearestBaseKm ?? Infinity };
-  }).filter((x) => x.guide <= spend && Number.isFinite(x.km)).sort((x, y) => x.km - y.km)[0] ?? null;
+  }).filter((x) => { const f = acquisitionFunding(sim, x.a, x.guide); return f.cashAfterUsd >= -f.limitAfterUsd && Number.isFinite(x.km); }).sort((x, y) => x.km - y.km)[0] ?? null;
   const recent = (sim.rivals?.news ?? []).filter((n) => n.kind === "acquired").slice(-6).reverse();
   const bid = (a: RivalAirline) => {
     const usd = Number(price.replace(/[^0-9.]/g, "")) * 1e6;
@@ -179,7 +181,7 @@ function Competitors({ sim }: { sim: SimState }) {
         <input type="search" placeholder="Search airline or airport" aria-label="Search airline or airport" value={query} onChange={(e) => setQuery(e.target.value)} />
         <label><input type="checkbox" checked={affordable} onChange={(e) => setAffordable(e.target.checked)} /> Affordable now</label>
         <label><input type="checkbox" checked={near} onChange={(e) => setNear(e.target.checked)} /> Near your network (within {NEAR_KM.toLocaleString("en-US")} km)</label>
-        <span className="hint">You can spend up to {usdM(spend)} (cash {usdM(sim.world.cash)} plus your credit line). {rows.length} airline{rows.length === 1 ? "" : "s"} shown.</span>
+        <span className="hint">Cash {usdM(sim.world.cash)} plus a credit line of {usdM(creditLimitUsd(sim))}; a purchase can also borrow against the aircraft you buy. {rows.length} airline{rows.length === 1 ? "" : "s"} shown.</span>
       </div>
       <div className="table-wrap">
         <table className="data mk-table">
@@ -221,7 +223,7 @@ function Competitors({ sim }: { sim: SimState }) {
                   <tr className="mk-offer-tr"><td colSpan={8}>
                     <form className="mk-bid" onSubmit={(e) => { e.preventDefault(); bid(a); }}>
                       <label>Offer for {a.name}: $<input autoFocus inputMode="decimal" aria-label={`Offer for ${a.name}, millions of dollars`} value={price} onChange={(e) => setPrice(e.target.value)} />M</label>
-                      <button className="primary" type="submit">Confirm offer</button>
+                      <button className="primary" type="submit" disabled={(() => { const usd = Number(price.replace(/[^0-9.]/g, "")) * 1e6; const f = acquisitionFunding(sim, a, usd); return !(usd > 0) || f.cashAfterUsd < -f.limitAfterUsd; })()}>Confirm offer</button>
                       <button type="button" onClick={() => setOpen(null)}>Cancel</button>
                     </form>
                     <DealLines sim={sim} a={a} priceUsd={Number(price.replace(/[^0-9.]/g, "")) * 1e6} />

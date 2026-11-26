@@ -18,6 +18,7 @@ import type { SimState } from "../state";
 import type { RivalAirline, RivalNewsItem, RivalsState } from "../rivals/types";
 import { ARCHETYPES } from "../rivals/config";
 import { aircraftBookValueUsd, creditLimitUsd } from "../finance/credit";
+import { CREDIT_PARAMS } from "../fleet/lifecycle";
 import { saleValueUsd, holdingOf } from "../fleet/disposal";
 import { DISPOSAL_PARAMS } from "../fleet/lifecycle";
 import { ownedHubsOf } from "../fleet/hubs";
@@ -122,7 +123,10 @@ export const isDistressed = (air: RivalAirline) => air.cash < 0 || air.lossWeeks
 
 /** The price at which a competitor's board accepts an offer this month (hidden from the player). */
 export function reservationPriceUsd(state: SimState, air: RivalAirline): number {
-  const v = rivalValuation(air, typeMap(state), state.rivals?.originDay ?? 0).valueUsd;
+  // The board prices off its value over the last few months, not today's figure alone (a good quarter does not double the ask).
+  const now = rivalValuation(air, typeMap(state), state.rivals?.originDay ?? 0).valueUsd;
+  const recent = rivalHistory(marketOf(state), air.id).slice(-3).map((h) => h.valueUsd);
+  const v = (now + recent.reduce((s, x) => s + x, 0)) / (1 + recent.length);
   const prem = isDistressed(air) ? MARKET_PARAMS.distressedPremium : MARKET_PARAMS.premium;
   const noise = (makeRng(mixSeed(state.world.seed, hashId(air.id) ^ monthOf(state.world.day)))() - 0.5) * 2 * MARKET_PARAMS.boardNoise;
   return v * prem * (1 + noise);
@@ -182,9 +186,20 @@ export function bidRefusal(state: SimState, air: RivalAirline | undefined, price
   if (last && state.world.day - last.day < MARKET_PARAMS.acquisitionCooldownDays) {
     return `You are still integrating ${last.rivalName}. Your next acquisition is possible in ${MARKET_PARAMS.acquisitionCooldownDays - (state.world.day - last.day)} days.`;
   }
-  const limit = creditLimitUsd(state);
-  if (state.world.cash - priceUsd < -limit) return `Paying ${usdM(priceUsd)} would take cash to ${usdM(state.world.cash - priceUsd)}, beyond your ${usdM(limit)} credit line.`;
+  const f = acquisitionFunding(state, air, priceUsd);
+  if (f.cashAfterUsd < -f.limitAfterUsd) return `Paying ${usdM(priceUsd)} would leave cash at ${usdM(f.cashAfterUsd)} after the deal, beyond the ${usdM(f.limitAfterUsd)} you could borrow (your credit line plus half the value of ${air.name}'s aircraft as security).`;
   return null;
+}
+
+/**
+ * How a purchase is funded: cash after the deal (yours, less the price and integration, plus the seller's cash) against the credit line
+ * after it, which grows by the lender's advance on the acquired aircraft (they are owned outright, like a leveraged buyout).
+ */
+export function acquisitionFunding(state: SimState, air: RivalAirline, priceUsd: number): { cashAfterUsd: number; limitAfterUsd: number } {
+  const types = typeMap(state);
+  let book = 0;
+  for (const f of air.fleet) { const t = types.get(f.typeId); if (t) book += aircraftBookValueUsd(t, f.ageDays); }
+  return { cashAfterUsd: state.world.cash - priceUsd + air.cash - integrationCostUsd(air), limitAfterUsd: creditLimitUsd(state) + CREDIT_PARAMS.fleetAdvanceRate * book };
 }
 
 /** The player offers `priceUsd` for a competitor. */
