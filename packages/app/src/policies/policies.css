@@ -24,3 +24,4 @@ tr.pol-group th { background: var(--panel-2); font-size: .72rem; text-transform:
 .pol-sticky { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; padding: .55rem .8rem; margin: .4rem 0; background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; box-shadow: var(--shadow); font-size: .88rem; }
 .pol-actions .hint { font-size: .82rem; color: var(--text-dim); align-self: center; }
 .pol-legend { margin: .8rem 0 0; font-size: .82rem; line-height: 1.5; }
+.pol-band-preset { display: block; margin-top: .35rem; width: 100%; min-width: 8rem; font-size: .75rem !important; text-transform: none; letter-spacing: 0; }

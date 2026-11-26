@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AMENITY_LABEL, AMENITY_LEVELS, ANCILLARY_KEYS, ANCILLARY_LABEL, BAND_LABEL, BAND_RANGE, BANDS, CREW_LABEL, CREW_LEVELS, FEE_MAX, MEAL_LABEL, MEAL_LEVELS,
-  PRESETS, policyError, productOf, productReport, projectedReputation, reputationLabel, type AncillaryPolicy, type Band, type ProductPolicy,
+  PRESETS, passengersByBand, policyError, productOf, productReport, projectedReputation, reputationLabel, satisfactionOf, type AncillaryPolicy, type Band, type ProductPolicy,
 } from "@arg/sim";
 import { bridge, useSim } from "../sim/useSim";
 import { useToasts } from "../routes/store";
@@ -40,6 +40,8 @@ export default function PoliciesView() {
     else push("good", "Service and fee policy updated. Passengers react from tomorrow; reputation follows over the coming weeks.");
   };
   const rep = current.reputation;
+  // Where reputation would head under the draft policy, at today's passengers by band.
+  const draftSat = satisfactionOf(draft, passengersByBand(sim));
   const hist = current.history.slice(-13);
   const trend = hist.length > 1 ? rep - hist[0]!.reputation : 0;
   const totals = report.reduce((t, r) => ({ cost: t.cost + r.serviceCostWeekly, anc: t.anc + r.ancillaryWeekly }), { cost: 0, anc: 0 });
@@ -56,7 +58,7 @@ export default function PoliciesView() {
 
       {dirty && (
         <div className="pol-sticky" role="status">
-          <span>Unsaved changes to your service and fees.</span>
+          <span>Unsaved changes to your service and fees. With this policy, reputation heads toward <b>{signed(draftSat * 100)}</b> ({reputationLabel(draftSat)}): about <b>{signed(projectedReputation(rep, draftSat, 13) * 100)}</b> in three months.</span>
           <button className="primary" disabled={!!err} onClick={apply}>Apply policy</button>
           <button onClick={() => setDraft(structuredClone(current.policy))}>Undo</button>
         </div>
@@ -76,7 +78,7 @@ export default function PoliciesView() {
       </section>
 
       <section className="panel-box" aria-label="Presets">
-        <h2>Start from a preset</h2>
+        <h2>Start from a preset (all bands; each band also has its own preset above its column)</h2>
         <div className="pol-presets">
           <button onClick={() => setDraft(structuredClone(PRESETS.lowcost))}>Low-cost <span className="hint">buy on board, lean crew, high fees</span></button>
           <button onClick={() => setDraft(structuredClone(PRESETS.standard))}>Standard <span className="hint">what passengers expect</span></button>
@@ -87,7 +89,19 @@ export default function PoliciesView() {
       <div className="table-wrap">
         <table className="data pol-table">
           <thead>
-            <tr><th scope="col">By distance</th>{report.map((r) => <th key={r.band} scope="col">{BAND_LABEL[r.band]}<span className="hint">{BAND_RANGE[r.band]} · {r.routes} route{r.routes === 1 ? "" : "s"}</span></th>)}</tr>
+            <tr><th scope="col">By distance</th>{report.map((r) => (
+              <th key={r.band} scope="col">{BAND_LABEL[r.band]}<span className="hint">{BAND_RANGE[r.band]} · {r.routes} route{r.routes === 1 ? "" : "s"}</span>
+                <select className="pol-band-preset" aria-label={`Preset for ${BAND_LABEL[r.band]} only`} value="" onChange={(e) => {
+                  const pr = PRESETS[e.target.value as keyof typeof PRESETS];
+                  if (pr) setDraft({ ...draft, service: { ...draft.service, [r.band]: { ...pr.service[r.band] } }, ancillary: { ...draft.ancillary, [r.band]: { ...pr.ancillary[r.band] } } });
+                }}>
+                  <option value="">Preset for this band…</option>
+                  <option value="lowcost">Low-cost</option>
+                  <option value="standard">Standard</option>
+                  <option value="full">Full service</option>
+                </select>
+              </th>
+            ))}</tr>
           </thead>
           <tbody>
             <tr><th scope="row">Passengers a week</th>{report.map((r) => <td key={r.band} className="num">{r.routes === 0 ? <span className="hint">–</span> : Math.round(r.paxPerWeek).toLocaleString("en-US")}{r.avgEconomyFareUsd !== null && <span className="hint pol-mix">avg economy fare {usd0(r.avgEconomyFareUsd)}</span>}</td>)}</tr>
