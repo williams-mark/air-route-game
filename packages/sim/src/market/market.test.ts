@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { aircraftTypes, airports } from "@arg/data";
 import { startingScenario } from "../scenario";
 import { applyCommand, runDays, stepDay } from "../index";
-import { absorbRival, guidePriceUsd, marketOf, playerValuation, reservationPriceUsd, respondToBid, rivalValuation, stepMarket } from "./market";
+import { absorbRival, integrationCostUsd, guidePriceUsd, marketOf, playerValuation, reservationPriceUsd, respondToBid, rivalValuation, stepMarket } from "./market";
 import { rampedIntensity, DIFFICULTY, RAMP } from "../rivals/config";
 import { jan1Day } from "../time/calendar";
 import type { SimState } from "../state";
@@ -80,7 +80,7 @@ describe("offers for the player's airline", () => {
     expect(marketOf(r.state).payoutUsd).toBe(5e8);
     expect(marketOf(r.state).incoming).toEqual([]);
     // The price comes out of the combined cash: no free inheritance of the bidder's cash pile.
-    expect(r.state.world.cash).toBeCloseTo(s.world.cash + bidder.cash - 5e8, 0);
+    expect(r.state.world.cash).toBeCloseTo(s.world.cash + bidder.cash - 5e8 - integrationCostUsd(bidder), 0);
     // Keeping the name is an option.
     expect(respondToBid(s, "bid-1", true, true).state.airlineName).toBe(s.airlineName);
   }, 60_000);

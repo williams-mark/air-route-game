@@ -105,7 +105,8 @@ describe("expiry", () => {
     while (s.world.day < o.expiresDay + 2) {
       s = stepDay(s);
       const texts = s.pendingEvents.filter((e) => e.kind === "notice").map((e) => (e as { text: string }).text);
-      if (texts.some((t) => t.includes("expiring soon") && t.includes(o.id))) warned = true;
+      // Notices name the aircraft, not the internal offer id.
+      if (texts.some((t) => t.includes("expiring soon") && t.includes(`${o.quantity} x`))) warned = true;
       if (!s.offers.some((x) => x.id === o.id)) { gone = true; expect(s.world.day).toBeLessThanOrEqual(o.expiresDay + 1); break; }
       s = { ...s, pendingEvents: [] };
     }

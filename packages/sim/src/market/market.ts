@@ -42,6 +42,10 @@ export const MARKET_PARAMS = {
   /** Competitors' offers for the player. */
   offerExpiryDays: 30,
   offerMinValueRatio: 1.5,
+  /** Bidders are at most this many times the player's value: a merger of near-peers, not a giant swallowing a minnow (playtest: accepting a 100x bidder made the player the largest airline overnight). */
+  offerMaxValueRatio: 4,
+  /** One-off integration cost of any merger (systems, liveries, labour agreements), as a share of the acquired airline's annual revenue. Game-design value. */
+  integrationShareOfRevenue: 0.08,
   offerChancePerMonth: 0.015,
   offerChanceWeak: 0.08,
   offerPremium: [1.2, 1.5] as const,
@@ -141,14 +145,14 @@ export function nextBidDay(state: SimState, air: RivalAirline): Day | null {
 }
 
 /** What buying `air` at `priceUsd` would do: cash change, what joins, distance from the player's network. */
-export interface DealPreview { priceUsd: number; targetCashUsd: number; netCashUsd: number; cashAfterUsd: number; aircraft: number; fleetValueUsd: number; routes: number; bases: Id[]; valueUsd: number; valueChangeUsd: number; nearestBaseKm: number | null }
+export interface DealPreview { priceUsd: number; targetCashUsd: number; integrationUsd: number; netCashUsd: number; cashAfterUsd: number; aircraft: number; fleetValueUsd: number; routes: number; bases: Id[]; valueUsd: number; valueChangeUsd: number; nearestBaseKm: number | null }
 export function dealPreview(state: SimState, air: RivalAirline, priceUsd: number): DealPreview {
   const v = rivalValuation(air, typeMap(state), state.rivals?.originDay ?? 0);
   const bases = ownedHubsOf(state).concat(state.outstations ?? []);
   const hub = state.airports.find((a) => a.id === air.bases[0]);
   const near = hub ? Math.min(...bases.map((b) => { const ap = state.airports.find((a) => a.id === b); return ap ? distanceKm(hub, ap) : Infinity; })) : Infinity;
   return {
-    priceUsd, targetCashUsd: air.cash, netCashUsd: air.cash - priceUsd, cashAfterUsd: state.world.cash + air.cash - priceUsd,
+    priceUsd, targetCashUsd: air.cash, integrationUsd: integrationCostUsd(air), netCashUsd: air.cash - priceUsd - integrationCostUsd(air), cashAfterUsd: state.world.cash + air.cash - priceUsd - integrationCostUsd(air),
     aircraft: air.fleet.length, fleetValueUsd: v.fleetUsd, routes: air.routes.length, bases: air.bases, valueUsd: v.valueUsd,
     valueChangeUsd: v.valueUsd - priceUsd, nearestBaseKm: Number.isFinite(near) ? near : null,
   };
@@ -156,6 +160,9 @@ export function dealPreview(state: SimState, air: RivalAirline, priceUsd: number
 
 export const emptyMarket = (): MarketState => ({ history: [], incoming: [], bids: [], hostileUntil: {}, cooldown: {}, payoutUsd: 0, merged: [], nextBid: 1 });
 export const marketOf = (s: SimState): MarketState => s.market ?? emptyMarket();
+
+/** "Fable Skies'" and "Lantern Jet's". */
+export const possessive = (name: string) => (name.endsWith("s") ? `${name}'` : `${name}'s`);
 
 const say = (state: SimState, text: string): SimEvent => ({ kind: "notice", day: state.world.day, text });
 const pushNotices = (state: SimState, events: SimEvent[]): SimState =>
@@ -168,7 +175,7 @@ export function bidRefusal(state: SimState, air: RivalAirline | undefined, price
   if (!Number.isFinite(priceUsd) || priceUsd <= 0) return "Enter a price above zero.";
   const m = marketOf(state);
   const until = m.cooldown[air.id] ?? -Infinity;
-  if (state.world.day < until) return `${air.name}'s board will not look at another offer before ${Math.ceil(until - state.world.day)} more days have passed.`;
+  if (state.world.day < until) return `${possessive(air.name)} board will not look at another offer before ${Math.ceil(until - state.world.day)} more days have passed.`;
   const last = [...m.bids].reverse().find((b) => b.outcome === "accepted");
   if (last && state.world.day - last.day < MARKET_PARAMS.acquisitionCooldownDays) {
     return `You are still integrating ${last.rivalName}. Your next acquisition is possible in ${MARKET_PARAMS.acquisitionCooldownDays - (state.world.day - last.day)} days.`;
@@ -188,7 +195,7 @@ export function bidForAirline(state: SimState, airlineId: Id, priceUsd: number):
   if (priceUsd < reserve) {
     const hint = ceilSig(reserve);
     const rec: BidRecord = { day: state.world.day, rivalId: air.id, rivalName: air.name, priceUsd, outcome: "rejected", hintUsd: hint };
-    const text = `${air.name}'s board rejected your offer of ${usdM(priceUsd)}. Its asking price this month is ${usdM(hint)} (it moves a little each month). You can offer again from ${dayLabel(state.world.day + MARKET_PARAMS.rejectCooldownDays)}.`;
+    const text = `${possessive(air.name)} board rejected your offer of ${usdM(priceUsd)}. Its asking price this month is ${usdM(hint)} (it moves a little each month). You can offer again from ${dayLabel(state.world.day + MARKET_PARAMS.rejectCooldownDays)}.`;
     const next: SimState = { ...state, market: { ...m, bids: [...m.bids, rec], cooldown: { ...m.cooldown, [air.id]: state.world.day + MARKET_PARAMS.rejectCooldownDays } } };
     return { state: pushNotices(next, [say(state, text)]), ok: false, message: text };
   }
@@ -209,8 +216,8 @@ export function respondToBid(state: SimState, bidId: Id, accept: boolean, keepNa
   const rest = m.incoming.filter((b) => b.id !== bidId);
   if (!accept || !air || air.status !== "active") {
     const text = air && air.status === "active"
-      ? `You turned down ${bid.rivalName}'s offer of ${usdM(bid.priceUsd)}. Expect it to compete harder in your markets for a year.`
-      : `${bid.rivalName}'s offer has lapsed.`;
+      ? `You turned down ${possessive(bid.rivalName)} offer of ${usdM(bid.priceUsd)}. Expect it to compete harder in your markets for a year.`
+      : `${possessive(bid.rivalName)} offer has lapsed.`;
     const hostileUntil = air && air.status === "active" ? { ...m.hostileUntil, [air.id]: state.world.day + MARKET_PARAMS.hostileDays } : m.hostileUntil;
     return { state: pushNotices({ ...state, market: { ...m, incoming: rest, hostileUntil } }, [say(state, text)]), ok: true, message: text };
   }
@@ -224,7 +231,9 @@ export function respondToBid(state: SimState, bidId: Id, accept: boolean, keepNa
   const broughtIn = t.cashUsd + t.fleetUsd - bid.priceUsd;
   const campaign = merged.campaign ? { ...merged.campaign, startCashUsd: Math.max(1, merged.campaign.startCashUsd + broughtIn) } : merged.campaign;
   const name = keepName ? oldName : air.name;
-  const text = `${air.name} has bought ${oldName} for ${usdM(bid.priceUsd)}, paid to your shareholders out of the combined company's cash. You run the combined airline${keepName ? `, keeping the ${oldName} name` : `, now called ${air.name}`}: its ${air.fleet.length} aircraft and ${air.routes.length} routes join yours.`;
+  const text = keepName
+    ? `You merged with ${air.name}; the combined company keeps the ${oldName} name and you run it. ${usdM(bid.priceUsd)} went to your shareholders out of the combined cash; its ${air.fleet.length} aircraft and ${air.routes.length} routes join yours.`
+    : `${air.name} has bought ${oldName} for ${usdM(bid.priceUsd)}, paid to your shareholders out of the combined company's cash. You run the combined airline, now called ${air.name}: its ${air.fleet.length} aircraft and ${air.routes.length} routes join yours.`;
   const next: SimState = { ...merged, airlineName: name, ...(campaign ? { campaign } : {}), market: { ...m2, payoutUsd: m2.payoutUsd + bid.priceUsd, merged: [...m2.merged, { day: state.world.day, name: air.name, viaOffer: true }] } };
   return { state: pushNotices(next, [say(state, text)]), ok: true, message: text };
 }
@@ -265,8 +274,9 @@ export function absorbRival(state: SimState, air: RivalAirline, paidUsd: number)
     byKey.set(key(r.origin, r.destination), r);
   }
   const ownedHubs = [...new Set([...ownedHubsOf(state), ...air.bases])].sort();
-  const cash = state.world.cash - paidUsd + air.cash;
-  const text = `${air.name} merged into ${state.airlineName}${paidUsd > 0 ? ` for ${usdM(paidUsd)}` : ""}.`;
+  const integration = integrationCostUsd(air);
+  const cash = state.world.cash - paidUsd + air.cash - integration;
+  const text = `${air.name} merged into ${state.airlineName}${paidUsd > 0 ? ` for ${usdM(paidUsd)}` : ""}; integration costs ${usdM(integration)}.`;
   const rivals: RivalsState | null = state.rivals ? {
     ...state.rivals,
     airlines: state.rivals.airlines.map((a) => (a.id === air.id ? { ...a, status: "acquired" as const, fleet: [], routes: [], pending: [], orders: [], cash: 0 } : a)),
@@ -276,7 +286,7 @@ export function absorbRival(state: SimState, air: RivalAirline, paidUsd: number)
     ...state,
     world: {
       ...state.world, cash, routes, fleet: [...state.world.fleet, ...newAircraft], ownedHubs,
-      cashLog: [...(state.world.cashLog ?? []), { day: state.world.day, amountUsd: air.cash - paidUsd, text: `${text} Its cash ${usdM(air.cash)} joins yours.` }],
+      cashLog: [...(state.world.cashLog ?? []), { day: state.world.day, amountUsd: air.cash - paidUsd - integration, text: `${text} Its cash ${usdM(air.cash)} joins yours.` }],
     },
     fleetMeta,
     counters: { ...state.counters, aircraft: nAc, route: nRoute },
@@ -307,12 +317,18 @@ function consolidate(rivals: RivalsState, buyer: RivalAirline, target: RivalAirl
   return text;
 }
 
+/** One-off integration cost of merging `air` into the player (MARKET_PARAMS.integrationShareOfRevenue of its annual revenue). */
+export function integrationCostUsd(air: RivalAirline): number {
+  return Math.round(MARKET_PARAMS.integrationShareOfRevenue * 52 * air.routes.reduce((s, r) => s + (r.revenue ?? 0), 0));
+}
+
 /** What accepting an offer would bring: the bidder's aircraft, routes, bases and cash, less the price paid out. */
-export function mergePreview(state: SimState, bidId: Id): { aircraft: number; routes: number; bases: Id[]; cashAfterUsd: number; bidderCashUsd: number } | null {
+export function mergePreview(state: SimState, bidId: Id): { aircraft: number; routes: number; bases: Id[]; cashAfterUsd: number; bidderCashUsd: number; integrationUsd: number } | null {
   const bid = marketOf(state).incoming.find((b) => b.id === bidId);
   const air = bid ? state.rivals?.airlines.find((a) => a.id === bid.rivalId) : undefined;
   if (!bid || !air) return null;
-  return { aircraft: air.fleet.length, routes: air.routes.length, bases: air.bases, bidderCashUsd: air.cash, cashAfterUsd: state.world.cash + air.cash - bid.priceUsd };
+  const integrationUsd = integrationCostUsd(air);
+  return { aircraft: air.fleet.length, routes: air.routes.length, bases: air.bases, bidderCashUsd: air.cash, integrationUsd, cashAfterUsd: state.world.cash + air.cash - bid.priceUsd - integrationUsd };
 }
 
 /** Month-start bookkeeping: valuation history, competitors' offers for the player, consolidation. Daily: offers lapse. */
@@ -325,7 +341,7 @@ export function stepMarket(state: SimState): SimState {
   const lapsed = m.incoming.filter((b) => b.expiresDay <= day);
   if (lapsed.length > 0) {
     m = { ...m, incoming: m.incoming.filter((b) => b.expiresDay > day) };
-    for (const b of lapsed) notices.push(say(state, `${b.rivalName}'s offer of ${usdM(b.priceUsd)} for your airline has lapsed.`));
+    for (const b of lapsed) notices.push(say(state, `${possessive(b.rivalName)} offer of ${usdM(b.priceUsd)} for your airline has lapsed.`));
   }
   if (dayToDate(day).dayOfMonth !== 1) {
     return lapsed.length > 0 ? pushNotices({ ...state, market: m }, notices) : state;
@@ -343,7 +359,7 @@ export function stepMarket(state: SimState): SimState {
     const peak = Math.max(...m.history.map((h) => h.valueUsd));
     const weak = !!state.credit?.distressSinceDay || mine.valueUsd < 0.6 * peak;
     const chance = weak ? MARKET_PARAMS.offerChanceWeak : MARKET_PARAMS.offerChancePerMonth;
-    const suitors = values.filter((x) => x.v >= MARKET_PARAMS.offerMinValueRatio * mine.valueUsd && x.a.cash > 0 && (m.hostileUntil[x.a.id] ?? -Infinity) < day);
+    const suitors = values.filter((x) => x.v >= MARKET_PARAMS.offerMinValueRatio * mine.valueUsd && x.v <= MARKET_PARAMS.offerMaxValueRatio * mine.valueUsd && x.a.cash > 0 && (m.hostileUntil[x.a.id] ?? -Infinity) < day);
     if (suitors.length > 0 && rng() < chance) {
       const s = suitors[Math.floor(rng() * Math.min(5, suitors.length))]!;
       const [lo, hi] = MARKET_PARAMS.offerPremium;

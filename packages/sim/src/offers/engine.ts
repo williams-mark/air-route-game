@@ -30,7 +30,7 @@ function hashId(s: string): number {
 }
 
 function describe(o: Offer, name: string): string {
-  return `${KIND_LABEL[o.kind]} offer ${o.id}: ${o.quantity} x ${name} at ${M(o.unitPriceUsd)} each, ${Math.round(o.discount * 100)}% below list.`;
+  return `${KIND_LABEL[o.kind]} offer: ${o.quantity} x ${name} at ${M(o.unitPriceUsd)} each, ${Math.round(o.discount * 100)}% below list.`;
 }
 
 /**
@@ -48,9 +48,9 @@ export function stepOffers(state: SimState): SimState {
   // Expiry and warnings.
   const kept: Offer[] = [];
   for (const o of offers) {
-    if (o.expiresDay <= day) { say(`Offer expired: ${o.quantity} x ${typeName(o.typeId)} (${KIND_LABEL[o.kind]}, ${o.id}).`); continue; }
+    if (o.expiresDay <= day) { say(`Offer expired: ${o.quantity} x ${typeName(o.typeId)} (${KIND_LABEL[o.kind].toLowerCase()}).`); continue; }
     if (!o.expiryWarned && o.expiresDay - day <= OFFER_PARAMS.expiryWarnDays) {
-      say(`Offer expiring soon: ${o.quantity} x ${typeName(o.typeId)} (${KIND_LABEL[o.kind]}, ${o.id}) closes in ${o.expiresDay - day} days.`);
+      say(`Offer expiring soon: ${o.quantity} x ${typeName(o.typeId)} (${KIND_LABEL[o.kind].toLowerCase()}) closes in ${o.expiresDay - day} days.`);
       kept.push({ ...o, expiryWarned: true });
     } else kept.push(o);
   }
@@ -146,7 +146,7 @@ function accept(state: SimState, offerId: string, quantity: number): { state: Si
   const left = offer.quantity - quantity;
   const offers = left > 0 ? state.offers.map((o) => (o.id === offer.id ? { ...o, quantity: left } : o)) : state.offers.filter((o) => o.id !== offer.id);
   const text =
-    `Ordered ${quantity} x ${type.id} under ${KIND_LABEL[offer.kind].toLowerCase()} offer ${offer.id} at ${Math.round(offer.discount * 100)}% off list ` +
+    `Ordered ${quantity} x ${type.id} under a ${KIND_LABEL[offer.kind].toLowerCase()} offer at ${Math.round(offer.discount * 100)}% off list ` +
     `(${M(offer.unitPriceUsd)} each). Deposit ${M(depositUsd)} paid; first delivery ${monthYear(deliveryDays[0]!)}.`;
   const next = pushEvents(
     {

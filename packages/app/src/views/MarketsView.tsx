@@ -20,7 +20,7 @@ function DealLines({ sim, a, priceUsd }: { sim: SimState; a: RivalAirline; price
   const before = playerValuation(sim).valueUsd;
   return (
     <ul className="mk-deal">
-      <li>You pay {usdM(d.priceUsd)} and take over its cash of {usdM(d.targetCashUsd)}: your cash goes from {usdM(sim.world.cash)} to <b className={d.cashAfterUsd < 0 ? "neg" : ""}>{usdM(d.cashAfterUsd)}</b>{sim.world.cash - d.priceUsd < -creditLimitUsd(sim) ? <b className="neg"> You cannot pay this: it is beyond your {usdM(creditLimitUsd(sim))} credit line, so the offer would be refused.</b> : d.cashAfterUsd < 0 ? " (on your credit line, with interest)" : ""}.</li>
+      <li>You pay {usdM(d.priceUsd)}, take over its cash of {usdM(d.targetCashUsd)} and pay {usdM(d.integrationUsd)} to integrate it (systems, staff, liveries): your cash goes from {usdM(sim.world.cash)} to <b className={d.cashAfterUsd < 0 ? "neg" : ""}>{usdM(d.cashAfterUsd)}</b>{sim.world.cash - d.priceUsd < -creditLimitUsd(sim) ? <b className="neg"> You cannot pay this: it is beyond your {usdM(creditLimitUsd(sim))} credit line, so the offer would be refused.</b> : d.cashAfterUsd < 0 ? " (on your credit line, with interest)" : ""}.</li>
       <li>You get {d.aircraft} aircraft owned outright (about {usdM(d.fleetValueUsd)}), {d.routes} routes and its base{d.bases.length === 1 ? "" : "s"} {d.bases.join(", ")} as hubs.</li>
       <li>Your company value moves from {usdM(before)} by about <b className={d.valueChangeUsd < 0 ? "neg" : "pos"}>{formatMoney(d.valueChangeUsd, { sign: true })}</b> at once (price against what it is worth); it pays off only if the combined network earns more.</li>
       {(d.nearestBaseKm ?? Infinity) > NEAR_KM && <li className="neg">Its hub is {d.nearestBaseKm === null ? "far" : `${Math.round(d.nearestBaseKm).toLocaleString("en-US")} km`} from your nearest base: its routes will not connect with yours.</li>}
@@ -124,7 +124,7 @@ function Company({ sim }: { sim: SimState }) {
       </section>
       <section className="panel-box" aria-label="Company value history">
         <h2>Company value, month by month</h2>
-        <LineChart points={hist} format={usdM} label="Company value" zeroLine />
+        <LineChart points={hist} format={usdM} label="Company value" zeroLine={hist.some((h) => h.value < 0)} />
       </section>
       {(m.payoutUsd > 0 || m.merged.length > 0) && (
         <section className="panel-box" aria-label="Deals">
