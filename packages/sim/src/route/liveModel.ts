@@ -7,6 +7,7 @@ import { homeHubOf, routeHourSummary } from "../fleet/hubs";
 import { competitorItinerariesFor, rivalItinerariesFor } from "../rivals";
 import type { RivalsState } from "../rivals/types";
 import type { RouteReport, SimState } from "../state";
+import type { ProductPolicy } from "../policy/product";
 import { dayToDate, daysInMonth } from "../time/calendar";
 import { benchmarkFareFor } from "../demand/fares";
 import { evaluateNetwork } from "./network";
@@ -43,6 +44,8 @@ export interface LiveModelInput {
   hubs?: readonly Id[];
   /** The airline's service level per cabin (WorldState.serviceLevels). Absent = standard. */
   serviceLevels?: Partial<Record<CabinClass, ServiceLevel>>;
+  /** Product policy and reputation (SimState.product). Absent = the ledger's flat service and ancillary figures. */
+  product?: { policy: ProductPolicy; reputation: number };
 }
 
 export interface LiveModelResult {
@@ -97,6 +100,7 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
       rivalItineraries: a && b ? rivalItinerariesFor(inp.rivals, a, b, types) : undefined,
       competitors: a && b ? competitorItinerariesFor(inp.rivals, a, b, types, airports) : undefined,
       serviceLevels: inp.serviceLevels,
+      product: inp.product,
     };
     const weekAt = (r: Route) => (a && b ? simulateRouteWeek(r, airports, types, day, weekOpts) : null);
     let priced = route;
@@ -141,6 +145,13 @@ export function evaluateLiveRoutes(inp: LiveModelInput): LiveModelResult {
           scale = floorScale;
           floorBinding[route.id] = { floorFare: route.fares.Y * floorScale, target };
         }
+      }
+      // Ceiling: the weekly solve scales last week's fares, so a flight that stays full at the top of the search range used to compound
+      // its fare without limit (a greedy bot reached USD 111,166 on LAX-HNL and the choice model then returned NaN passengers). The
+      // economy fare never rises above FARE_SOLVER_PARAMS.ceilingBenchmarkMultiple x the market's benchmark fare.
+      if (scale > 1) {
+        const ceiling = benchmarkFareFor(a, b) * FARE_SOLVER_PARAMS.ceilingBenchmarkMultiple;
+        if (route.fares.Y * scale > ceiling) scale = ceiling / route.fares.Y;
       }
       priced = { ...route, fares: scaleFares(route.fares, scale) };
       solvedFares[route.id] = priced.fares;
@@ -276,6 +287,7 @@ function liveInput(state: SimState, day: Day, routes: readonly Route[], noise: (
     farePolicies: state.world.farePolicies,
     hubs: playerHubs(state),
     serviceLevels: state.world.serviceLevels,
+    ...(state.product ? { product: { policy: state.product.policy, reputation: state.product.reputation } } : {}),
     noise,
   };
 }

@@ -240,6 +240,10 @@ export interface SimState {
 
   /** Fleet commonality overhead charged so far; absent until first charged. */
   diversity?: DiversityState;
+  /** Product policy (service and fees by distance band) and reputation (policy/product.ts). Absent = defaults, never changed. */
+  product?: import("./policy/product").ProductState;
+  /** Company valuation history, takeover bids and acquisitions (market/). Absent until the first month-end. */
+  market?: import("./market/types").MarketState;
   /** Fleet-planner steering of the scheduler (pins, preferred types, spares). Absent = defaults. */
   planner?: PlannerState;
   /** Monotonic counters for ids: route, aircraft, order. */

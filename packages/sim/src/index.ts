@@ -1,3 +1,5 @@
+import { stepProduct } from "./policy/step";
+import { stepMarket } from "./market/market";
 import type {
   Aircraft, AircraftType, Airport, FinanceSnapshot, Id, Route, SimEvent, WorldState,
 } from "@arg/contracts";
@@ -75,6 +77,11 @@ export * from "./rivals";
 export * from "./serialize";
 export * from "./planner";
 export * from "./campaign/campaign";
+export * from "./policy/product";
+export * from "./policy/step";
+export * from "./policy/report";
+export * from "./market/types";
+export * from "./market/market";
 
 export function newWorld(seed: number): WorldState {
   return { seed, day: 0, playerId: "player", cash: 100_000_000, routes: [], fleet: [] };
@@ -256,6 +263,8 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
     hubs: playerHubs(state),
     // The solve corrects for how far the whole flight (connections included) ended from the target last time (see liveModel).
     previousReports: state.routeReports,
+    // Product policy (service, fees, reputation); absent = the flat service and ancillary figures (policy/product.ts).
+    ...(state.product ? { product: { policy: state.product.policy, reputation: state.product.reputation } } : {}),
   });
   const { schedule, reports } = live;
   // Fare floor and "full route" bookkeeping on the reports (weekly values carried through the other days of the week).
@@ -380,7 +389,7 @@ export function stepDay(state: WorldState | SimState): WorldState | SimState {
   const reviewNotice: SimEvent[] = reviewNow ? [{ kind: "notice", day: day + 1, text: `${state.airlineName}: the campaign has reached its end date. The review is ready.` }] : [];
   const pushed = pushEvents(frozen, [...events, ...notices, ...credit.notices.map((text): SimEvent => ({ kind: "notice", day, text })), ...reviewNotice]);
   // A failed airline stops here: no more offers or rival moves.
-  return credit.bankrupt ? pushed : stepOffers(stepRivals(pushed, day));
+  return credit.bankrupt ? pushed : stepOffers(stepMarket(stepRivals(stepProduct(pushed, day), day)));
 }
 
 /**

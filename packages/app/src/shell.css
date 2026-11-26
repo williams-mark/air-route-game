@@ -290,3 +290,7 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 .cat-chip input { margin: 0; }
 .fleet-hub-filter label + select + label { margin-left: .8rem; }
 .cat-new input { width: 100%; min-width: 0; box-sizing: border-box; }
+
+/* Toolbar badge (a takeover offer waiting on Markets). */
+.tool-btn.has-badge { position: relative; }
+.tool-btn.has-badge::after { content: ""; position: absolute; top: .35rem; right: .55rem; width: .55rem; height: .55rem; border-radius: 50%; background: var(--sev-warn); border: 2px solid var(--panel); }

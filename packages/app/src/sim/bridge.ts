@@ -4,7 +4,7 @@ import { newWorld, stepDay, type CampaignReview, type CheckKind, type CreditStat
 import { routeName, validateRouteDraft, type CommandError } from "../routes/helpers";
 import type { DayRecord } from "./finance";
 import { EMPTY_RIVALS, type RivalsView } from "../rivals/helpers";
-import type { SaveFile, HubCommand, FinanceCommand } from "@arg/sim";
+import type { SaveFile, HubCommand, FinanceCommand, ProductCommand, MarketCommand } from "@arg/sim";
 import type { TutorialState } from "../tutorial/script";
 
 export type Speed = 0 | 1 | 2 | 3 | 4 | 5;
@@ -110,13 +110,13 @@ export interface SimSnapshot {
 }
 
 /** Outcome of a command. Bridges that cannot report an outcome return nothing, which the UI treats as accepted. */
-export type CommandResult = { ok: true; routeId?: Id; orderId?: Id; warnings?: string[]; offerId?: Id } | { ok: false; error: CommandError };
+export type CommandResult = { ok: true; routeId?: Id; orderId?: Id; warnings?: string[]; offerId?: Id; message?: string } | { ok: false; error: CommandError };
 export type { CommandError };
 
 export interface SimBridge {
   getState(): SimSnapshot;
   subscribe(listener: () => void): () => void;
-  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand | CategoryRouteCommand): CommandResult | void;
+  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand | CategoryRouteCommand | ProductCommand | MarketCommand): CommandResult | void;
   /** Read-only sim state for the fleet planner (real bridge only). */
   getSim?(): SimState | null;
   setSpeed(speed: Speed): void;
@@ -218,7 +218,7 @@ export class MockSimBridge implements SimBridge {
   getState = (): SimSnapshot => this.snap;
   subscribe = (l: () => void): (() => void) => { this.listeners.add(l); return () => { this.listeners.delete(l); }; };
 
-  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand | CategoryRouteCommand): CommandResult | void {
+  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand | CategoryRouteCommand | ProductCommand | MarketCommand): CommandResult | void {
     switch (cmd.kind) {
       case "setSpeed": this.setSpeed(cmd.speed); return;
       case "openRoute": {

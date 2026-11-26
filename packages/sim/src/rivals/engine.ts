@@ -15,7 +15,7 @@ import { carriedShare } from "../route/rivalSizing";
 import { dayToDate } from "../time/calendar";
 import {
   ARCHETYPES, ENTRANT_NAME_POOL, RIVAL_PARAMS as RP, SCHEDULED_ENTRANTS, SCOPES, STARTING_RIVALS,
-  EUROPE_LCC_TYPES, DIFFICULTY, WORLD_FIELD, type WorldIntensity, WORLD_NAME_FIRST, WORLD_NAME_SECOND,
+  EUROPE_LCC_TYPES, DIFFICULTY, RAMP, WORLD_FIELD, type WorldIntensity, WORLD_NAME_FIRST, WORLD_NAME_SECOND,
   type ArchetypeSpec, type EntrantSpec,
 } from "./config";
 import type {
@@ -87,9 +87,21 @@ export interface RivalCtx {
   demandFactor?: (a: Airport, b: Airport) => number;
   /** The generated world field (RivalsState.field "world"): no synthetic one-stop rival, orders, outstations, fare policy. */
   world?: boolean;
-  /** World field intensity (difficulty); absent = medium. */
+  /** World field intensity (difficulty, ramped by years played); absent = medium. */
   intensity?: WorldIntensity;
+  /** Aggression toward the player, 0..1 (RAMP): grows with years played. Absent = 0. */
+  aggression?: number;
+  /** Airlines the player turned down (market/hostileUntil): they target the player's markets harder. */
+  hostile?: ReadonlySet<Id>;
+  /** The player's bases (hubs and outstations) and home hub, for outstations and startups that target them. */
+  playerBases?: readonly Id[];
+  playerHome?: Id;
+  /** Extra outstations allowed per airline (RAMP.extraOutstations x progress). */
+  extraOutstations?: number;
 }
+
+/** Aggression of one airline toward the player (ctx.aggression plus the hostility bonus). */
+const aggressionOf = (ctx: RivalCtx, air: RivalAirline) => (ctx.aggression ?? 0) + (ctx.hostile?.has(air.id) ? RAMP.hostileAggression : 0);
 
 /** Stricter of the data package's feasibility (`canFlyRoute`) and the ledger's own range/runway test. */
 export function canServe(t: AircraftType, a: Airport, b: Airport): boolean {
@@ -463,7 +475,21 @@ function considerEntries(ctx: RivalCtx, air: RivalAirline, rivals: RivalsState, 
   if (air.routes.length >= maxRoutes) return;
   const all = marketIndex(rivals);
   const scored: { a: Airport; b: Airport; plan: NonNullable<ReturnType<typeof planEntry>>; est: number; margin: number }[] = [];
-  for (const c of candidatePairs(ctx, air)) {
+  const agg = aggressionOf(ctx, air);
+  const cands = candidatePairs(ctx, air);
+  if (agg > 0) {
+    // Aggressive airlines also look at every player market that touches one of their bases, not only the busiest pairs.
+    const have = new Set([...air.routes.map((r) => marketKey(r.origin, r.destination)), ...cands.map((c) => marketKey(c.a.id, c.b.id))]);
+    for (const [k, p] of ctx.player) {
+      if (have.has(k) || (air.exitedUntil[k] ?? 0) > ctx.day) continue;
+      const o = p.route.origin, d = p.route.destination;
+      const base = air.bases.includes(o) ? o : air.bases.includes(d) ? d : null;
+      if (!base) continue;
+      const a = ctx.airports.get(base), b = ctx.airports.get(base === o ? d : o);
+      if (a && b && airportOpen(a.id, ctx.day) && airportOpen(b.id, ctx.day)) cands.push({ a, b, demand: 0 });
+    }
+  }
+  for (const c of cands) {
     const plan = planEntry(ctx, air, all, c.a, c.b);
     if (!plan) continue;
     let best: { est: number; margin: number; freq: number } | null = null;
@@ -472,7 +498,10 @@ function considerEntries(ctx: RivalCtx, air: RivalAirline, rivals: RivalsState, 
       const e = estimateEntry(ctx, air, all, c.a, c.b, plan.t, f, plan.fare);
       if (e && (!best || e.est > best.est)) best = { est: e.est, margin: e.estMargin, freq: f };
     }
-    if (best) scored.push({ a: c.a, b: c.b, plan: { ...plan, freq: best.freq }, est: best.est, margin: best.margin });
+    if (!best) continue;
+    // Player markets look better to an aggressive airline (it wants share there); only a positive estimate is scaled up.
+    const target = agg > 0 && ctx.player.has(marketKey(c.a.id, c.b.id)) && best.est > 0 ? 1 + RAMP.playerMarketBonus * agg : 1;
+    scored.push({ a: c.a, b: c.b, plan: { ...plan, freq: best.freq }, est: best.est * target, margin: best.margin * (target > 1 ? 1 + 0.5 * (target - 1) : 1) });
   }
   scored.sort((x, y) => y.est - x.est || cmp(marketKey(x.a.id, x.b.id), marketKey(y.a.id, y.b.id)));
   let entered = 0;
@@ -789,7 +818,8 @@ export function stepRivalsWeek(
     if (ctx.world) {
       receiveDeliveries(ctx, sink, air, rivals);
       // All decisions on the airline's own week of the cycle (assigned at set-up), so only a few airlines decide in any week.
-      if (week > 0 && week % (ctx.intensity ?? DIFFICULTY.medium.intensity).decisionCycleWeeks === (air.decisionWeek ?? 0)) {
+      const cycle = (ctx.intensity ?? DIFFICULTY.medium.intensity).decisionCycleWeeks;
+      if (week > 0 && week % cycle === (air.decisionWeek ?? 0) % cycle) {
         air.lastDecisionDay = ctx.day;
         monthly(ctx, sink, air, spec);
         quarterlyExits(ctx, sink, air, rivals, spec);
@@ -1145,8 +1175,9 @@ function enforceStations(ctx: RivalCtx, air: RivalAirline, spec: ArchetypeSpec) 
 /** Open an outstation at the busiest airport the airline already serves (not a base), if it is big enough and can pay. */
 function considerOutstation(ctx: RivalCtx, sink: Sink, air: RivalAirline) {
   const outs = (air.outstations ??= []);
-  if (air.routes.length < WORLD_FIELD.outstationMinRoutes || outs.length >= WORLD_FIELD.maxOutstations) return;
-  if (ctx.rng() >= WORLD_FIELD.outstationChance) return;
+  const agg = aggressionOf(ctx, air);
+  if (air.routes.length < WORLD_FIELD.outstationMinRoutes || outs.length >= WORLD_FIELD.maxOutstations + (ctx.extraOutstations ?? 0)) return;
+  if (ctx.rng() >= WORLD_FIELD.outstationChance * (1 + agg)) return;
   const cost = OUTSTATION_PARAMS.costUsd;
   if (air.cash - cost < ARCHETYPES[air.archetype].reserveWeeks * weeklyFixed(air, ctx) || air.lossWeeks > 0) return;
   const served = [...new Set(air.routes.flatMap((r) => [r.origin, r.destination]))].filter((id) => !air.bases.includes(id) && airportOpen(id, ctx.day)).sort(cmp);
@@ -1156,7 +1187,8 @@ function considerOutstation(ctx: RivalCtx, sink: Sink, air: RivalAirline) {
     if (!ap) continue;
     // Only where its flights there leave room under the cap (at most half of it used already).
     if (stationHours(air, ctx, id) > OUTSTATION_PARAMS.blockHoursPerWeek / 2) continue;
-    const score = baseCandidates(ctx, air, ap).slice(0, 10).reduce((s, c) => s + c.demand, 0);
+    // An aggressive airline prefers the player's bases: from there it competes with the player on every route.
+    const score = baseCandidates(ctx, air, ap).slice(0, 10).reduce((s, c) => s + c.demand, 0) * (ctx.playerBases?.includes(id) ? 1 + 2 * agg : 1);
     if (!best || score > best.score) best = { id, score };
   }
   if (!best || best.score <= 0) return;
@@ -1354,13 +1386,16 @@ function worldStartups(ctx: RivalCtx, rivals: RivalsState, sink: Sink, week: num
   if (active.length >= (ctx.intensity ?? DIFFICULTY.medium.intensity).airlines || ctx.rng() >= WORLD_FIELD.startupChancePerYear) return;
   const top = topAirportsByDemand(ctx.airports, WORLD_FIELD.topAirports, ctx.day);
   if (top.length === 0) return;
-  const hub = top[Math.floor(ctx.rng() * top.length)]!;
-  const archetype: Archetype = ctx.rng() < 0.5 ? "lcc" : "regional";
+  const homeAp = ctx.playerHome ? ctx.airports.get(ctx.playerHome) : undefined;
+  // With growing aggression, a startup may set up at the player's own hub (a low-cost entrant attacking the incumbent).
+  const atHome = !!homeAp && ctx.rng() < RAMP.homeStartupChance * (ctx.aggression ?? 0);
+  const hub = atHome ? homeAp! : top[Math.floor(ctx.rng() * top.length)]!;
+  const archetype: Archetype = atHome || ctx.rng() < 0.5 ? "lcc" : "regional";
   const [lo, hi] = WORLD_FIELD.startupCash;
   const name = worldName(ctx.rng, new Set(rivals.airlines.map((a) => a.name)));
   // The least busy decision week, so the cycle stays balanced.
   const load = new Array<number>((ctx.intensity ?? DIFFICULTY.medium.intensity).decisionCycleWeeks).fill(0);
-  for (const a of active) load[a.decisionWeek ?? 0]!++;
+  for (const a of active) load[(a.decisionWeek ?? 0) % load.length]!++;
   const slot = load.indexOf(Math.min(...load));
   const id = `w${rivals.nextAirline}`;
   launchAirline(ctx, rivals, sink, { id, name, archetype, bases: [hub.id], cash: Math.round(lo + ctx.rng() * (hi - lo)), initialRoutes: 4, scope: { world: true }, maxRoutes: WORLD_FIELD.maxRoutes[archetype] });

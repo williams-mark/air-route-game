@@ -28,6 +28,9 @@ import { CLASS_NAME } from "./cabin/rules";
 import { applyPlannerCommand, type PlannerOk } from "./planner/commands";
 import type { PlannerCommand } from "./planner/types";
 import { continueEndless } from "./campaign/campaign";
+import { setProductPolicy } from "./policy/step";
+import type { ProductPolicy } from "./policy/product";
+import { bidForAirline, respondToBid } from "./market/market";
 
 // ---------------------------------------------------------------------------
 // Parameters (documented in MODEL.md section 6)
@@ -100,7 +103,11 @@ export type CommandErrorCode =
   | "unknown_category"
   | "invalid_category"
   | "already_outstation"
-  | "outstation_full";
+  | "outstation_full"
+  | "invalid_policy"
+  | "unknown_airline"
+  | "bid_rejected"
+  | "unknown_bid";
 
 export interface CommandError {
   ok: false;
@@ -156,15 +163,23 @@ export type FinanceCommand =
 /** Dismiss the end-of-campaign review and play on with no end date (campaign/campaign.ts). */
 export type CampaignCommand = { kind: "continueEndless" };
 
+/** Product policy (policy/product.ts): service and fees by distance band. */
+export type ProductCommand = { kind: "setProductPolicy"; policy: ProductPolicy };
+/** Markets (market/market.ts): offer for a competitor, or answer a competitor's offer for the player's airline. */
+export type MarketCommand = { kind: "bidForAirline"; airlineId: Id; priceUsd: number } | { kind: "respondToBid"; bidId: Id; accept: boolean };
+
 /** Open a route flown by an aircraft category (planner/categories.ts) instead of one type. `route.typeId` is the planning type. */
 export type CategoryRouteCommand = { kind: "openCategoryRoute"; route: Omit<Route, "id">; categoryId: Id };
 
-export type AnyCommand = Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand | CategoryRouteCommand;
+export type AnyCommand = Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand | CategoryRouteCommand | ProductCommand | MarketCommand;
 type OfferOk = Exclude<OfferResult, CommandError>;
 type FullResultMap = CommandResultMap & { acceptOffer: Extract<OfferOk, { kind: "acceptOffer" }>; dismissOffer: Extract<OfferOk, { kind: "dismissOffer" }>; refitAircraft: Extract<RefitResult, { ok: true }> }
   & { [K in PlannerCommand["kind"]]: Extract<PlannerOk, { kind: K }> }
   & { continueEndless: { ok: true; kind: "continueEndless" } }
-  & { openCategoryRoute: { ok: true; kind: "openCategoryRoute"; routeId: Id; route: Route; categoryId: Id; warnings: string[] } };
+  & { openCategoryRoute: { ok: true; kind: "openCategoryRoute"; routeId: Id; route: Route; categoryId: Id; warnings: string[] } }
+  & { setProductPolicy: { ok: true; kind: "setProductPolicy" } }
+  & { bidForAirline: { ok: true; kind: "bidForAirline"; message: string } }
+  & { respondToBid: { ok: true; kind: "respondToBid"; message: string } };
 export type CommandResult<K extends AnyCommand["kind"] = AnyCommand["kind"]> = FullResultMap[K] | CommandError;
 export type ResultOf<C extends AnyCommand> = CommandResult<C["kind"]>;
 
@@ -547,6 +562,19 @@ function apply(state: SimState, cmd: AnyCommand): { state: SimState; result: Com
   // A bankrupt airline accepts no commands: the game is over (start a new game or load a save).
   if (isBankrupt(state)) return { state, result: fail("bankrupt", "The airline is bankrupt. Load a save or start a new game.") };
   switch (cmd.kind) {
+    case "setProductPolicy": {
+      const r = setProductPolicy(state, cmd.policy);
+      return r.error ? { state, result: fail("invalid_policy", r.error) } : { state: r.state, result: { ok: true, kind: "setProductPolicy" } };
+    }
+    case "bidForAirline": {
+      const r = bidForAirline(state, cmd.airlineId, cmd.priceUsd);
+      // A rejected offer still changes state (the record and the cool-down), so its state is kept.
+      return r.ok ? { state: r.state, result: { ok: true, kind: "bidForAirline", message: r.message } } : { state: r.state, result: fail(state.rivals?.airlines.some((a) => a.id === cmd.airlineId) ? "bid_rejected" : "unknown_airline", r.message) };
+    }
+    case "respondToBid": {
+      const r = respondToBid(state, cmd.bidId, cmd.accept);
+      return r.ok ? { state: r.state, result: { ok: true, kind: "respondToBid", message: r.message } } : { state, result: fail("unknown_bid", r.message) };
+    }
     case "acceptOffer":
     case "dismissOffer":
       return applyOfferCommand(state, cmd);

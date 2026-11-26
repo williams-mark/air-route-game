@@ -6,7 +6,7 @@ import { formatMoney } from "./format";
 import type { Command, Day, Id, SimEvent } from "@arg/contracts";
 import { aircraftTypes as dataTypes, airports as rawAirports, terminalsFor } from "@arg/data";
 import {
-  applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, LIFECYCLE_PARAMS, dayToDate, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay, campaignReview, campaignReviewDue, type CampaignReview, type CampaignCommand, type CategoryRouteCommand,
+  applyCommand, createClock, makeSave, type SaveFile, defaultLayout, drainEvents, layoutSeats, maintenanceEnabled, LIFECYCLE_PARAMS, dayToDate, type CabinCommand, type OfferCommand, type PlannerCommand, startingScenario, stepDay, campaignReview, campaignReviewDue, type CampaignReview, type CampaignCommand, type CategoryRouteCommand, type ProductCommand, type MarketCommand,
   validateSimState, type Clock, type SimState, type HubCommand, type FinanceCommand, homeHubOf, creditStatus, isBankrupt, fleetDiversity, holdingOf, playerIndirectUsd,
 } from "@arg/sim";
 
@@ -71,6 +71,8 @@ export const LOW_CASH_USD = 15_000_000;
 export function classifyNotice(text: string): Severity {
   if (/Financial distress|Still in distress|Bankruptcy/.test(text)) return "alert";
   if (/Distress over/.test(text)) return "good";
+  if (/^Takeover offer|board rejected|reputation is now (poor|very poor)/.test(text)) return "warn";
+  if (/^You bought|has bought .* for|reputation is now (good|excellent)/.test(text)) return "good";
   if (/Cash is below zero/.test(text)) return "warn";
   if (/under-supplied|forced|no spare aircraft can cover|deferring|Delivery delayed|Offer expiring soon/i.test(text)) return "warn";
   if (/cut .* fares|bankrupt|collapsed|ceased/i.test(text)) return "warn";
@@ -311,7 +313,7 @@ export class RealSimBridge implements SimBridge {
 
   getSim = (): SimState => this.sim;
 
-  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand | CategoryRouteCommand): CommandResult | void {
+  dispatch(cmd: Command | OfferCommand | CabinCommand | PlannerCommand | HubCommand | FinanceCommand | CampaignCommand | CategoryRouteCommand | ProductCommand | MarketCommand): CommandResult | void {
     if (cmd.kind === "setSpeed") {
       if (![0, 1, 2, 3, 4, 5].includes(cmd.speed)) return { ok: false, error: { code: "invalid_speed", message: "Speed must be 0 to 5." } };
       this.setSpeed(cmd.speed);
@@ -335,6 +337,7 @@ export class RealSimBridge implements SimBridge {
       case "orderAircraft": return { ok: true, orderId: result.orderId };
       case "acceptOffer": return { ok: true, orderId: result.orderId, offerId: result.offerId };
       case "dismissOffer": return { ok: true, offerId: result.offerId };
+      case "bidForAirline": case "respondToBid": return { ok: true, message: result.message };
       default: return { ok: true };
     }
   }

@@ -64,6 +64,11 @@ export interface RouteInputs {
   operatedFraction?: number;
   /** Cabin-lane hook, omitted = no change: multiplier on passenger-services cost and seat count used for crew sizing. */
   cabinCost?: { paxServices?: number; crewSeats?: number };
+  /**
+   * Product policy hook (policy/product.ts), omitted = the flat figures above: passenger services and ancillary revenue per passenger,
+   * and flight attendants added per flight (crew staffing level).
+   */
+  product?: { servicesUsdPerPax: number; ancillaryUsdPerPax: number; crewDelta: number };
 }
 
 export interface LedgerLine {
@@ -191,7 +196,8 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
   const fraction = Math.max(0, Math.min(1, inp.operatedFraction ?? 1));
   const flights = feasible ? 2 * inp.weeklyFrequency * fraction : 0;
   const seatsWeek = flights * seatsPerFlight;
-  const pax = feasible ? Math.min(Math.max(0, inp.weeklyPassengers), seatsWeek) : 0;
+  // A non-finite passenger count (a degenerate choice result) counts as none, so it can never reach cash.
+  const pax = feasible && Number.isFinite(inp.weeklyPassengers) ? Math.min(Math.max(0, inp.weeklyPassengers), seatsWeek) : 0;
   const lf = seatsWeek > 0 ? pax / seatsWeek : 0;
   const fuelGal = jetAPriceUsdPerGallon(inp.day, origin);
   const fuelKg = fuelGal / KG_PER_GALLON;
@@ -207,8 +213,8 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
     add("revenue", `fare_${c.cls}`, `Fares, ${c.cls} cabin`, p * c.fare,
       `${r2(p)} pax/wk x ${usd(c.fare)} (${c.seats} seats/flight, ${r2(flights)} flights)`);
   });
-  const ancillary = pax * P.ancillaryUsdPerPax;
-  add("revenue", "ancillary", "Ancillary (bags, seats, onboard)", ancillary, `${r2(pax)} pax x ${usd(P.ancillaryUsdPerPax)}`);
+  const ancPerPax = inp.product?.ancillaryUsdPerPax ?? P.ancillaryUsdPerPax;
+  add("revenue", "ancillary", "Ancillary (bags, seats, onboard)", pax * ancPerPax, `${r2(pax)} pax x ${usd(ancPerPax)}${inp.product ? " (fee policy)" : ""}`);
   const revenue = lines.reduce((s, l) => s + l.weekly, 0);
 
   // Variable operating costs
@@ -219,7 +225,7 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
     `${r2(flights)} flights x ${Math.round(fuelPerFlightKg)} kg (burn ${aircraft.fuelBurnKgPerKm} kg/km x ${Math.round(dist * P.routeExtension)} km x load adj ${r2(loadFactorBurn)} + taxi) x ${usd(fuelKg * 1000) } per tonne @ $${r2(fuelGal)}/gal`);
 
   const pilots = bh > 12 ? 4 : bh > 8 ? 3 : 2;
-  const fas = Math.max(2, Math.ceil((inp.cabinCost?.crewSeats ?? seatsPerFlight) / P.seatsPerFlightAttendant));
+  const fas = Math.max(2, Math.ceil((inp.cabinCost?.crewSeats ?? seatsPerFlight) / P.seatsPerFlightAttendant) + (inp.product?.crewDelta ?? 0));
   const cf = costFactors(origin, destination);
   const crewPerFlight = (pilots * P.pilotUsdPerHour + fas * P.faUsdPerHour) * bh * cf.labour;
   add("cost", "crew", "Flight and cabin crew", flights * crewPerFlight,
@@ -232,8 +238,9 @@ export function evaluateRoute(inp: RouteInputs): RouteEvaluation {
   add("cost", "handling", "Ground handling", flights * P.groundHandlingUsd[kind] * cf.handling,
     `${r2(flights)} turnarounds x ${usd(P.groundHandlingUsd[kind])} (${kind}body)${cf.handling !== 1 ? ` x ${r2(cf.handling)} regional handling` : ""}`);
 
-  add("cost", "paxServices", "Passenger services", pax * P.passengerServicesUsdPerPax * (inp.cabinCost?.paxServices ?? 1),
-    `${r2(pax)} pax x ${usd(P.passengerServicesUsdPerPax)}${inp.cabinCost?.paxServices && inp.cabinCost.paxServices !== 1 ? ` x ${r2(inp.cabinCost.paxServices)} cabin mix` : ""} (catering, check-in, claims)`);
+  const svcPerPax = inp.product?.servicesUsdPerPax ?? P.passengerServicesUsdPerPax;
+  add("cost", "paxServices", "Passenger services", pax * svcPerPax * (inp.cabinCost?.paxServices ?? 1),
+    `${r2(pax)} pax x ${usd(svcPerPax)}${inp.product ? " (service policy)" : ""}${inp.cabinCost?.paxServices && inp.cabinCost.paxServices !== 1 ? ` x ${r2(inp.cabinCost.paxServices)} cabin mix` : ""} (catering, check-in, claims)`);
 
   const maintPerHour = P.maintenanceUsdPerSeatHour[kind] * seatsPerFlight * obsolescenceMultiplier(aircraft, inp.day);
   add("cost", "maintenance", "Maintenance", maintenanceEnabled() ? flights * bh * maintPerHour : 0,
