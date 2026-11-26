@@ -16,6 +16,7 @@ import type {
 import { DecisionEngine, type EngineState, type PendingDecision } from "./decisions";
 import { buildRivalsView, type RivalsView } from "../rivals/helpers";
 import { dayRecord, type DayRecord } from "./finance";
+import { deregulateIfDue, regulationBlock, tutorialProblem, DEREGULATION_LABEL, type TutorialState } from "../tutorial/script";
 
 /** Data airports with the per-terminal fee tiers attached (packages/data keeps terminals in their own table), so the sim sees real terminals at big hubs. */
 export const dataAirports = rawAirports.map((a) => { const t = terminalsFor(a.id); return t.length > 0 ? { ...a, terminals: t } : a; });
@@ -40,6 +41,8 @@ export interface BridgeExtras {
   pending: PendingDecision[];
   engine: EngineState;
   lowCash: boolean;
+  /** Tutorial game mode progress and the regulated era (tutorial/script.ts). Absent outside the tutorial and in older saves. */
+  tutorial?: TutorialState;
 }
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -56,6 +59,8 @@ export function validateExtras(x: unknown): string[] {
   if (!isObj(e) || !Array.isArray(e.cooldown) || !Array.isArray(e.status) || typeof e.primed !== "boolean"
     || e.cooldown.some((c) => !Array.isArray(c) || c.length !== 2) || e.status.some((c) => !Array.isArray(c) || c.length !== 2)) out.push("the saved decision engine is damaged");
   if (typeof x.lowCash !== "boolean") out.push("the low-cash flag is invalid");
+  const tut = tutorialProblem(x.tutorial);
+  if (tut) out.push(tut);
   return out;
 }
 
@@ -97,6 +102,8 @@ export class RealSimBridge implements SimBridge {
   private lastOverdrawnAlert = -Infinity;
   private nextNotice = 1;
   private ledger: DayRecord[] = [];
+  /** Tutorial mode (null outside it). Kept beside the sim like the feed: it is game mode, not simulation. */
+  private tutorial: TutorialState | null = null;
   private pending: PendingDecision[] = [];
   private engine = new DecisionEngine();
   /** No notice or delivery pauses the clock (the owner removed those pauses). */
@@ -115,12 +122,12 @@ export class RealSimBridge implements SimBridge {
   private reset(sim: SimState, speed: Speed, welcome: boolean, extras?: BridgeExtras): void {
     this.sim = sim;
     this.notices = []; this.lastOverdrawnAlert = -Infinity; this.nextNotice = 1; this.ledger = []; this.pending = []; this.engine = new DecisionEngine();
-    this.lowCash = false; this.offersOf = null; this.viewOf = null; this.rivalsOf = null;
+    this.lowCash = false; this.offersOf = null; this.viewOf = null; this.rivalsOf = null; this.tutorial = null;
     this.clock = createClock({ startDay: this.sim.world.day, speed: this.frozen() ? 0 : speed, maxDtMs: this.opts.maxDtMs ?? 500 });
     this.sim = { ...this.sim, speed: this.clock.speed };
     if (extras) {
       this.notices = extras.notices; this.nextNotice = extras.nextNotice; this.ledger = extras.ledger; this.pending = extras.pending;
-      this.engine = DecisionEngine.fromJSON(extras.engine); this.lowCash = extras.lowCash;
+      this.engine = DecisionEngine.fromJSON(extras.engine); this.lowCash = extras.lowCash; this.tutorial = extras.tutorial ?? null;
     }
     if (welcome) this.say(0, "info", `Welcome to ${this.sim.airlineName}. Your fleet is waiting at ${this.sim.baseAirport ?? "your base"}.`);
     this.snap = this.build();
@@ -134,7 +141,7 @@ export class RealSimBridge implements SimBridge {
     const { state } = drainEvents(this.sim); // keep queued events out of the file; they are already shown in the feed
     return makeSave<BridgeExtras>({ ...state, pendingEvents: [], events: [] }, {
       appVersion: APP_VERSION,
-      extras: { notices: this.notices, nextNotice: this.nextNotice, ledger: this.ledger, pending: this.pending, engine: this.engine.toJSON(), lowCash: this.lowCash },
+      extras: { notices: this.notices, nextNotice: this.nextNotice, ledger: this.ledger, pending: this.pending, engine: this.engine.toJSON(), lowCash: this.lowCash, ...(this.tutorial ? { tutorial: this.tutorial } : {}) },
     });
   }
 
@@ -161,7 +168,7 @@ export class RealSimBridge implements SimBridge {
 
   private static readonly FIELDS = [
     "sim", "clock", "snap", "notices", "nextNotice", "ledger", "pending", "engine", "lowCash",
-    "offersOf", "offersCache", "viewOf", "rivalsOf", "rivalsCache",
+    "offersOf", "offersCache", "viewOf", "rivalsOf", "rivalsCache", "tutorial",
   ] as const;
   private captureFields(): Record<string, unknown> {
     const self = this as unknown as Record<string, unknown>;
@@ -172,10 +179,21 @@ export class RealSimBridge implements SimBridge {
   }
 
   /** Start a fresh game with `seed`, optionally at another home airport and under another airline name (see sim `startingScenario`). */
-  newGame(seed: number, options: { hub?: string; name?: string; startYear?: number; presentYear?: number; campaignYears?: number | null; startFleet?: ReadonlyArray<readonly [string, number]>; rivalField?: "classic" | "world"; difficulty?: "easy" | "medium" | "hard" } = {}): void {
+  newGame(seed: number, options: { hub?: string; name?: string; startYear?: number; presentYear?: number; campaignYears?: number | null; startFleet?: ReadonlyArray<readonly [string, number]>; rivalField?: "classic" | "world"; difficulty?: "easy" | "medium" | "hard"; tutorial?: TutorialState } = {}): void {
     // New games use the generated world field of rival airlines (sim rivals/world; owner design of 20 Nov 2026).
     options = { rivalField: "world", ...options };
-    this.reset(startingScenario(dataAirports, dataTypes, seed, options), 1, true);
+    const { tutorial, ...scenario } = options;
+    this.reset(startingScenario(dataAirports, dataTypes, seed, scenario), 1, true);
+    if (tutorial) { this.tutorial = tutorial; this.snap = this.build(); this.emit(); }
+  }
+
+  // --- Tutorial ------------------------------------------------------------
+
+  /** Replace the tutorial state (the coach card advances it). */
+  setTutorial(t: TutorialState | null): void {
+    this.tutorial = t;
+    this.snap = this.build();
+    this.emit();
   }
 
   // --- Driver --------------------------------------------------------------
@@ -200,9 +218,11 @@ export class RealSimBridge implements SimBridge {
 
   /** Advance by `ms` of real time at the current speed; one snapshot per call. Returns days stepped. */
   advance(ms: number): number {
-    const days = this.clock.advance(ms);
-    if (days > 0) {
-      for (let i = 0; i < days; i++) this.stepOne();
+    const granted = this.clock.advance(ms);
+    let days = 0;
+    if (granted > 0) {
+      // A pause from inside the game (the tutorial's deregulation day, bankruptcy, the campaign review) ends the batch on that day.
+      while (days < granted) { this.stepOne(); days++; if (this.clock.speed === 0) break; }
       this.syncSpeed();
       this.collect();
       this.emit();
@@ -220,6 +240,14 @@ export class RealSimBridge implements SimBridge {
     // A bankrupt airline is frozen: nothing more to simulate (and the sim would hand back its last events again).
     if (this.frozen()) { this.clock.setSpeed(0); return; }
     this.sim = stepDay(this.sim);
+    if (this.tutorial && !this.tutorial.deregulated) {
+      const t = deregulateIfDue(this.tutorial, this.sim.world.day);
+      if (t !== this.tutorial) {
+        this.tutorial = t;
+        this.clock.setSpeed(0); // a moment to read the news
+        this.say(this.sim.world.day, "good", `Airline Deregulation Act signed (${DEREGULATION_LABEL}). You may now open routes of your own choosing.`);
+      }
+    }
     const snap = this.sim.events.find((e): e is Extract<SimEvent, { kind: "finance" }> => e.kind === "finance");
     if (snap) this.ledger.push(dayRecord(snap.snapshot, this.sim.routeReports, this.sim.credit?.lastInterestUsd ?? 0, this.sim.diversity?.lastUsd ?? 0, playerIndirectUsd(this.sim, snap.snapshot.revenue)));
     if (this.frozen()) this.clock.setSpeed(0); // the sim has paused itself (bankruptcy or the campaign review); keep the clock in step
@@ -289,6 +317,8 @@ export class RealSimBridge implements SimBridge {
       this.setSpeed(cmd.speed);
       return { ok: true };
     }
+    const blocked = regulationBlock(this.tutorial, cmd as { kind: string });
+    if (blocked) return { ok: false, error: { code: "regulated", message: blocked } };
     const { state, result } = applyCommand(this.sim, cmd);
     this.sim = state;
     this.collect();
@@ -352,6 +382,7 @@ export class RealSimBridge implements SimBridge {
       credit: creditStatus(sim),
       review: this.reviewView(),
       diversity: fleetDiversity(sim),
+      tutorial: this.tutorial,
     };
   }
 

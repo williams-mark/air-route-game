@@ -176,7 +176,9 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
   const hoursShort = !!hours && hours.needed > hours.free + 1e-9;
   // What the projection below really shows: the preview flies at most what the hub's free block hours allow, whatever is asked.
   const achievable = hoursShort && hours && perFlight && perFlight.needed > 0 ? Math.max(0, Math.floor((hours.free + 1e-9) / perFlight.needed)) : freq;
-  const capLine = hoursShort && hours ? `Needs ${hours.needed.toFixed(1)} block h/wk, ${Math.max(0, hours.free).toFixed(1)} free: flies ${achievable}/wk at most. The figures below are for ${achievable}/wk, not the ${freq}/wk requested, and Open route is disabled.` : null;
+  // Capped to nothing: there is no flight to project, so the KPIs show a dash rather than figures for a route that would not fly.
+  const noFlights = hoursShort && achievable === 0;
+  const capLine = hoursShort && hours ? (achievable === 0 ? `Needs ${hours.needed.toFixed(1)} block h/wk, ${Math.max(0, hours.free).toFixed(1)} free: not enough for even one flight a week, so there is nothing to project and Open route is disabled.` : `Needs ${hours.needed.toFixed(1)} block h/wk, ${Math.max(0, hours.free).toFixed(1)} free: flies ${achievable}/wk at most. The figures below are for ${achievable}/wk, not the ${freq}/wk requested, and Open route is disabled.`) : null;
   const [lfText, setLfText] = useState("");
   const lf = parseTargetLf(lfText);
   const [openError, setOpenError] = useState<string | null>(null);
@@ -300,9 +302,9 @@ function PairSandbox({ originId, destinationId }: { originId: string; destinatio
           {planned && <p className="rc-note" role="status"><b>Planned, not operating.</b> No free aircraft; standalone model.</p>}
           {livePrev && !livePrev.ownershipIncluded && livePrev.operatedFraction > 0 && livePrev.operatedFraction < 1 && <p className="rc-note" role="status">Fleet can fly {Math.round(livePrev.operatedFraction * 100)}% of round trips.</p>}
           <div className="rp-proj rc-proj-kpis" aria-live="polite" aria-busy={settling}>
-            <div><span className="k">{settling ? "Updating" : `${livePrev && !livePrev.ownershipIncluded ? "Route profit/wk" : "Profit/wk"}${hoursShort ? ` at ${achievable}/wk` : ""}`}</span><span className={`big ${!ev ? "" : ev.profit >= 0 ? "pos" : "neg"}`}>{ev ? usdSigned(ev.profit) : "–"}</span></div>
-            <div><span className="k">Load factor</span><span className="big">{ev ? pct(ev.loadFactor) : "–"}</span></div>
-            <div><span className="k">Share</span><span className="big">{week ? pct(week.snapshot.playerShare) : "–"}</span></div>
+            <div><span className="k">{settling ? "Updating" : `${livePrev && !livePrev.ownershipIncluded ? "Route profit/wk" : "Profit/wk"}${hoursShort ? ` at ${achievable}/wk` : ""}`}</span><span className={`big ${!ev || noFlights ? "" : ev.profit >= 0 ? "pos" : "neg"}`}>{ev && !noFlights ? usdSigned(ev.profit) : "–"}</span></div>
+            <div><span className="k">Load factor</span><span className="big">{ev && !noFlights ? pct(ev.loadFactor) : "–"}</span></div>
+            <div><span className="k">Share</span><span className="big">{week && !noFlights ? pct(week.snapshot.playerShare) : "–"}</span></div>
           </div>
           {ev && !ev.feasible && <p className="rp-err" role="alert">{ev.infeasibleReasons.join("; ")}</p>}
           {sweep.length > 0 && <FrequencyBars points={sweep} bestFreq={best?.frequency ?? null} current={hoursShort ? achievable : freq} onPick={setFreq} />}

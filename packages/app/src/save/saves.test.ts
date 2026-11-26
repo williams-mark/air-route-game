@@ -107,7 +107,7 @@ describe("damaged saves never break the running game", () => {
       ["missing state", (g) => { const o = JSON.parse(g); delete o.state; return JSON.stringify(o); }],
       ["missing world", (g) => { const o = JSON.parse(g); delete o.state.world; return JSON.stringify(o); }],
       ["cash null (NaN serialised)", (g) => { const o = JSON.parse(g); o.state.world.cash = null; return JSON.stringify(o); }],
-      ["day negative", (g) => { const o = JSON.parse(g); o.state.world.day = -3; return JSON.stringify(o); }],
+      ["day before the earliest start year", (g) => { const o = JSON.parse(g); o.state.world.day = -1_000_000; return JSON.stringify(o); }],
     ];
     for (const [name, make] of fileCases) {
       it(`rejects ${name} and keeps the running game`, () => {

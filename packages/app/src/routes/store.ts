@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Speed } from "../sim/bridge";
 import { bridge, setSpeed } from "../sim/useSim";
 import { useUi } from "../store";
+import { regulated, REGULATED_MESSAGE } from "../tutorial/script";
 
 // --- Toasts ----------------------------------------------------------------
 export interface Toast { id: number; kind: "good" | "alert" | "info"; text: string }
@@ -48,6 +49,8 @@ export const useCreation = create<CreationState>((set, get) => ({
   open: false, origin: null, destination: null, pick: "origin", prevSpeed: 0,
   begin: (origin) => {
     if (get().open) { if (origin) get().assign(origin, "origin"); return; }
+    // Tutorial, before deregulation: the Board picks the routes, so the route creator stays shut (the bridge refuses them too).
+    if (regulated(bridge.getState().tutorial)) { useToasts.getState().push("info", REGULATED_MESSAGE); return; }
     const prev = bridge.getState().speed;
     setSpeed(0);
     const ui = useUi.getState();

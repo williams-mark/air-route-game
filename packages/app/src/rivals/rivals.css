@@ -29,6 +29,9 @@
 .rv-role.outstation { color: var(--text); }
 .rv-dest.you { text-decoration: underline; text-underline-offset: 3px; }
 .rv-presence td, .rv-routes td { vertical-align: top; }
+/* The destination list wraps, so Departures and Seats stay on screen at laptop widths. */
+table.data.rv-presence td:nth-child(3) { white-space: normal; min-width: 16rem; }
+.rv-presence .rv-dest { white-space: nowrap; }
 .rv-news { margin-top: 1rem; }
 .rv-news h3 { margin: 0 0 .4rem; font-size: .95rem; }
 .rv-news ul { margin: 0; padding-left: 1rem; display: grid; gap: .2rem; }

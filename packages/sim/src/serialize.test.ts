@@ -45,6 +45,15 @@ describe("validateSimState / parseSave on damaged saves", () => {
     expect(parseSave(text(good())).ok).toBe(true);
   });
 
+  it("accepts a game that started before 2015 (negative days), and still rejects days before the earliest start", () => {
+    const early = JSON.parse(JSON.stringify(run(startingScenario(airports, aircraftTypes, 11, { startYear: 1978, presentYear: 2026 }), 3)));
+    expect(early.world.day).toBeLessThan(0);
+    expect(validateSimState(early)).toEqual([]);
+    expect(parseSave(text(early)).ok).toBe(true);
+    early.world.day = -1_000_000;
+    expect(validateSimState(early)).toContain("the day is invalid");
+  });
+
   const cases: Array<[string, (s: any) => void, RegExp]> = [
     ["missing orders", (s) => { delete s.orders; }, /orders/],
     ["orders of the wrong type", (s) => { s.orders = {}; }, /orders/],

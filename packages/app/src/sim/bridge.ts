@@ -5,6 +5,7 @@ import { routeName, validateRouteDraft, type CommandError } from "../routes/help
 import type { DayRecord } from "./finance";
 import { EMPTY_RIVALS, type RivalsView } from "../rivals/helpers";
 import type { SaveFile, HubCommand, FinanceCommand } from "@arg/sim";
+import type { TutorialState } from "../tutorial/script";
 
 export type Speed = 0 | 1 | 2 | 3 | 4 | 5;
 export type Severity = "info" | "good" | "warn" | "alert";
@@ -104,6 +105,8 @@ export interface SimSnapshot {
   review?: CampaignReview | null;
   /** Fleet commonality overhead (real sim only). */
   diversity?: FleetDiversity;
+  /** Tutorial mode progress (real sim only; null or absent outside the tutorial). */
+  tutorial?: TutorialState | null;
 }
 
 /** Outcome of a command. Bridges that cannot report an outcome return nothing, which the UI treats as accepted. */
@@ -122,7 +125,9 @@ export interface SimBridge {
   /** Save/load support (real bridge only). */
   serialize?(): SaveFile;
   loadGame?(save: SaveFile): void;
-  newGame?(seed: number, options?: { hub?: string; name?: string; startYear?: number; presentYear?: number; campaignYears?: number | null; startFleet?: ReadonlyArray<readonly [string, number]>; difficulty?: "easy" | "medium" | "hard" }): void;
+  newGame?(seed: number, options?: { hub?: string; name?: string; startYear?: number; presentYear?: number; campaignYears?: number | null; startFleet?: ReadonlyArray<readonly [string, number]>; difficulty?: "easy" | "medium" | "hard"; tutorial?: TutorialState }): void;
+  /** Tutorial mode (real bridge only). */
+  setTutorial?(t: TutorialState | null): void;
 }
 
 export const DAYS_PER_SECOND: Record<Speed, number> = { 0: 0, 1: 1, 2: 3, 3: 7, 4: 14, 5: 30 };

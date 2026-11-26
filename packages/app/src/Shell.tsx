@@ -21,6 +21,7 @@ import { useCreation } from "./routes/store";
 import { SaveDialog, StartScreen, quickSave } from "./save/SaveUi";
 import { installAutosave } from "./save/saves";
 import { useAchievementTracker } from "./achievements/useAchievementTracker";
+import { TutorialCoach } from "./tutorial/TutorialCoach";
 import "./routes/routes.css";
 
 const LAZY: Partial<Record<ViewId, ReturnType<typeof lazy>>> = {
@@ -118,6 +119,7 @@ export function Shell() {
         {page}
         <RoutePanel />
         <TimeControls />
+        <TutorialCoach />
       </div>
       <NotificationDock />
       <Toasts />
