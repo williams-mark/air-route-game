@@ -272,6 +272,8 @@ export class RealSimBridge implements SimBridge {
       if (e.kind !== "notice" || QUIET.test(e.text)) continue;
       const sev = classifyNotice(e.text);
       this.say(e.day, sev, e.text);
+      // A takeover offer for the player's airline needs an answer: pause, and the shell shows the offer (TakeoverPrompt).
+      if (/^Takeover offer:/.test(e.text)) this.clock.setSpeed(0);
     }
     const cash = this.sim.world.cash;
     const today = this.sim.world.day;

@@ -20,7 +20,7 @@ describe("valuation", () => {
     s = runDays(s, 62);
     const m = marketOf(s);
     expect(m.history.length).toBeGreaterThanOrEqual(2);
-    expect(m.history[0]!.rivals.length).toBe(10);
+    expect(m.history[0]!.rivals.length).toBe(s.rivals!.airlines.filter((a) => a.status === "active").length);
   }, 60_000);
 });
 

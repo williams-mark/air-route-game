@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import type { Id } from "@arg/contracts";
 import {
   baseJetAPriceUsdPerGallon, bidRefusal, creditLimitUsd, dealPreview, guidePriceUsd, isDistressed, MARKET_PARAMS, marketOf, nextBidDay, playerValuation, rivalHistory, rivalValuation,
@@ -182,7 +182,8 @@ function Competitors({ sim }: { sim: SimState }) {
               const last = [...m.bids].reverse().find((b) => b.rivalId === a.id);
               const far = (deal.nearestBaseKm ?? Infinity) > NEAR_KM;
               return (
-                <tr key={a.id}>
+                <Fragment key={a.id}>
+                <tr>
                   <th scope="row">{a.name}<span className="hint"> {ARCH[a.archetype]}{isDistressed(a) ? " · in trouble" : ""}{(m.hostileUntil[a.id] ?? -1) > sim.world.day ? " · hostile to you" : ""}{far ? ` · far from your network (${deal.nearestBaseKm === null ? "?" : Math.round(deal.nearestBaseKm).toLocaleString("en-US")} km)` : ""}</span>
                     {last && <span className="hint mk-last"> Last offer {formatDate(last.day)}: {usdM(last.priceUsd)}, {last.outcome}{last.hintUsd ? ` (asking ${usdM(last.hintUsd)})` : ""}</span>}
                     {wait !== null && <span className="hint mk-last"> Next offer possible from {formatDate(wait)}.</span>}
@@ -194,18 +195,22 @@ function Competitors({ sim }: { sim: SimState }) {
                   <td className={`num ${change === null ? "" : change >= 0 ? "pos" : "neg"}`}>{change === null ? "–" : `${change >= 0 ? "+" : "−"}${Math.abs(change * 100).toFixed(0)}%`}</td>
                   <td className="num">{usdM(guide)}</td>
                   <td>
-                    {open === a.id ? (
-                      <form className="mk-bid" onSubmit={(e) => { e.preventDefault(); bid(a); }}>
-                        <label>$<input autoFocus inputMode="decimal" aria-label={`Offer for ${a.name}, millions of dollars`} value={price} onChange={(e) => setPrice(e.target.value)} />M</label>
-                        <button className="primary" type="submit">Confirm offer</button>
-                        <button type="button" onClick={() => setOpen(null)}>Cancel</button>
-                        <DealLines sim={sim} a={a} priceUsd={Number(price.replace(/[^0-9.]/g, "")) * 1e6} />
-                      </form>
-                    ) : (
+                    {open === a.id ? <span className="hint">Offer below</span> : (
                       <button disabled={wait !== null || (!!refusal && !/credit line/.test(refusal))} title={refusal ?? undefined} onClick={() => { setOpen(a.id); setPrice(String(Math.ceil(guide / 1e5) / 10)); }}>Make offer</button>
                     )}
                   </td>
                 </tr>
+                {open === a.id && (
+                  <tr className="mk-offer-tr"><td colSpan={8}>
+                    <form className="mk-bid" onSubmit={(e) => { e.preventDefault(); bid(a); }}>
+                      <label>Offer for {a.name}: $<input autoFocus inputMode="decimal" aria-label={`Offer for ${a.name}, millions of dollars`} value={price} onChange={(e) => setPrice(e.target.value)} />M</label>
+                      <button className="primary" type="submit">Confirm offer</button>
+                      <button type="button" onClick={() => setOpen(null)}>Cancel</button>
+                    </form>
+                    <DealLines sim={sim} a={a} priceUsd={Number(price.replace(/[^0-9.]/g, "")) * 1e6} />
+                  </td></tr>
+                )}
+                </Fragment>
               );
             })}
           </tbody>

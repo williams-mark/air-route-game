@@ -294,3 +294,6 @@ kbd { font: inherit; font-size: .74rem; padding: .08rem .4rem; border: 1px solid
 /* Toolbar badge (a takeover offer waiting on Markets). */
 .tool-btn.has-badge { position: relative; }
 .tool-btn.has-badge::after { content: ""; position: absolute; top: .35rem; right: .55rem; width: .55rem; height: .55rem; border-radius: 50%; background: var(--sev-warn); border: 2px solid var(--panel); }
+.takeover-card { max-width: 34rem; }
+.takeover-card ul { padding-left: 1.1rem; line-height: 1.5; font-size: .9rem; }
+.takeover-card .mk-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
