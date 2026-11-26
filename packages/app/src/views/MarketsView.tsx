@@ -72,8 +72,8 @@ function Company({ sim }: { sim: SimState }) {
   const v = playerValuation(sim);
   const m = marketOf(sim);
   const hist = m.history.map((h) => ({ day: h.day, value: h.valueUsd }));
-  const year = m.history.filter((h) => h.day >= sim.world.day - 365)[0];
-  const change = year ? v.valueUsd / Math.max(1, year.valueUsd) - 1 : null;
+  const year = m.history.filter((h) => h.day >= sim.world.day - 380)[0];
+  const change = year && sim.world.day - year.day >= 330 ? v.valueUsd / Math.max(1, year.valueUsd) - 1 : null;
   const rank = (() => {
     const types = new Map(sim.aircraftTypes.map((t) => [t.id, t]));
     const vals = (sim.rivals?.airlines ?? []).filter((a) => a.status === "active").map((a) => rivalValuation(a, types).valueUsd);
@@ -119,8 +119,9 @@ function Competitors({ sim }: { sim: SimState }) {
   const [sort, setSort] = useState<"value" | "name">("value");
   const rows = (sim.rivals?.airlines ?? []).filter((a) => a.status === "active").map((a) => {
     const v = rivalValuation(a, types).valueUsd;
-    const past = rivalHistory(m, a.id).filter((h) => h.day >= sim.world.day - 365)[0];
-    return { a, v, change: past ? v / Math.max(1, past.valueUsd) - 1 : null, guide: guidePriceUsd(sim, a) };
+    // Change over the last year: only once there is a sample about a year old (the first months have nothing to compare).
+    const past = rivalHistory(m, a.id).filter((h) => h.day >= sim.world.day - 380)[0];
+    return { a, v, change: past && sim.world.day - past.day >= 330 ? v / Math.max(1, past.valueUsd) - 1 : null, guide: guidePriceUsd(sim, a) };
   }).sort((x, y) => (sort === "value" ? y.v - x.v : x.a.name.localeCompare(y.a.name)));
   const mine = playerValuation(sim).valueUsd;
   const recent = (sim.rivals?.news ?? []).filter((n) => n.kind === "acquired").slice(-6).reverse();

@@ -17,3 +17,7 @@ tr.pol-group th { background: var(--panel-2); font-size: .72rem; text-transform:
 .pol-totals p { margin: 0 0 .6rem; font-size: .9rem; }
 .pol-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .policies .panel-box { margin-top: 1rem; }
+
+/* Form controls in theme colours (light and dark). */
+.policies select, .policies input[type="number"], .markets .mk-bid input { font: inherit; font-size: .86rem; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: .35rem .5rem; min-width: 0; }
+.policies input[type="number"] { font-variant-numeric: tabular-nums; }
